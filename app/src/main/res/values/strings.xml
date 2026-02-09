@@ -10,4 +10,61 @@
     <string name="status_paused">Paused</string>
     <string name="status_completed">Completed</string>
     <string name="status_failed">Failed</string>
+    <string name="status_waiting_permissions">Waiting for permissions...</string>
+
+    <!-- Story 1.8: Permission Request Strings -->
+    <string name="perm_install_title">Install Apps Permission Required</string>
+    <string name="perm_storage_title">Storage Access Permission Required</string>
+    <string name="perm_battery_title">Battery Optimization Permission Required</string>
+    
+    <string name="perm_install_desc">Allow Rookie On Quest to install game files (APK) directly on your headset.</string>
+    <string name="perm_storage_desc">Allow access to manage all files for game data. This is required to copy OBB files to the correct location.</string>
+    <string name="perm_battery_desc">Allow Rookie On Quest to run in the background without battery restrictions. This prevents interruptions during long downloads.</string>
+    
+    <string name="perm_install_why">Why: Quest headsets require special permission to install APK files from outside the official store.</string>
+    <string name="perm_storage_why">Why: Many VR games require OBB data files that must be copied to a specific system folder.</string>
+    <string name="perm_battery_why">Why: Large game downloads can take 30+ minutes. Battery optimization may pause downloads unexpectedly.</string>
+    
+    <string name="perm_revoked_title">Permission Revoked</string>
+    <string name="perm_revoked_msg">The %1$s permission was revoked. Please grant it again to install games.</string>
+    <string name="perm_revoked_multiple_msg">%1$d permissions were revoked. Please grant them again to install games.</string>
+    
+    <string name="perm_name_install">Install Apps</string>
+    <string name="perm_name_storage">Storage Access</string>
+    <string name="perm_name_battery">Battery Optimization</string>
+    
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_grant">Grant Permission</string>
+    <string name="btn_open_settings">Open Settings</string>
+    <string name="btn_later">Later</string>
+
+    <!-- Story 1.8: Permission Overlay Strings -->
+    <string name="perm_overlay_title">Action Required</string>
+    <string name="perm_overlay_subtitle">Rookie On Quest needs some permissions to sideload games directly to your headset library.</string>
+    <string name="perm_overlay_grant_button">GRANT PERMISSIONS</string>
+
+    <string name="perm_install_unknown_apps_title">Install Unknown Apps</string>
+    <string name="perm_install_unknown_apps_desc">Allows Rookie to install the games you download.</string>
+
+    <string name="perm_manage_storage_title">File Access</string>
+    <string name="perm_manage_storage_desc">Required to copy OBB and game files to storage.</string>
+
+    <string name="perm_battery_optimization_title">Battery Optimization</string>
+    <string name="perm_battery_optimization_desc">Prevents the system from killing Rookie during long downloads.</string>
+
+    <string name="perm_denial_message">Permission required. Please grant %1$s in Settings to install games.</string>
+    <string name="status_blocked_permissions">Blocked: Missing Permissions</string>
+    <string name="msg_permissions_granted">Permissions granted. Installing...</string>
+    <string name="msg_critical_permissions_granted">Required permissions granted. Installing... (Battery optimization recommended but not required)</string>
+
+    <!-- Story 1.8: Game List Item Strings -->
+    <string name="game_btn_resume">RESUME</string>
+    <string name="game_btn_in_queue">IN QUEUE</string>
+    <string name="game_btn_paused">PAUSED</string>
+    <string name="game_btn_update">UPDATE</string>
+    <string name="game_btn_installed">INSTALLED</string>
+    <string name="game_btn_install">INSTALL</string>
+    <string name="game_btn_download">DOWNLOAD</string>
+    <string name="game_btn_uninstall">UNINSTALL</string>
+    <string name="game_btn_delete_download">DELETE DOWNLOAD</string>
 </resources>

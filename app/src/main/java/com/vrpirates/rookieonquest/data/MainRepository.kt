@@ -173,7 +173,7 @@ class MainRepository(private val context: Context) {
         if (password != null) builder.setPassword(password.toCharArray())
 
         builder.get().use { sevenZFile ->
-            // Reuse buffer across all file extractions to reduce GC pressure (Code Review fix)
+            // Reuse buffer across all file extractions to reduce GC pressure
             val sharedBuffer = ByteArray(DownloadUtils.DOWNLOAD_BUFFER_SIZE)
             var entry = sevenZFile.nextEntry
             while (entry != null) {
@@ -255,7 +255,7 @@ class MainRepository(private val context: Context) {
     }
 
     private suspend fun copyToCancellable(input: InputStream, output: OutputStream) {
-        // Use standardized buffer size from DownloadUtils for consistency (Code Review fix: magic number)
+        // Use standardized buffer size from DownloadUtils for consistency
         val buffer = ByteArray(DownloadUtils.DOWNLOAD_BUFFER_SIZE)
         var bytesRead: Int
         while (true) {
@@ -267,7 +267,7 @@ class MainRepository(private val context: Context) {
     }
 
     /**
-     * Story 1.7 Code Review Fix: Copy with progress callback for large file staging.
+     * Copy with progress callback for large file staging.
      * Reports progress during APK staging to avoid UI "freeze" at 96%.
      */
     private suspend fun copyToCancellableWithProgress(
@@ -674,7 +674,7 @@ class MainRepository(private val context: Context) {
         val cachedApk = File(gameDownloadDir, apkFileName)
 
         // Find any APK in download dir if standard one doesn't match
-        // Story 1.7 Code Review Round 8: Use isValidApkFile instead of isApkMatching to eliminate duplication
+        // Use isValidApkFile instead of isApkMatching to eliminate duplication
         var foundApk: File? = if (isValidApkFile(cachedApk, game.packageName, targetVersion)) cachedApk else null
         if (foundApk == null && gameDownloadDir.exists()) {
              foundApk = gameDownloadDir.listFiles()?.find { isValidApkFile(it, game.packageName, targetVersion) }
@@ -999,9 +999,9 @@ class MainRepository(private val context: Context) {
                         var lastProgressUpdateMs = 0L
                         // Extraction spans 85-92% for monotonic progress (not 85-100% which causes backwards jump to 94%/96% for OBB/APK)
                         val extractionPhaseSpan = Constants.PROGRESS_MILESTONE_EXTRACTION_END - Constants.PROGRESS_MILESTONE_EXTRACTING
-                        // Reuse buffer across all files to reduce GC pressure (Code Review fix)
+                        // Reuse buffer across all files to reduce GC pressure
                         val extractionBuffer = ByteArray(DownloadUtils.DOWNLOAD_BUFFER_SIZE)
-                        // Cache canonical path outside loop to avoid repeated IO calls (Code Review fix: performance)
+                        // Cache canonical path outside loop to avoid repeated IO calls
                         val canonicalExtractDir = extractionDir.canonicalPath
 
                         var entry = sevenZFile.nextEntry
@@ -1175,7 +1175,7 @@ class MainRepository(private val context: Context) {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to save files to downloads", e)
-                // Story 1.7 Code Review Round 8: Clean up partial files from failed download save
+                // Clean up partial files from failed download save
                 // If saving to downloads fails partway through, remove incomplete files to avoid confusion
                 try {
                     if (gameDownloadDir.exists()) {
@@ -1214,8 +1214,8 @@ class MainRepository(private val context: Context) {
     )
 
     /**
-     * Story 1.7: Common installation phase logic - OBB movement + APK staging.
-     * Extracted to prevent duplication between installGame and installFromExtracted (Code Review fix).
+     * Common installation phase logic - OBB movement + APK staging.
+     * Extracted to prevent duplication between installGame and installFromExtracted.
      *
      * @param artifacts Pre-parsed installation artifacts
      * @param game Game data
@@ -1282,7 +1282,7 @@ class MainRepository(private val context: Context) {
 
                 if (nativeLibs.isNotEmpty()) {
                     // APK has native libraries - check ABI compatibility
-                    // Story 1.7 Code Review Round 9 - ABI Compatibility Note:
+                    // ABI Compatibility Note:
                     //
                     // This logic handles the 32-bit on 64-bit scenario specifically for Meta Quest VR devices.
                     // Meta Quest 2/3/Pro all use Qualcomm Snapdragon SoCs which support both arm64-v8a AND
@@ -1330,13 +1330,13 @@ class MainRepository(private val context: Context) {
         // Progress milestone for APK staging (96%)
         onProgress("Preparing APK...", Constants.PROGRESS_MILESTONE_LAUNCHING_INSTALLER, totalBytes, totalBytes)
 
-        // Story 1.7 Code Review Round 5: Removed aggressive cleanup before staging
+        // Removed aggressive cleanup before staging
         // Each APK is named {packageName}.apk, so different packages don't interfere.
         // Same package reinstalls simply overwrite the file.
         // Aggressive cleanup was deleting APKs of PENDING_INSTALL tasks, causing installation failures.
         // Cleanup is now deferred to post-verification in checkInstallationStatusSilent().
 
-        // Story 1.7 Code Review Fix: Check available space before staging APK
+        // Check available space before staging APK
         // Staging requires copying the APK to externalFilesDir, doubling space requirement temporarily
         val externalFilesDir = context.getExternalFilesDir(null)
         if (externalFilesDir != null) {
@@ -1363,7 +1363,7 @@ class MainRepository(private val context: Context) {
         val externalApk = getStagedApkFile(game.packageName)
             ?: throw IllegalStateException("External files directory not available")
 
-        // Story 1.7 Code Review Fix (Item 2): Check if APK is already staged to avoid redundant work
+        // Check if APK is already staged to avoid redundant work
         // When resuming PENDING_INSTALL tasks, the APK may already be staged from a previous attempt
         // If the staged APK exists with correct size and is valid, skip staging to save time/storage
         val apkSize = finalApk.length()
@@ -1375,7 +1375,7 @@ class MainRepository(private val context: Context) {
             Log.i(TAG, "APK already staged with correct size and valid, skipping redundant staging")
             onProgress("APK ready...", Constants.PROGRESS_MILESTONE_LAUNCHING_INSTALLER, totalBytes, totalBytes)
         } else {
-            // Story 1.7 Code Review Fix: Use progress callback for large APK staging
+            // Use progress callback for large APK staging
             // This prevents UI "freeze" at 96% during large APK copies (up to 4GB)
             val stagingBaseProgress = Constants.PROGRESS_MILESTONE_LAUNCHING_INSTALLER // 0.96f
             val stagingEndProgress = 0.98f // Leave 2% for final validation and intent launch
@@ -1408,8 +1408,8 @@ class MainRepository(private val context: Context) {
     }
 
     /**
-     * Story 1.7: Parse installation artifacts (APK, install.txt, OBB) from extraction directory.
-     * Extracted to prevent duplication between installGame and installFromExtracted (Code Review fix).
+     * Parse installation artifacts (APK, install.txt, OBB) from extraction directory.
+     * Extracted to prevent duplication between installGame and installFromExtracted.
      *
      * @param extractionDir Directory containing extracted files
      * @param gameDownloadDir Optional download directory to search (for non-archive files)
@@ -1421,11 +1421,11 @@ class MainRepository(private val context: Context) {
         gameDownloadDir: File?,
         packageName: String
     ): InstallationArtifacts {
-        // Story 1.7 Code Review Round 6: Improved APK discovery with prioritization
+        // Improved APK discovery with prioritization
         // Priority: 1) Root-level APK matching packageName, 2) Root-level APK, 3) Any APK matching packageName, 4) First APK found
         val allApks = mutableListOf<File>()
 
-        // Story 1.7 Code Review Round 6: Security - Validate packageName format before using
+        // Security - Validate packageName format before using
         // Package names must match: [a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*
         val packageNamePattern = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)*\$")
         if (!packageNamePattern.matches(packageName)) {
@@ -1489,7 +1489,6 @@ class MainRepository(private val context: Context) {
                         if (sourceFile.exists()) {
                             specialMoves.add(sourceFile to destPath)
                         } else {
-                            // Story 1.7 Code Review Fix: Improved source file matching
                             // Try to match using parent directory context when possible
                             val sourcePath = File(cleanSource)
                             val sourceFileName = sourcePath.name
@@ -1509,7 +1508,7 @@ class MainRepository(private val context: Context) {
                             }
 
                             bestMatch?.let {
-                                // Code Review Fix (Item 3): Warn if ambiguous matching occurred
+                                // Warn if ambiguous matching occurred
                                 if (candidates.size > 1) {
                                     Log.w(TAG, "install.txt: Multiple candidates found for '$cleanSource' (${candidates.size} total), selected: ${it.absolutePath}")
                                     candidates.forEach { candidate ->
@@ -1563,7 +1562,7 @@ class MainRepository(private val context: Context) {
             }
         }
 
-        // Story 1.7 Code Review Round 9 Fix: Natural/numeric sort for OBB files
+        // Natural/numeric sort for OBB files
         // Uses the production comparator from InstallUtils for testability
         // This ensures correct ordering when multiple OBB files exist (e.g., main.1, main.2, main.10)
         val sortedLooseObbs = looseObbs.sortedWith { file1, file2 ->
@@ -1579,7 +1578,7 @@ class MainRepository(private val context: Context) {
     }
 
     /**
-     * Story 1.7: Zombie Recovery - Install from already-extracted files.
+     * Zombie Recovery - Install from already-extracted files.
      * This method is called when extraction_done.marker exists (post-extraction crash recovery).
      * It performs ONLY the installation phase (OBB movement + APK staging) without re-extracting.
      *
@@ -1612,14 +1611,14 @@ class MainRepository(private val context: Context) {
             throw Exception("No APK found in extracted files for installation")
         }
 
-        // Story 1.7 Code Review Fix: Verify APK version matches catalog expectation
+        // Verify APK version matches catalog expectation
         // This prevents installing an outdated APK from a previous download that was interrupted
         val catalogVersion = game.versionCode.toLongOrNull() ?: 0L
         if (catalogVersion > 0L && !isValidApkFile(artifacts.finalApk, game.packageName, catalogVersion)) {
             // APK version doesn't match catalog - extraction may be stale
             Log.w(TAG, "Zombie Recovery: APK version mismatch for ${game.releaseName}, expected version $catalogVersion")
 
-            // Story 1.7 Code Review Round 6: Safe cleanup of stale extraction
+            // Safe cleanup of stale extraction
             // gameTempDir is the extraction-specific directory (cacheDir/install_temp/{md5hash}/)
             // This does NOT affect segment files which are in downloadsDir/{releaseName}/
             // Safe to delete recursively because:
@@ -1637,7 +1636,7 @@ class MainRepository(private val context: Context) {
             throw IllegalStateException("Stale extraction detected: APK version doesn't match catalog. Please retry download.")
         }
 
-        // Story 1.7: Start progress at 94% (skip 0-92% download/extraction)
+        // Start progress at 94% (skip 0-92% download/extraction)
         val totalBytes = artifacts.finalApk.length()
         onProgress("Resuming installation...", Constants.PROGRESS_MILESTONE_INSTALLING_OBBS, totalBytes, totalBytes)
 
@@ -1646,17 +1645,17 @@ class MainRepository(private val context: Context) {
     }
 
     /**
-     * Story 1.7: Copy game data files from extraction directory to external storage (sdcard).
+     * Copy game data files from extraction directory to external storage (sdcard).
      * This function handles special file movement instructions from install.txt files.
      *
-     * Code Review Note (Item 1, 9): Why copy instead of move?
+     * Why copy instead of move?
      * - Source: context.cacheDir (internal storage, typically /data/data/com.package/cache/)
      * - Destination: Environment.getExternalStorageDirectory() (external storage, /storage/emulated/0/)
      * - These are on DIFFERENT filesystems/mount points on Android
      * - A true "move" (atomic rename operation) is only possible within the same filesystem
      * - Therefore, we MUST use copyRecursively/copyTo, then delete source later in cleanup phase
      *
-     * Code Review Note (Item 9): Function naming
+     * Function naming
      * - Renamed from moveDataToSdcard to copyDataToSdcard for accuracy
      * - The function performs a copy operation, not a true move
      * - Source deletion happens later during cleanup phase to ensure copy succeeded
@@ -1665,10 +1664,10 @@ class MainRepository(private val context: Context) {
      * @param destPath Destination path relative to sdcard (e.g., "/sdcard/Android/data/com.game/")
      */
     private fun copyDataToSdcard(source: File, destPath: String) {
-        // Story 1.7 Code Review Round 8: Verify MANAGE_EXTERNAL_STORAGE permission on Android 11+
+        // Verify MANAGE_EXTERNAL_STORAGE permission on Android 11+
         // This method requires broad file access to write to external storage directories
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
+            if (!PermissionManager.hasManageExternalStoragePermission(context)) {
                 Log.e(TAG, "MANAGE_EXTERNAL_STORAGE permission not granted for copyDataToSdcard")
                 throw SecurityException("MANAGE_EXTERNAL_STORAGE permission required for special data installation")
             }
@@ -1676,11 +1675,11 @@ class MainRepository(private val context: Context) {
 
         val sdcard = Environment.getExternalStorageDirectory()
 
-        // Story 1.7 Code Review Round 6: Path injection validation
+        // Path injection validation
         // Ensure destPath doesn't escape the sdcard directory via "../" or absolute paths
         val normalizedDest = destPath.removePrefix("/sdcard/").removePrefix("sdcard/").removePrefix("/")
 
-        // Story 1.7 Code Review Round 8: Enhanced path injection validation
+        // Enhanced path injection validation
         // Block directory traversal patterns, encoded variations, and suspicious characters
         val dangerousPatterns = listOf(
             "..", "../", "..\\", "./", ".\\",  // Directory traversal
@@ -1714,7 +1713,7 @@ class MainRepository(private val context: Context) {
             File(sdcard, normalizedDest)
         }
 
-        // Story 1.7 Code Review Round 6: Additional safety check - ensure target is within sdcard
+        // Additional safety check - ensure target is within sdcard
         val canonicalTarget = targetFile.canonicalPath
         val canonicalSdcard = sdcard.canonicalPath
         if (!canonicalTarget.startsWith(canonicalSdcard)) {
@@ -1724,7 +1723,7 @@ class MainRepository(private val context: Context) {
 
         Log.d(TAG, "Copying special data: ${source.absolutePath} to ${targetFile.absolutePath}")
 
-        // Story 1.7 Code Review Fix: Acquire WakeLock for large directory moves
+        // Acquire WakeLock for large directory moves
         // This prevents the device from sleeping during long copy operations
         val isLargeOperation = source.isDirectory || source.length() > 50 * 1024 * 1024 // > 50MB
         if (isLargeOperation) {
@@ -1740,14 +1739,14 @@ class MainRepository(private val context: Context) {
                 source.copyTo(targetFile, overwrite = true)
             }
 
-            // Story 1.7 Code Review Fix: Remove MediaScanner calls for game data files
+            // Remove MediaScanner calls for game data files
             // Game data files (configs, saves, assets) are not media files and don't need scanning.
             // MediaScanner adds unnecessary overhead and delays installation for no benefit.
             Log.d(TAG, "Successfully copied ${source.name} to ${targetFile.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to copy special data: ${source.name}", e)
         } finally {
-            // Story 1.7 Code Review Fix: Release WakeLock after operation
+            // Release WakeLock after operation
             if (isLargeOperation) {
                 WakeLockManager.release()
             }
@@ -1755,13 +1754,13 @@ class MainRepository(private val context: Context) {
     }
 
     /**
-     * Story 1.7: Startup cleanup method for stale installation directories.
+     * Startup cleanup method for stale installation directories.
      *
      * This method is called on app startup to clean up temporary installation files
      * for packages that are already installed. It uses a simple heuristic: if the
      * package is installed and the temp directory exists, clean it up.
      *
-     * Story 1.7 Code Review Round 8: This method does NOT verify versionCode.
+     * This method does NOT verify versionCode.
      * The reason is that install.info only stores packageName and obbRequired, not
      * the version. This is intentional because:
      * 1. This is a startup cleanup method, not an installation verification method
@@ -1906,13 +1905,13 @@ class MainRepository(private val context: Context) {
     }
 
     private fun moveObbFiles(packageFolder: File?, looseObbs: List<File>, packageName: String) {
-        // Story 1.7: Check MANAGE_EXTERNAL_STORAGE permission before OBB operations
+        // Check MANAGE_EXTERNAL_STORAGE permission before OBB operations
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-            !Environment.isExternalStorageManager()) {
+            !PermissionManager.hasManageExternalStoragePermission(context)) {
             throw SecurityException("MANAGE_EXTERNAL_STORAGE permission required for OBB files")
         }
 
-        // Story 1.7 Code Review Fix: Use system API for base path, construct OBB path correctly
+        // Use system API for base path, construct OBB path correctly
         // Environment.getExternalStorageDirectory() returns the correct user-specific path
         // (e.g., /storage/emulated/0 for primary user, /storage/emulated/10 for secondary users)
         val externalStorage = Environment.getExternalStorageDirectory()
@@ -1960,7 +1959,7 @@ class MainRepository(private val context: Context) {
                 try {
                     destFile.parentFile?.mkdirs()
 
-                    // Story 1.7 Code Review Fix: Idempotency check using size only
+                    // Idempotency check using size only
                     // lastModified() comparison removed due to filesystem precision issues
                     // (some filesystems have second precision, others millisecond)
                     // Size-only check is sufficient for OBB files which are immutable game assets
@@ -1985,7 +1984,7 @@ class MainRepository(private val context: Context) {
                             }
                         }
                     }
-                    // Story 1.7: DO NOT scan OBB files with MediaScanner (non-media archives)
+                    // DO NOT scan OBB files with MediaScanner (non-media archives)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to move OBB from folder: ${source.name}", e)
                 }
@@ -1996,7 +1995,7 @@ class MainRepository(private val context: Context) {
             val destFile = File(obbBaseDir, loose.name)
             val isFromDownloads = loose.absolutePath.contains(downloadsDir.absolutePath)
             try {
-                // Story 1.7 Code Review Fix: Idempotency check using size only (see above for reasoning)
+                // Idempotency check using size only (see above for reasoning)
                 if (destFile.exists() && destFile.length() == loose.length()) {
                     Log.d(TAG, "Skipping loose OBB file (already present with matching size): ${loose.name}")
                     if (!isFromDownloads) {
@@ -2013,13 +2012,13 @@ class MainRepository(private val context: Context) {
                     }
                     if (!isFromDownloads) loose.delete()
                 }
-                // Story 1.7: DO NOT scan OBB files with MediaScanner (non-media archives)
+                // DO NOT scan OBB files with MediaScanner (non-media archives)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to move loose OBB: ${loose.name}", e)
             }
         }
 
-        // Story 1.7 Code Review Round 5: OBB integrity verification
+        // OBB integrity verification
         // Verify that all expected OBB files were successfully copied
         if (totalObbBytes > 0) {
             val expectedObbCount = (packageFolder?.walkTopDown()?.count { it.isFile && !it.name.endsWith(".apk", true) } ?: 0) +
@@ -2045,7 +2044,7 @@ class MainRepository(private val context: Context) {
     }
 
     /**
-     * Story 1.7 Code Review Round 8: DEPRECATED - Use isValidApkFile() instead.
+     * DEPRECATED - Use isValidApkFile() instead.
      *
      * This method is kept for backward compatibility but should not be used in new code.
      * The isValidApkFile() method is more flexible (optional parameters) and eliminates
@@ -2059,7 +2058,7 @@ class MainRepository(private val context: Context) {
         return try {
             val pm = context.packageManager
             val info = pm.getPackageArchiveInfo(file.absolutePath, 0) ?: return false
-            val fileVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+            val fileVersion = info.longVersionCode
             info.packageName == packageName && fileVersion == versionCode
         } catch (e: Exception) {
             false
@@ -2376,7 +2375,7 @@ class MainRepository(private val context: Context) {
      * This ensures that staged APK files are actually valid Android packages
      * and not corrupted, and optionally that they match the expected identity.
      *
-     * Story 1.7 Code Review Round 9 Note - APK Signature Verification:
+     * APK Signature Verification:
      * This method uses PackageManager.getPackageArchiveInfo() which validates the APK structure
      * and signature internally. If an APK has been tampered with in a way that breaks its signature,
      * getPackageArchiveInfo() returns null and the APK will be rejected.
@@ -2420,7 +2419,7 @@ class MainRepository(private val context: Context) {
             
             // Check version code (handles both legacy and long version codes)
             val versionMatch = expectedVersionCode == null || 
-                    (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) packageInfo.longVersionCode else packageInfo.versionCode.toLong()) == expectedVersionCode
+                    packageInfo.longVersionCode == expectedVersionCode
             
             packageMatch && versionMatch
         } catch (e: Exception) {

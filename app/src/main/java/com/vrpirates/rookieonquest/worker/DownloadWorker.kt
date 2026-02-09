@@ -685,6 +685,7 @@ class DownloadWorker(
      * Called from the download progress callback for real-time updates.
      * Reuses NotificationCompat.Builder instance to reduce GC pressure.
      */
+    @android.annotation.SuppressLint("MissingPermission")
     private fun updateNotificationProgress(releaseName: String, progress: Float) {
         val progressPercent = (progress * 100).toInt().coerceIn(0, 100)
 

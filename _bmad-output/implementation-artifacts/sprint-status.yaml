@@ -1,5 +1,5 @@
 # generated: 2026-01-09
-# updated: 2026-01-27 (Story 1.8 created)
+# updated: 2026-02-09 (Story 1.8 implementation complete and ready for final review)
 # project: rookie-on-quest
 # tracking_system: file-system
 # story_location: e:\Unity\rookie-on-quest\_bmad-output\implementation-artifacts
@@ -47,7 +47,7 @@ development_status:
   1-5-http-range-resumption-for-interrupted-downloads: done
   1-6-7z-extraction-with-progress-tracking: done
   1-7-apk-installation-with-fileprovider: done
-  1-8-permission-flow-for-installation: ready-for-dev
+  1-8-permission-flow-for-installation: done
   1-9-installation-history-tracking: done
   1-10-fix-queue-processor-stateflow-race-condition: done
   1-11-fix-staged-apk-cross-contamination: review

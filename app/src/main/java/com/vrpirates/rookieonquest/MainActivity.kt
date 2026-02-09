@@ -62,6 +62,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.FileProvider
 import com.vrpirates.rookieonquest.ui.*
 import com.vrpirates.rookieonquest.ui.theme.RookieOnQuestTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -113,6 +114,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     var gameToDelete by remember { mutableStateOf<GameItemState?>(null) }
     var taskToCancel by remember { mutableStateOf<String?>(null) }
 
+    // Permission request dialog state
+    var showPermissionDialog by remember { mutableStateOf<RequiredPermission?>(null) }
+
+    // Permission revoked dialog state
+    val showRevokedDialog by viewModel.showRevokedDialog.collectAsState()
+
     LaunchedEffect(listState, staggeredGridState) {
         snapshotFlow {
             if (listState.layoutInfo.visibleItemsInfo.isNotEmpty()) listState.layoutInfo.visibleItemsInfo.map { it.index }
@@ -154,36 +161,16 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     }
                 }
                 is MainEvent.RequestInstallPermission -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                        context.startActivity(intent)
-                    }
+                    // Story 1.8: Show permission dialog first, then launch intent
+                    showPermissionDialog = RequiredPermission.INSTALL_UNKNOWN_APPS
                 }
                 is MainEvent.RequestStoragePermission -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        try {
-                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                                data = Uri.parse("package:${context.packageName}")
-                            }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                            context.startActivity(intent)
-                        }
-                    }
+                    // Story 1.8: Show permission dialog first, then launch intent
+                    showPermissionDialog = RequiredPermission.MANAGE_EXTERNAL_STORAGE
                 }
                 is MainEvent.RequestIgnoreBatteryOptimizations -> {
-                    try {
-                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                        context.startActivity(intent)
-                    }
+                    // Story 1.8: Show permission dialog first, then launch intent
+                    showPermissionDialog = RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS
                 }
                 is MainEvent.ShowUpdatePopup -> {
                     showUpdateDialogState = event.release
@@ -201,6 +188,59 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         snackbarHostState.showSnackbar("Failed to copy logs: ${e.message}")
                     }
                 }
+                is MainEvent.OpenPermissionSettings -> {
+                    // Open system settings for the specific permission
+                    // Add explanatory message for Android 10 (API 29) storage permission
+                    // since users need to manually find "Files and media" in settings
+                    try {
+                        // For Android 10 storage permission, show instructions first
+                        if (event.permission == RequiredPermission.MANAGE_EXTERNAL_STORAGE &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                            Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                            // Launch coroutine to show message then open settings
+                            // Use CoroutineScope since we're not in a ViewModel context
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                snackbarHostState.showSnackbar(
+                                    message = "In Settings: Tap 'Permissions' → Enable 'Files and media'",
+                                    duration = SnackbarDuration.Long
+                                )
+                                // Brief pause to let user read the message, then open settings
+                                kotlinx.coroutines.delay(1500)
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            }
+                        } else {
+                            val intent = when (event.permission) {
+                                RequiredPermission.INSTALL_UNKNOWN_APPS -> {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                    } else null
+                                }
+                                RequiredPermission.MANAGE_EXTERNAL_STORAGE -> {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                    } else null
+                                }
+                                RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS -> {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                            data = Uri.parse("package:${context.packageName}")
+                                        }
+                                    } else null
+                                }
+                            }
+                            intent?.let { context.startActivity(it) }
+                        }
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Failed to open settings: ${e.message}")
+                    }
+                }
             }
         }
     }
@@ -210,7 +250,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
-                    viewModel.checkPermissions()
+                    // Handle app resume (check permissions, sync flow)
+                    // Consolidated into single call to avoid race conditions
+                    viewModel.onAppResume()
+
                     viewModel.setAppVisibility(true)
                     // Story 1.7: Verify pending installations when app returns to foreground
                     // This handles the case where user installed APK in system installer
@@ -248,8 +291,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 BackHandler(enabled = true) { /* Block back button during update dialog */ }
                 UpdateOverlay(
                     release = showUpdateDialogState!!,
-                    onDismiss = { 
-                        showUpdateDialogState = null 
+                    onDismiss = {
+                        showUpdateDialogState = null
                         viewModel.onUpdateDialogDismissed()
                     },
                     onConfirm = {
@@ -259,12 +302,6 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 )
             }
             missingPermissions == null -> LoadingScreen("Checking permissions...")
-            missingPermissions!!.isNotEmpty() -> {
-                PermissionOverlay(
-                    missingPermissions = missingPermissions!!,
-                    onGrantClick = { viewModel.startPermissionFlow() }
-                )
-            }
             else -> {
                 Scaffold(
                     snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -280,8 +317,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                             onSettingsClick = { showSettingsDialog = true },
                             onRefreshClick = { viewModel.refreshData() },
                             isRefreshing = isRefreshing,
-                            isInstalling = installQueue.any { it.status != InstallTaskStatus.COMPLETED && it.status != InstallTaskStatus.FAILED && it.status != InstallTaskStatus.PAUSED } || isUpdateDownloading,
-                            permissionsMissing = false 
+                            isInstalling = installQueue.any { 
+                                it.status != InstallTaskStatus.COMPLETED && 
+                                it.status != InstallTaskStatus.FAILED && 
+                                it.status != InstallTaskStatus.PAUSED &&
+                                it.status != InstallTaskStatus.BLOCKED_BY_PERMISSIONS
+                            } || isUpdateDownloading,
+                            permissionsMissing = !missingPermissions.isNullOrEmpty()
                         )
                     },
                     containerColor = Color.Black,
@@ -341,7 +383,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                             onDeleteDownloadClick = { gameToDelete = game },
                                             onResumeClick = { viewModel.resumeInstall(game.releaseName) },
                                             onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
-                                            isGridItem = true
+                                            isGridItem = true,
+                                            permissionsMissing = missingPermissions?.isNotEmpty() == true
                                         )
                                     }
                                 }
@@ -359,7 +402,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                             onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
                                             onDeleteDownloadClick = { gameToDelete = game },
                                             onResumeClick = { viewModel.resumeInstall(game.releaseName) },
-                                            onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) }
+                                            onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
+                                            permissionsMissing = missingPermissions?.isNotEmpty() == true
                                         )
                                     }
                                 }
@@ -454,6 +498,85 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 },
                 containerColor = Color(0xFF1E1E1E),
                 shape = RoundedCornerShape(24.dp)
+            )
+        }
+
+        // Permission Request Dialog
+        if (showPermissionDialog != null) {
+            PermissionRequestDialog(
+                permission = showPermissionDialog!!,
+                onGrant = {
+                    // Launch the appropriate intent based on permission type
+                    when (showPermissionDialog!!) {
+                        RequiredPermission.INSTALL_UNKNOWN_APPS -> {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                try {
+                                    val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    // Fallback: Try to open app settings page
+                                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            }
+                        }
+                        RequiredPermission.MANAGE_EXTERNAL_STORAGE -> {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                try {
+                                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                    context.startActivity(intent)
+                                }
+                            }
+                        }
+                        RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS -> {
+                            try {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                context.startActivity(intent)
+                            }
+                        }
+                    }
+                    // Clear the dialog state after launching intent
+                    showPermissionDialog = null
+                },
+                onCancel = {
+                    // User cancelled the permission request
+                    viewModel.cancelPermissionFlow()
+                    showPermissionDialog = null
+                },
+                onDismiss = {
+                    // Dialog was dismissed (e.g., back button)
+                    viewModel.cancelPermissionFlow()
+                    showPermissionDialog = null
+                }
+            )
+        }
+
+        // Permission Revoked Dialog
+        // Updated to handle list of revoked permissions
+        if (showRevokedDialog.isNotEmpty()) {
+            PermissionRevokedDialog(
+                permissions = showRevokedDialog,
+                onOpenSettings = {
+                    // Open settings for the first revoked permission
+                    viewModel.openPermissionSettings(showRevokedDialog.first())
+                },
+                onDismiss = {
+                    viewModel.dismissRevokedDialog()
+                }
             )
         }
     }
@@ -571,29 +694,29 @@ fun PermissionOverlay(
     onGrantClick: () -> Unit
 ) {
     SetupLayout(
-        title = "Action Required",
-        subtitle = "Rookie On Quest needs some permissions to sideload games directly to your headset library.",
+        title = stringResource(R.string.perm_overlay_title),
+        subtitle = stringResource(R.string.perm_overlay_subtitle),
         icon = Icons.Default.Security,
         iconColor = MaterialTheme.colorScheme.secondary,
-        primaryButtonText = "GRANT PERMISSIONS",
+        primaryButtonText = stringResource(R.string.perm_overlay_grant_button),
         onPrimaryClick = onGrantClick
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             missingPermissions.forEach { permission ->
                 val (title, description, icon) = when (permission) {
                     RequiredPermission.INSTALL_UNKNOWN_APPS -> Triple(
-                        "Install Unknown Apps",
-                        "Allows Rookie to install the games you download.",
+                        stringResource(R.string.perm_install_unknown_apps_title),
+                        stringResource(R.string.perm_install_unknown_apps_desc),
                         Icons.Default.SystemUpdate
                     )
                     RequiredPermission.MANAGE_EXTERNAL_STORAGE -> Triple(
-                        "File Access",
-                        "Required to copy OBB and game files to storage.",
+                        stringResource(R.string.perm_manage_storage_title),
+                        stringResource(R.string.perm_manage_storage_desc),
                         Icons.Default.Storage
                     )
                     RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS -> Triple(
-                        "Battery Optimization",
-                        "Prevents the system from killing Rookie during long downloads.",
+                        stringResource(R.string.perm_battery_optimization_title),
+                        stringResource(R.string.perm_battery_optimization_desc),
                         Icons.Default.BatteryChargingFull
                     )
                 }
@@ -998,7 +1121,11 @@ fun InstallationOverlay(
                         progress = progress,
                         modifier = Modifier.size(200.dp),
                         strokeWidth = 8.dp,
-                        color = if (activeTask.status == InstallTaskStatus.PAUSED) Color.Gray else MaterialTheme.colorScheme.secondary,
+                        color = when (activeTask.status) {
+                            InstallTaskStatus.PAUSED -> Color.Gray
+                            InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.secondary
+                        },
                         trackColor = Color.White.copy(alpha = 0.1f)
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1035,6 +1162,7 @@ fun InstallationOverlay(
                 InstallTaskStatus.EXTRACTING -> stringResource(R.string.status_extracting)
                 InstallTaskStatus.INSTALLING -> stringResource(R.string.status_installing)
                 InstallTaskStatus.PAUSED -> stringResource(R.string.status_paused)
+                InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> stringResource(R.string.status_blocked_permissions)
                 InstallTaskStatus.COMPLETED -> stringResource(R.string.status_completed)
                 InstallTaskStatus.FAILED -> stringResource(R.string.status_failed)
             }
@@ -1062,7 +1190,9 @@ fun InstallationOverlay(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
-                    if (activeTask.status == InstallTaskStatus.PAUSED || activeTask.status == InstallTaskStatus.FAILED) {
+                    if (activeTask.status == InstallTaskStatus.PAUSED || 
+                        activeTask.status == InstallTaskStatus.FAILED ||
+                        activeTask.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS) {
                         Button(
                             onClick = onResume,
                             shape = RoundedCornerShape(12.dp),
@@ -1134,7 +1264,11 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
             LinearProgressIndicator(
                 progress = activeTask.progress.coerceIn(0f, 1f),
                 modifier = Modifier.fillMaxWidth().height(2.dp),
-                color = if (activeTask.status == InstallTaskStatus.PAUSED) Color.Gray else MaterialTheme.colorScheme.secondary,
+                color = when (activeTask.status) {
+                    InstallTaskStatus.PAUSED -> Color.Gray
+                    InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.secondary
+                },
                 trackColor = Color.Transparent
             )
             Row(
@@ -1142,7 +1276,11 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = if (activeTask.status == InstallTaskStatus.PAUSED) Icons.Default.Pause else Icons.Default.Download,
+                    imageVector = when (activeTask.status) {
+                        InstallTaskStatus.PAUSED -> Icons.Default.Pause
+                        InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> Icons.Default.Lock
+                        else -> Icons.Default.Download
+                    },
                     contentDescription = null,
                     tint = Color.Gray,
                     modifier = Modifier.size(16.dp)
@@ -1365,7 +1503,7 @@ fun QueueManagerOverlay(
                         val position = index + 1
                         val isViewed = task.releaseName == viewedReleaseName
                         val isProcessing = task.status.isProcessing()
-                        val isPaused = task.status == InstallTaskStatus.PAUSED
+                        val isPaused = task.status == InstallTaskStatus.PAUSED || task.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS
                         val isFailed = task.status == InstallTaskStatus.FAILED
 
                         Surface(
