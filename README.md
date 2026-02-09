@@ -82,17 +82,25 @@ adb install RookieOnQuest.apk
 
 ---
 
-## Build from Source
+## Build & Development Commands
 
 ### Prerequisites
 - **Android Studio** (Ladybug or newer).
 - **Android SDK 34** (API 34).
 
-### Steps
+### Building the Project
 1. Clone this repository.
 2. Open the project in **Android Studio**.
 3. Wait for Gradle to sync and download dependencies.
 4. Go to `Build > Build Bundle(s) / APK(s) > Build APK(s)` or run `./gradlew assembleDebug`.
+
+### CI/CD & Local Validation
+This project uses GitHub Actions for PR validation. You can run the validation logic locally to catch issues before pushing:
+
+- **Windows:** `powershell scripts/test-ci-logic.ps1`
+- **Linux/macOS:** `./scripts/test-ci-logic.sh`
+
+For more details on the build pipeline, see the **[Infrastructure Architecture](docs/architecture-infra.md)** documentation.
 
 ---
 
