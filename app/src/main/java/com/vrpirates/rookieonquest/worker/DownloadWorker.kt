@@ -3,6 +3,7 @@ package com.vrpirates.rookieonquest.worker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Environment
@@ -10,6 +11,7 @@ import android.os.StatFs
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ForegroundInfo
@@ -685,7 +687,6 @@ class DownloadWorker(
      * Called from the download progress callback for real-time updates.
      * Reuses NotificationCompat.Builder instance to reduce GC pressure.
      */
-    @android.annotation.SuppressLint("MissingPermission")
     private fun updateNotificationProgress(releaseName: String, progress: Float) {
         val progressPercent = (progress * 100).toInt().coerceIn(0, 100)
 
@@ -706,7 +707,15 @@ class DownloadWorker(
             .setProgress(100, progressPercent, false)
             .build()
 
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        // POST_NOTIFICATIONS check for Android 13+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || 
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                applicationContext,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        }
     }
 
     /**
