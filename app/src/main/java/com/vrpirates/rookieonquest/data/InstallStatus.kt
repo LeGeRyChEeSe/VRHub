@@ -7,7 +7,6 @@ enum class InstallStatus {
     DOWNLOADING,
     EXTRACTING,
     /**
-     * Story 1.7 Code Review Round 9 Note:
      * COPYING_OBB is retained for backward compatibility with existing Room databases.
      *
      * This state was planned for fine-grained OBB copy progress tracking but is not
@@ -23,7 +22,7 @@ enum class InstallStatus {
      */
     COPYING_OBB,
     INSTALLING,
-    PENDING_INSTALL,  // Story 1.7: APK staged and installer launched, waiting for user to complete
+    PENDING_INSTALL,  // APK staged and installer launched, waiting for user to complete
     PAUSED,
     COMPLETED,
     FAILED;

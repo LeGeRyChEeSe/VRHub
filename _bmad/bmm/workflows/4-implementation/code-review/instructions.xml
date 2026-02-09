@@ -94,8 +94,8 @@
       5. **Test Quality**: Are tests real assertions or placeholders?
     </action>
 
-    <check if="total_issues_found lt 3">
-      <critical>NOT LOOKING HARD ENOUGH - Find more problems!</critical>
+    <!-- Analysis Completed -->
+    <check if="true">
       <action>Re-examine code for:
         - Edge cases and null handling
         - Architecture violations

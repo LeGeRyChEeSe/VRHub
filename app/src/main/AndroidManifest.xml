@@ -15,7 +15,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Story 1.8: requestLegacyExternalStorage is required for Android 10 (API 29) 
+         to access OBB files in /Android/obb/ without full Scoped Storage enforcement. 
+         Works in conjunction with WRITE_EXTERNAL_STORAGE. -->
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -23,7 +27,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
-        android:theme="@style/Theme.RookieOnQuest">
+        android:theme="@style/Theme.RookieOnQuest"
+        android:requestLegacyExternalStorage="true">
         
         <provider
             android:name="androidx.core.content.FileProvider"

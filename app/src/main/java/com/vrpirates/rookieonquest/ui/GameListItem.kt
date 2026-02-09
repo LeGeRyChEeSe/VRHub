@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vrpirates.rookieonquest.R
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -50,7 +51,8 @@ fun GameListItem(
     onDeleteDownloadClick: () -> Unit = {},
     onResumeClick: () -> Unit = {},
     onToggleFavorite: (Boolean) -> Unit = {},
-    isGridItem: Boolean = false
+    isGridItem: Boolean = false,
+    permissionsMissing: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -75,12 +77,12 @@ fun GameListItem(
     }
     
     val buttonText = when {
-        canResume -> "RESUME"
-        isProcessing -> "IN QUEUE"
-        isPaused -> "PAUSED"
-        game.installStatus == InstallStatus.UPDATE_AVAILABLE -> "UPDATE"
-        game.installStatus == InstallStatus.INSTALLED -> "INSTALLED"
-        else -> "INSTALL"
+        canResume -> context.getString(R.string.game_btn_resume)
+        isProcessing -> context.getString(R.string.game_btn_in_queue)
+        isPaused -> context.getString(R.string.game_btn_paused)
+        game.installStatus == InstallStatus.UPDATE_AVAILABLE -> context.getString(R.string.game_btn_update)
+        game.installStatus == InstallStatus.INSTALLED -> context.getString(R.string.game_btn_installed)
+        else -> context.getString(R.string.game_btn_install)
     }
     
     val isEnabled = (game.installStatus != InstallStatus.INSTALLED || canResume) && !isProcessing && (game.queueStatus == null || canResume)
@@ -141,7 +143,7 @@ fun GameListItem(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = game.name, 
+                            text = game.name,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
@@ -151,6 +153,23 @@ fun GameListItem(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
+
+                        // Show "Permissions required" badge if permissions missing
+                        if (permissionsMissing) {
+                            Surface(
+                                color = Color(0xFFe74c3c),
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier.padding(start = 6.dp)
+                            ) {
+                                Text(
+                                    text = "!",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                         
                         IconButton(
                             onClick = { onToggleFavorite(!game.isFavorite) },
@@ -196,7 +215,7 @@ fun GameListItem(
                         
                         if (isPaused) {
                             Text(
-                                text = " • PAUSED",
+                                text = " • ${context.getString(R.string.game_btn_paused)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFf1c40f),
                                 modifier = Modifier.padding(start = 4.dp),
@@ -214,21 +233,21 @@ fun GameListItem(
                                 onClick = { onDeleteDownloadClick() },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete Download", tint = Color(0xFFCF6679).copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Delete, contentDescription = context.getString(R.string.game_btn_delete_download), tint = Color(0xFFCF6679).copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                             }
                         } else if (game.installStatus == InstallStatus.INSTALLED || game.installStatus == InstallStatus.UPDATE_AVAILABLE) {
                             IconButton(
                                 onClick = { onUninstallClick() },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Uninstall", tint = Color(0xFFCF6679), modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Delete, contentDescription = context.getString(R.string.game_btn_uninstall), tint = Color(0xFFCF6679), modifier = Modifier.size(18.dp))
                             }
                         } else {
                             IconButton(
                                 onClick = { onDownloadOnlyClick() },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = "Download Only", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Download, contentDescription = context.getString(R.string.game_btn_download), tint = Color.Gray, modifier = Modifier.size(18.dp))
                             }
                         }
                         
@@ -323,15 +342,15 @@ fun GameListItem(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                             if (game.isDownloaded && game.installStatus == InstallStatus.NOT_INSTALLED) {
                                 TextButton(onClick = onDeleteDownloadClick) {
-                                    Text("Delete Download", color = Color(0xFFCF6679).copy(alpha = 0.7f), fontSize = 12.sp)
+                                    Text(context.getString(R.string.game_btn_delete_download), color = Color(0xFFCF6679).copy(alpha = 0.7f), fontSize = 12.sp)
                                 }
                             } else if (game.installStatus != InstallStatus.NOT_INSTALLED) {
                                 TextButton(onClick = onUninstallClick) {
-                                    Text("Uninstall", color = Color(0xFFCF6679), fontSize = 12.sp)
+                                    Text(context.getString(R.string.game_btn_uninstall), color = Color(0xFFCF6679), fontSize = 12.sp)
                                 }
                             } else {
                                 TextButton(onClick = onDownloadOnlyClick) {
-                                    Text("Download", color = Color.Gray, fontSize = 12.sp)
+                                    Text(context.getString(R.string.game_btn_download), color = Color.Gray, fontSize = 12.sp)
                                 }
                             }
 

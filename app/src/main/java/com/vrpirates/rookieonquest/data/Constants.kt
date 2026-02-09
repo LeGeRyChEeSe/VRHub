@@ -144,7 +144,7 @@ object Constants {
      * Progress milestone for final APK installation (96%).
      * Preparing APK for installer launch.
      *
-     * Story 1.7 Code Review Round 5: Progress milestone documentation
+     * Progress milestone documentation
      * ================================================================
      * The progress milestones (92% → 93% → 94% → 96% → 98%) are intentionally
      * non-linear to represent distinct installation phases:
@@ -445,7 +445,7 @@ object DownloadUtils {
 }
 
 /**
- * Story 1.7 Code Review Round 5: Extracted install.txt parsing utilities for testability.
+ * Extracted install.txt parsing utilities for testability.
  *
  * This object provides pure functions for parsing install.txt files and related operations.
  * Previously these were private methods in MainRepository, making them untestable.
@@ -456,7 +456,7 @@ object InstallUtils {
      * Handles paths with spaces when quoted: adb push "path with spaces" "/sdcard/dest"
      * Also handles unquoted simple paths: adb push source /sdcard/dest
      *
-     * Story 1.7 Code Review Round 9: Added support for escaped quotes.
+     * Added support for escaped quotes.
      * Handles escape sequences: \" and \' within quoted strings.
      * Example: adb push "path with \"escaped\" quote" /sdcard/dest
      *
@@ -540,7 +540,7 @@ object InstallUtils {
     }
 
     /**
-     * Story 1.7 Code Review: Format bytes to human-readable string (e.g., "1.5 GB").
+     * Format bytes to human-readable string (e.g., "1.5 GB").
      * Extracted to eliminate duplication between MainRepository and MainViewModel.
      *
      * @param bytes Number of bytes to format
@@ -556,7 +556,7 @@ object InstallUtils {
     }
 
     /**
-     * Story 1.7 Code Review Round 9: OBB file comparator for natural/numeric sorting.
+     * OBB file comparator for natural/numeric sorting.
      *
      * OBB format: main.{versionCode}.{packageName}.obb or patch.{versionCode}.{packageName}.obb
      * This comparator ensures:

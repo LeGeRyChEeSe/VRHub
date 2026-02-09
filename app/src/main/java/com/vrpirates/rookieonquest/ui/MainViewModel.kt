@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.vrpirates.rookieonquest.BuildConfig
 import com.vrpirates.rookieonquest.data.GameData
 import com.vrpirates.rookieonquest.data.InstallUtils
+import com.vrpirates.rookieonquest.data.PermissionManager
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -40,6 +41,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import androidx.work.WorkInfo
 import com.vrpirates.rookieonquest.data.NetworkModule
 import com.vrpirates.rookieonquest.worker.DownloadWorker
+import com.vrpirates.rookieonquest.R
 
 sealed class MainEvent {
     data class Uninstall(val packageName: String) : MainEvent()
@@ -50,11 +52,35 @@ sealed class MainEvent {
     data class ShowUpdatePopup(val release: GitHubRelease) : MainEvent()
     data class ShowMessage(val message: String) : MainEvent()
     data class CopyLogs(val logs: String) : MainEvent()
+
+    // Event to open system settings for a specific permission
+    data class OpenPermissionSettings(val permission: RequiredPermission) : MainEvent()
 }
 
+/**
+ * Required permissions for game installation and management.
+ *
+ * **Note:** [MANAGE_EXTERNAL_STORAGE] represents storage access permission across Android versions:
+ * - Android 11+ (API 30+): Maps to `Manifest.permission.MANAGE_EXTERNAL_STORAGE` system permission
+ * - Android 10 (API 29): Maps to `WRITE_EXTERNAL_STORAGE` and `READ_EXTERNAL_STORAGE` system permissions
+ *
+ * This abstraction allows the permission system to work consistently across Android versions
+ * while handling the underlying implementation differences in [PermissionManager].
+ *
+ * @see PermissionManager.checkStoragePermission
+ */
 enum class RequiredPermission {
+    /** Permission to install APK files from unknown sources (API 26+) */
     INSTALL_UNKNOWN_APPS,
+
+    /**
+     * Permission to access external storage for OBB files and game data.
+     * On Android 11+ this is MANAGE_EXTERNAL_STORAGE.
+     * On Android 10 this is WRITE_EXTERNAL_STORAGE + READ_EXTERNAL_STORAGE.
+     */
     MANAGE_EXTERNAL_STORAGE,
+
+    /** Permission to ignore battery optimizations for background downloads */
     IGNORE_BATTERY_OPTIMIZATIONS
 }
 
@@ -82,7 +108,7 @@ enum class InstallStatus {
 }
 
 enum class InstallTaskStatus {
-    QUEUED, DOWNLOADING, EXTRACTING, INSTALLING, PENDING_INSTALL, PAUSED, COMPLETED, FAILED
+    QUEUED, DOWNLOADING, EXTRACTING, INSTALLING, PENDING_INSTALL, PAUSED, BLOCKED_BY_PERMISSIONS, COMPLETED, FAILED
 }
 
 fun InstallTaskStatus.isProcessing(): Boolean =
@@ -167,7 +193,7 @@ fun com.vrpirates.rookieonquest.data.InstallStatus.toTaskStatus(): InstallTaskSt
         com.vrpirates.rookieonquest.data.InstallStatus.EXTRACTING -> InstallTaskStatus.EXTRACTING
         com.vrpirates.rookieonquest.data.InstallStatus.COPYING_OBB -> InstallTaskStatus.INSTALLING // OBB copy is sub-phase of install
         com.vrpirates.rookieonquest.data.InstallStatus.INSTALLING -> InstallTaskStatus.INSTALLING
-        com.vrpirates.rookieonquest.data.InstallStatus.PENDING_INSTALL -> InstallTaskStatus.PENDING_INSTALL // Story 1.7: Map pending install state
+        com.vrpirates.rookieonquest.data.InstallStatus.PENDING_INSTALL -> InstallTaskStatus.PENDING_INSTALL // Map pending install state
         com.vrpirates.rookieonquest.data.InstallStatus.PAUSED -> InstallTaskStatus.PAUSED
         com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED -> InstallTaskStatus.COMPLETED
         com.vrpirates.rookieonquest.data.InstallStatus.FAILED -> InstallTaskStatus.FAILED
@@ -190,8 +216,9 @@ fun InstallTaskStatus.toDataStatus(): com.vrpirates.rookieonquest.data.InstallSt
         InstallTaskStatus.DOWNLOADING -> com.vrpirates.rookieonquest.data.InstallStatus.DOWNLOADING
         InstallTaskStatus.EXTRACTING -> com.vrpirates.rookieonquest.data.InstallStatus.EXTRACTING
         InstallTaskStatus.INSTALLING -> com.vrpirates.rookieonquest.data.InstallStatus.INSTALLING
-        InstallTaskStatus.PENDING_INSTALL -> com.vrpirates.rookieonquest.data.InstallStatus.PENDING_INSTALL // Story 1.7: Map to PENDING_INSTALL in data layer
+        InstallTaskStatus.PENDING_INSTALL -> com.vrpirates.rookieonquest.data.InstallStatus.PENDING_INSTALL // Map to PENDING_INSTALL in data layer
         InstallTaskStatus.PAUSED -> com.vrpirates.rookieonquest.data.InstallStatus.PAUSED
+        InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> com.vrpirates.rookieonquest.data.InstallStatus.PAUSED
         InstallTaskStatus.COMPLETED -> com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED
         InstallTaskStatus.FAILED -> com.vrpirates.rookieonquest.data.InstallStatus.FAILED
     }
@@ -200,25 +227,43 @@ fun InstallTaskStatus.toDataStatus(): com.vrpirates.rookieonquest.data.InstallSt
 /**
  * Converts QueuedInstallEntity from Room to UI InstallTaskState
  * Uses pre-fetched game metadata from cache to avoid N+1 queries
+ * Added missingPermissions parameter for visual feedback.
  *
+ * @param context Android context for localized status messages
  * @param gameDataCache Pre-loaded map of releaseName -> GameData (from batch query)
+ * @param missingPermissions List of currently missing permissions for visual feedback
  */
 fun com.vrpirates.rookieonquest.data.QueuedInstallEntity.toInstallTaskState(
-    gameDataCache: Map<String, com.vrpirates.rookieonquest.data.GameData>
+    context: Context,
+    gameDataCache: Map<String, com.vrpirates.rookieonquest.data.GameData>,
+    missingPermissions: List<RequiredPermission> = emptyList()
 ): InstallTaskState {
     val gameData = gameDataCache[releaseName]
     val statusEnum = statusEnum.toTaskStatus()
 
-    // Generate status message based on current state
-    val message = when (statusEnum) {
-        InstallTaskStatus.QUEUED -> "Queued"
-        InstallTaskStatus.DOWNLOADING -> "Downloading..."
-        InstallTaskStatus.EXTRACTING -> "Extracting..."
-        InstallTaskStatus.INSTALLING -> "Installing..."
-        InstallTaskStatus.PENDING_INSTALL -> "Pending Install..."
-        InstallTaskStatus.PAUSED -> "Paused"
-        InstallTaskStatus.COMPLETED -> "Completed"
-        InstallTaskStatus.FAILED -> "Failed"
+    // Check if task is blocked by missing critical permissions
+    // Battery optimization permission is optional and doesn't block installation
+    val missingCritical = missingPermissions.filter {
+        it != RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS
+    }
+    
+    // Distinguish between user-paused and permission-blocked
+    val isBlockedByPermissions = (statusEnum == InstallTaskStatus.PAUSED || statusEnum == InstallTaskStatus.BLOCKED_BY_PERMISSIONS) && 
+        missingCritical.isNotEmpty()
+    
+    val finalStatus = if (isBlockedByPermissions) InstallTaskStatus.BLOCKED_BY_PERMISSIONS else statusEnum
+
+    // Generate status message based on current state using localized strings
+    val message = when (finalStatus) {
+        InstallTaskStatus.QUEUED -> context.getString(R.string.status_queued)
+        InstallTaskStatus.DOWNLOADING -> context.getString(R.string.status_downloading)
+        InstallTaskStatus.EXTRACTING -> context.getString(R.string.status_extracting)
+        InstallTaskStatus.INSTALLING -> context.getString(R.string.status_installing)
+        InstallTaskStatus.PENDING_INSTALL -> context.getString(R.string.status_pending_install)
+        InstallTaskStatus.PAUSED -> context.getString(R.string.status_paused)
+        InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> context.getString(R.string.status_blocked_permissions)
+        InstallTaskStatus.COMPLETED -> context.getString(R.string.status_completed)
+        InstallTaskStatus.FAILED -> context.getString(R.string.status_failed)
     }
 
     // Format size strings
@@ -229,7 +274,7 @@ fun com.vrpirates.rookieonquest.data.QueuedInstallEntity.toInstallTaskState(
         releaseName = releaseName,
         gameName = gameData?.gameName ?: releaseName,
         packageName = gameData?.packageName ?: "",
-        status = statusEnum,
+        status = finalStatus,
         progress = progress,
         message = message,
         currentSize = currentSize,
@@ -272,8 +317,29 @@ data class GameItemState(
     val popularity: Int = 0
 )
 
+/**
+ * Permission flow state for UI.
+ *
+ * Tracks the current state of permission requests and provides reactive updates
+ * to the UI during the permission request flow.
+ *
+ * @param isActive Whether a permission flow is currently active
+ * @param currentPermission The permission currently being requested (null if not in flow)
+ * @param pendingGameInstall The releaseName of game waiting for permissions (null if none)
+ * @param allGranted Whether all required permissions have been granted
+ */
+@Immutable
+data class PermissionFlowState(
+    val isActive: Boolean = false,
+    val currentPermission: RequiredPermission? = null,
+    val pendingGameInstall: String? = null,
+    val allGranted: Boolean = false
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "MainViewModel"
+
     private val repository = MainRepository(application)
     private val prefs = application.getSharedPreferences(com.vrpirates.rookieonquest.data.Constants.PREFS_NAME, Context.MODE_PRIVATE)
     
@@ -294,6 +360,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _missingPermissions = MutableStateFlow<List<RequiredPermission>?>(null)
     val missingPermissions: StateFlow<List<RequiredPermission>?> = _missingPermissions
+
+    // Permission Flow State Management
+    private val _permissionFlowState = MutableStateFlow(PermissionFlowState())
+    val permissionFlowState: StateFlow<PermissionFlowState> = _permissionFlowState
+
+    // Permission Revoked Dialog State
+    // Shows dialog when a previously granted permission is revoked
+    private val _showRevokedDialog = MutableStateFlow<List<RequiredPermission>>(emptyList())
+    val showRevokedDialog: StateFlow<List<RequiredPermission>> = _showRevokedDialog
+
+    // Track if permission flow is active to prevent duplicate requests
+    private var isPermissionFlowActive = false
+        set(value) {
+            field = value
+            _permissionFlowState.value = _permissionFlowState.value.copy(isActive = value)
+        }
+
+    // Store game user wants to install while requesting permissions
+    private var pendingInstallAfterPermissions: String? = null
+        set(value) {
+            field = value
+            _permissionFlowState.value = _permissionFlowState.value.copy(pendingGameInstall = value)
+        }
 
     private val _visibleIndices = MutableStateFlow<List<Int>>(emptyList())
     private val priorityUpdateChannel = Channel<Unit>(Channel.CONFLATED)
@@ -321,7 +410,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // OPTIMIZATION: Uses batch query to fetch all game metadata in 1 DB call instead of N+1
     @OptIn(ExperimentalCoroutinesApi::class)
     val installQueue: StateFlow<List<InstallTaskState>> = repository.getAllQueuedInstalls()
-        .flatMapLatest { entities ->
+        .combine(_missingPermissions) { entities, missing ->
+            entities to (missing ?: emptyList())
+        }
+        .flatMapLatest { (entities, missing) ->
             flow {
                 if (entities.isEmpty()) {
                     emit(emptyList())
@@ -335,7 +427,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Convert entities using cached metadata (O(1) lookup per entity)
                 val tasks = entities.mapNotNull { entity ->
                     runCatching {
-                        entity.toInstallTaskState(gameDataCache)
+                        val context = getApplication<Application>()
+                        entity.toInstallTaskState(context, gameDataCache, missing)
                     }.getOrElse {
                         Log.e(TAG, "Failed to convert entity to task state: ${entity.releaseName}", it)
                         null
@@ -367,7 +460,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Each CompletableDeferred signals when that task's extraction/installation is complete.
     // Allows runTask() to suspend until the full install pipeline finishes.
     //
-    // Story 1.7 Code Review Round 8: Changed from mutableMapOf to ConcurrentHashMap for thread-safety
+    // Changed from mutableMapOf to ConcurrentHashMap for thread-safety
     // Multiple coroutines may access this map concurrently (queue processor, download observers, cancellation)
     //
     // This design supports:
@@ -378,7 +471,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val taskCompletionSignals = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
 
     // Channel to signal when a new task has been added to the queue.
-    // Story 1.7 Code Review Round 6: Changed from CONFLATED to RENDEZVOUS to prevent signal loss
+    // Changed from CONFLATED to RENDEZVOUS to prevent signal loss
     // This solves the race condition where startQueueProcessor() exits before
     // the StateFlow has emitted the newly inserted task from Room DB.
     // RENDEZVOUS ensures no signals are lost during rapid task additions,
@@ -386,12 +479,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val taskAddedSignal = Channel<Unit>(Channel.RENDEZVOUS)
 
     // Mutex to prevent concurrent executions of verifyPendingInstallations
-    // Story 1.7 Code Review Round 8: Prevents race condition when multiple triggers
+    // Prevents race condition when multiple triggers
     // (app startup, resume, user action) attempt verification simultaneously
     private val verificationMutex = Mutex()
 
-    private var isPermissionFlowActive = false
+    // Prevents race condition in permission checks when multiple triggers
+    // (app startup, resume, user action) attempt permission verification simultaneously
+    private val permissionCheckMutex = Mutex()
+
+    // Duplicate isPermissionFlowActive declaration removed
     private var previousMissingCount = 0
+    // Added flag to track if permission denial message was shown
+    // This prevents race conditions where multiple onAppResume events could trigger
+    // false "Permission denied" messages. The flag is reset when permission flow starts.
+    private var permissionDenialShown = false
     private var refreshJob: Job? = null
     private var sizeFetchJob: Job? = null
 
@@ -600,6 +701,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InstallState())
     
     init {
+        // Initialize PermissionManager with application context
+        com.vrpirates.rookieonquest.data.PermissionManager.init(getApplication())
+
+        // Load and validate saved permission states on startup
+        viewModelScope.launch {
+            try {
+                val context = getApplication<Application>()
+
+                // Validate saved states against actual permissions (detect revocation)
+                // Use ValidationResult to distinguish between revocation and manual grant
+                val validationResult = com.vrpirates.rookieonquest.data.PermissionManager.validateSavedStates(context)
+
+                if (!validationResult.isValid) {
+                    // Check if permissions were revoked (granted -> denied)
+                    if (validationResult.revokedPermissions.isNotEmpty()) {
+                        // Permissions were revoked, show revocation dialog
+                        pendingInstallAfterPermissions = null
+                        _showRevokedDialog.value = validationResult.revokedPermissions
+                    }
+                    // Note: If permissions were manually granted (denied -> granted),
+                    // we don't need to show anything, just update the state
+                }
+
+                // validateSavedStates() already detects permission changes and updates state
+                // The UI state will be updated when user interacts with the app or on resume
+                // checkPermissions() is called from onAppResume() when needed
+            } catch (e: Exception) {
+                Log.e(TAG, "Error initializing permission state", e)
+            }
+        }
+
         // Run v2.4.0 queue migration first (if needed)
         viewModelScope.launch {
             try {
@@ -623,7 +755,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val updateAvailable = checkForAppUpdates()
                 if (!updateAvailable) {
-                    checkPermissions()
                     refreshInstalledPackages()
                     refreshDownloadedReleases()
                     startMetadataFetchLoop()
@@ -683,7 +814,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Convert QueuedInstallEntity to InstallTaskState
                 runCatching {
                     val gameData = repository.getGameByReleaseName(entity.releaseName)
-                    entity.toInstallTaskState(mapOf(entity.releaseName to (gameData ?: return@mapNotNull null)))
+                    val context = getApplication<Application>()
+                    entity.toInstallTaskState(
+                        context = context,
+                        gameDataCache = mapOf(entity.releaseName to (gameData ?: return@mapNotNull null)),
+                        missingPermissions = _missingPermissions.value ?: emptyList()
+                    )
                 }.getOrElse {
                     Log.e(TAG, "Failed to convert entity during resume: ${entity.releaseName}", it)
                     null
@@ -1017,10 +1153,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         refreshJob = viewModelScope.launch {
             val context = getApplication<Application>()
-            val missing = withContext(Dispatchers.Default) { getMissingPermissionsList(context) }
+            // Synchronize permission check with permissionCheckMutex
+            // to prevent race conditions with checkPermissions() when updating _missingPermissions
+            val missing = permissionCheckMutex.withLock {
+                com.vrpirates.rookieonquest.data.PermissionManager.getMissingPermissions(context)
+            }
             _missingPermissions.value = missing
-            
-            if (missing.isNotEmpty()) return@launch
+
+            // Allow catalog to load even without permissions
+            // Only installation should be blocked, not browsing
+            // Permissions are checked in installGame() method
 
             val now = System.currentTimeMillis()
             _isRefreshing.value = true
@@ -1030,11 +1172,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // 1. Sync Catalog first to have the latest games list
                     val config = repository.fetchConfig()
                     repository.syncCatalog(config.baseUri)
-                    
+
                     // 2. Refresh statuses now that we have the latest catalog
                     // We get the fresh games list directly to be immediate
                     val freshGames = repository.getAllGamesFlow().first()
-                    
+
                     val installed = repository.getInstalledPackagesMap()
                     _installedPackages.value = installed
                     refreshDownloadedReleases(freshGames)
@@ -1044,7 +1186,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 priorityUpdateChannel.trySend(Unit)
             } catch (e: Exception) {
-                Log.e(TAG, "Refresh error", e)
+                com.vrpirates.rookieonquest.data.LogUtils.e(TAG, "Refresh error", e)
                 _error.value = "Error: ${e.message}"
             } finally {
                 _isRefreshing.value = false
@@ -1052,62 +1194,296 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun checkPermissions() {
+    /**
+     * Check permissions and update state.
+     * Uses permissionCheckMutex to prevent concurrent executions from multiple triggers.
+     *
+     * @param fromResume true if called from onAppResume() (handles denial logic)
+     * Refactored to use separate handler methods for better code clarity.
+     */
+    fun checkPermissions(fromResume: Boolean = false) {
         if (_isUpdateDialogShowing.value || _isUpdateDownloading.value) return
 
         viewModelScope.launch {
-            val context = getApplication<Application>()
-            val missing = withContext(Dispatchers.Default) { getMissingPermissionsList(context) }
-            
-            val newCount = missing.size
-            if (isPermissionFlowActive) {
-                if (newCount < previousMissingCount && newCount > 0) {
-                    _missingPermissions.value = missing
-                    previousMissingCount = newCount
-                    requestNextPermission()
-                    return@launch
-                } else if (newCount == 0) {
-                    isPermissionFlowActive = false
-                    _missingPermissions.value = emptyList()
-                    refreshData() 
-                    return@launch
-                } else if (newCount == previousMissingCount) {
-                    isPermissionFlowActive = false
-                }
-            }
+            // Use Mutex to prevent concurrent permission checks
+            // Multiple triggers (startup, resume, user action) could cause overlapping checks
+            permissionCheckMutex.withLock {
+                val context = getApplication<Application>()
+                // Use PermissionManager instead of getMissingPermissionsList()
+                val missing = com.vrpirates.rookieonquest.data.PermissionManager.getMissingPermissions(context)
 
-            _missingPermissions.value = missing
-            previousMissingCount = newCount
-            
-            if (newCount == 0 && _allGames.value.isEmpty()) {
-                refreshData()
+                val newCount = missing.size
+                val previousState = _missingPermissions.value
+                val previouslyHadAllPermissions = previousState?.isEmpty() == true
+
+                // Route to appropriate handler based on current state
+                when {
+                    isPermissionFlowActive -> handleActivePermissionFlow(missing, fromResume, context)
+                    previouslyHadAllPermissions && newCount > 0 -> handlePermissionRevocation(missing)
+                    else -> handleNormalPermissionUpdate(missing)
+                }
             }
         }
     }
 
-    private fun getMissingPermissionsList(context: Context): List<RequiredPermission> {
-        val missing = mutableListOf<RequiredPermission>()
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!context.packageManager.canRequestPackageInstalls()) {
-                    missing.add(RequiredPermission.INSTALL_UNKNOWN_APPS)
+    /**
+     * Handle permission state changes during active permission flow.
+     * Manages concurrent grant/revoke scenarios where user might grant one permission
+     * but revoke another during the permission flow.
+     *
+     * @param missing Current list of missing permissions from system
+     * @param fromResume true if called from onAppResume() (handles denial logic)
+     * @param context Application context for string resources
+     */
+    private suspend fun handleActivePermissionFlow(
+        missing: List<RequiredPermission>,
+        fromResume: Boolean,
+        context: Application
+    ) {
+        val previouslyMissing = _missingPermissions.value ?: emptyList()
+        val previousCount = previouslyMissing.size
+        val newCount = missing.size
+
+        // Detect newly granted permissions (were missing, now granted)
+        val newlyGranted = previouslyMissing.filter { it !in missing }
+
+        // Detect newly revoked permissions (were granted, now missing)
+        val newlyRevoked = missing.filter { it !in previouslyMissing && it in RequiredPermission.entries }
+
+        when {
+            // Permission state changed - save changes and update flow
+            newlyGranted.isNotEmpty() || newlyRevoked.isNotEmpty() -> {
+                handlePermissionStateChanges(newlyGranted, newlyRevoked, missing)
+                val flowCompleted = checkAndCompletePermissionFlow(missing, context)
+                if (!flowCompleted) {
+                    requestNextPermission()
                 }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                if (!Environment.isExternalStorageManager()) {
-                    missing.add(RequiredPermission.MANAGE_EXTERNAL_STORAGE)
-                }
+            // All critical permissions just granted (no changes detected)
+            missing.filter { it != RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS }.isEmpty() &&
+                newCount != previousCount -> {
+                completePermissionFlow(missing, context)
             }
-            
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
-                missing.add(RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS)
+            // No progress made - user may have denied permission
+            newCount == previousCount && fromResume && !permissionDenialShown -> {
+                handlePermissionDenial(missing)
             }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking permissions", e)
+            // Otherwise, just update state and continue flow
+            else -> {
+                _missingPermissions.value = missing
+                previousMissingCount = newCount
+            }
         }
-        return missing
+    }
+
+    /**
+     * Save permission state changes (granted/revoked) during active flow.
+     *
+     * @param newlyGranted Permissions that were granted since last check
+     * @param newlyRevoked Permissions that were revoked since last check
+     * @param missing Current list of missing permissions
+     */
+    private suspend fun handlePermissionStateChanges(
+        newlyGranted: List<RequiredPermission>,
+        newlyRevoked: List<RequiredPermission>,
+        missing: List<RequiredPermission>
+    ) {
+        // Save newly granted permissions
+        for (permission in newlyGranted) {
+            com.vrpirates.rookieonquest.data.PermissionManager.savePermissionState(permission, true)
+            com.vrpirates.rookieonquest.data.LogUtils.i(TAG, "Permission granted: $permission")
+        }
+
+        // Handle newly revoked permissions
+        if (newlyRevoked.isNotEmpty()) {
+            for (permission in newlyRevoked) {
+                com.vrpirates.rookieonquest.data.PermissionManager.savePermissionState(permission, false)
+                com.vrpirates.rookieonquest.data.LogUtils.i(TAG, "Permission revoked during flow: $permission")
+            }
+            // Clear pending install if critical permissions were revoked
+            val hasRevokedCritical = newlyRevoked.any {
+                it != RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS
+            }
+            if (hasRevokedCritical) {
+                pendingInstallAfterPermissions = null
+            }
+        }
+
+        _missingPermissions.value = missing
+        previousMissingCount = missing.size
+    }
+
+    /**
+     * Check if all critical permissions are granted and complete flow if so.
+     *
+     * @param missing Current list of missing permissions
+     * @param context Application context for string resources
+     * @return true if flow was completed, false otherwise
+     */
+    private suspend fun checkAndCompletePermissionFlow(
+        missing: List<RequiredPermission>,
+        context: Application
+    ): Boolean {
+        val missingCritical = missing.filter {
+            it != RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS
+        }
+
+        if (missingCritical.isEmpty()) {
+            completePermissionFlow(missing, context)
+            return true
+        }
+        return false
+    }
+
+    /**
+     * Complete the permission flow and retry pending installation.
+     *
+     * @param missing Current list of missing permissions (may contain optional permissions)
+     * @param context Application context for string resources
+     */
+    private suspend fun completePermissionFlow(
+        missing: List<RequiredPermission>,
+        context: Application
+    ) {
+        isPermissionFlowActive = false
+        _missingPermissions.value = missing // May still contain battery optimization
+        _permissionFlowState.value = PermissionFlowState(allGranted = true)
+
+        // Save all states
+        saveAllPermissionStates(missing)
+
+        // Auto-retry pending install
+        pendingInstallAfterPermissions?.let { releaseName ->
+            val hasBatteryOpt = !missing.contains(RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS)
+            val message = if (hasBatteryOpt) {
+                context.getString(R.string.msg_permissions_granted)
+            } else {
+                context.getString(R.string.msg_critical_permissions_granted)
+            }
+            _events.emit(MainEvent.ShowMessage(message))
+            installGame(releaseName)
+            pendingInstallAfterPermissions = null
+        }
+
+        refreshData()
+    }
+
+    /**
+     * Handle permission revocation when user had all permissions,
+     * now missing some. Shows revocation dialog and clears pending install.
+     *
+     * @param missing List of revoked permissions
+     */
+    private fun handlePermissionRevocation(missing: List<RequiredPermission>) {
+        com.vrpirates.rookieonquest.data.LogUtils.i(TAG, "Permission revoked detected: $missing")
+        // Show revocation dialog for all missing permissions
+        _showRevokedDialog.value = missing
+        // Clear pending install since permissions were revoked
+        pendingInstallAfterPermissions = null
+    }
+
+    /**
+     * Handle normal permission update when flow is not active.
+     * Updates state and refreshes data if all permissions are now granted.
+     *
+     * @param missing Current list of missing permissions
+     */
+    private fun handleNormalPermissionUpdate(
+        missing: List<RequiredPermission>
+    ) {
+        _missingPermissions.value = missing
+        previousMissingCount = missing.size
+        _permissionFlowState.value = _permissionFlowState.value.copy(
+            allGranted = missing.isEmpty()
+        )
+
+        // Refresh data if permissions were just granted and game list is empty
+        if (missing.isEmpty() && _allGames.value.isEmpty()) {
+            refreshData()
+        }
+    }
+
+    /**
+     * Dismiss the permission revoked dialog.
+     * Called when user clicks "Later" in the dialog.
+     * Updated to clear the list of revoked permissions.
+     */
+    fun dismissRevokedDialog() {
+        _showRevokedDialog.value = emptyList()
+    }
+
+    /**
+     * Open system settings for the revoked permission.
+     * Called when user clicks "Open Settings" in the revocation dialog.
+     * Opens settings for the first revoked permission in the list.
+     */
+    fun openPermissionSettings(permission: RequiredPermission) {
+        viewModelScope.launch {
+            _events.emit(MainEvent.OpenPermissionSettings(permission))
+        }
+        // Dismiss dialog after launching settings
+        _showRevokedDialog.value = emptyList()
+    }
+
+    /**
+     * Called when app resumes (e.g. returning from settings).
+     * Handles permission cache invalidation and state sync.
+     *
+     * Race condition fixed by using permissionCheckMutex
+     * to prevent concurrent permission checks when verifyPendingInstallations()
+     * is also called during app resume.
+     */
+    fun onAppResume() {
+        // Invalidate cache to ensure fresh check from system
+        com.vrpirates.rookieonquest.data.PermissionManager.invalidateCache()
+        // Trigger check with fromResume=true to handle denial logic
+        checkPermissions(fromResume = true)
+    }
+
+    /**
+     * Save permission states when all permissions are granted.
+     * Called when permission flow completes successfully.
+     * Changed to suspend function since it calls savePermissionState
+     * which is now suspend to prevent UI thread blocking.
+     * Use for loop for sequential saves to prevent race conditions.
+     * Wrap loop in withContext(Dispatchers.IO) to ensure strict
+     * sequential execution on a single-threaded dispatcher context.
+     */
+    private suspend fun saveAllPermissionStates(missing: List<RequiredPermission>) = withContext(Dispatchers.IO) {
+        for (permission in RequiredPermission.entries) {
+            val granted = !missing.contains(permission)
+            com.vrpirates.rookieonquest.data.PermissionManager.savePermissionState(permission, granted)
+        }
+    }
+
+    /**
+     * Handle permission denial by the user.
+     * Extracted from checkPermissions for better code clarity.
+     *
+     * @param missing Current list of missing permissions from system
+     */
+    private suspend fun handlePermissionDenial(missing: List<RequiredPermission>) {
+        // Use permissionDenialShown flag to prevent false denial messages
+        // from multiple onAppResume events. Only show denial message once per permission flow.
+        // User returned from settings without granting - treat as Denial
+        val currentMissing = _missingPermissions.value ?: emptyList()
+        val deniedPermission = currentMissing.firstOrNull { it in missing }
+        com.vrpirates.rookieonquest.data.LogUtils.i(TAG, "Permission denied by user: $deniedPermission")
+
+        // Show user-friendly error message
+        val permissionName = getPermissionDisplayName(deniedPermission)
+        _events.emit(MainEvent.ShowMessage(
+            getApplication<Application>().getString(R.string.perm_denial_message, permissionName)
+        ))
+
+        // Mark that we've shown denial message for this flow
+        permissionDenialShown = true
+
+        // Cancel permission flow but keep pending install for retry (better UX)
+        // User can click install again to restart permission flow
+        isPermissionFlowActive = false
+        _permissionFlowState.value = PermissionFlowState()
+        // Note: pendingInstallAfterPermissions is preserved for later retry
     }
 
     fun setSearchQuery(query: String) {
@@ -1125,13 +1501,89 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         priorityUpdateChannel.trySend(Unit)
     }
 
+    /**
+     * Start the permission request flow.
+     * Sets up the flow state and requests the first missing permission.
+     * Reset permissionDenialShown flag when starting a new flow
+     * to prevent false denial messages from previous flows.
+     */
     fun startPermissionFlow() {
         isPermissionFlowActive = true
+        permissionDenialShown = false  // Reset denial tracking for new flow
+
+        // Set the first missing permission as current
+        val next = _missingPermissions.value?.firstOrNull()
+        _permissionFlowState.value = _permissionFlowState.value.copy(
+            currentPermission = next
+        )
+
         requestNextPermission()
     }
 
+    /**
+     * Request the next permission in the flow.
+     * Emits the appropriate event based on the current missing permission.
+     * Updates the permission flow state to track which permission is being requested.
+     *
+     * Enhanced to allow installation to proceed when only critical
+     * permissions are granted, even if optional IGNORE_BATTERY_OPTIMIZATIONS is denied.
+     */
     fun requestNextPermission() {
-        val next = _missingPermissions.value?.firstOrNull() ?: return
+        // Check if we have critical permissions remaining
+        val missingCritical = _missingPermissions.value?.filter {
+            it != RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS
+        } ?: emptyList()
+
+        if (missingCritical.isEmpty()) {
+            // All critical permissions granted - flow is complete
+            // IGNORE_BATTERY_OPTIMIZATIONS may still be missing, but that's OK
+            isPermissionFlowActive = false
+            _permissionFlowState.value = _permissionFlowState.value.copy(
+                currentPermission = null,
+                allGranted = true
+            )
+
+            // Auto-retry pending install if all critical permissions granted
+            pendingInstallAfterPermissions?.let { releaseName ->
+                viewModelScope.launch {
+                    val context = getApplication<Application>()
+                    val hasBatteryOpt = _missingPermissions.value?.contains(RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS) == false
+                    val message = if (hasBatteryOpt) {
+                        context.getString(R.string.msg_permissions_granted)
+                    } else {
+                        context.getString(R.string.msg_critical_permissions_granted)
+                    }
+                    _events.emit(MainEvent.ShowMessage(message))
+                    installGame(releaseName)
+                }
+                pendingInstallAfterPermissions = null
+            }
+
+            return
+        }
+
+        // Get the next critical permission to request (skip battery optimization if it's the only one left)
+        val next = _missingPermissions.value?.firstOrNull { permission ->
+            // Only request critical permissions during the flow
+            permission != RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS ||
+            _missingPermissions.value?.size == 1 // Only request battery if it's the ONLY missing permission
+        }
+
+        if (next == null) {
+            // No critical permissions remaining to request
+            isPermissionFlowActive = false
+            _permissionFlowState.value = _permissionFlowState.value.copy(
+                currentPermission = null,
+                allGranted = true
+            )
+            return
+        }
+
+        // Update current permission in state
+        _permissionFlowState.value = _permissionFlowState.value.copy(
+            currentPermission = next
+        )
+
         viewModelScope.launch {
             when (next) {
                 RequiredPermission.INSTALL_UNKNOWN_APPS -> _events.emit(MainEvent.RequestInstallPermission)
@@ -1141,18 +1593,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Get display name for a permission.
+     * Extracted hardcoded strings to strings.xml for internationalization.
+     */
+    private fun getPermissionDisplayName(permission: RequiredPermission?): String {
+        val context = getApplication<Application>()
+        return when (permission) {
+            RequiredPermission.INSTALL_UNKNOWN_APPS -> context.getString(R.string.perm_name_install)
+            RequiredPermission.MANAGE_EXTERNAL_STORAGE -> context.getString(R.string.perm_name_storage)
+            RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS -> context.getString(R.string.perm_name_battery)
+            null -> context.getString(R.string.perm_overlay_subtitle)
+        }
+    }
+
+    /**
+     * Cancel the permission flow.
+     * Called when user cancels the permission request.
+     */
+    fun cancelPermissionFlow() {
+        isPermissionFlowActive = false
+        _permissionFlowState.value = PermissionFlowState()
+        pendingInstallAfterPermissions = null
+    }
+
     // Queue Management Methods
+    /**
+     * Install a game with permission checking.
+     *
+     * @param releaseName The release name to install
+     * @param downloadOnly If true, only download without installing APK
+     *
+     * Permission flow:
+     * 1. Check if all CRITICAL permissions are granted (install + storage)
+     * 2. If permissions missing: start permission flow, store pending install
+     * 3. If permissions granted: proceed with normal installation
+     * 4. After permission flow completes: automatically retry install
+     *
+     * Changed to use hasCriticalPermissions() instead of
+     * hasAllRequiredPermissions() to make IGNORE_BATTERY_OPTIMIZATIONS optional.
+     */
     fun installGame(releaseName: String, downloadOnly: Boolean = false) {
-        if (_missingPermissions.value?.isNotEmpty() == true) {
+        // Use PermissionManager to check CRITICAL permissions only
+        val context = getApplication<Application>()
+        val hasAllPermissions = com.vrpirates.rookieonquest.data.PermissionManager.hasCriticalPermissions(context)
+
+        if (!hasAllPermissions) {
+            // Permissions missing, start permission flow
+            pendingInstallAfterPermissions = releaseName
             startPermissionFlow()
+
+            // Show user-friendly message
+            viewModelScope.launch {
+                _events.emit(MainEvent.ShowMessage("Please grant required permissions to install games"))
+            }
             return
         }
 
+        // Check if releaseName is empty
         if (releaseName.isEmpty()) {
             showOverlay()
             return
         }
 
+        // Find game in catalog
         val game = _allGames.value.find { it.releaseName == releaseName }
         if (game == null) {
             // Catalog not yet loaded or game not found
@@ -1165,7 +1669,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             return
         }
-        
+
+        // Check if already in queue
         val existingTask = installQueue.value.find { it.releaseName == releaseName }
         if (existingTask != null) {
             val isFirst = installQueue.value.firstOrNull()?.releaseName == releaseName
@@ -1175,6 +1680,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     promoteTask(releaseName)
                     viewModelScope.launch {
                         _events.emit(MainEvent.ShowMessage("Retrying ${game.gameName}..."))
+                    }
+                }
+                // PENDING_INSTALL tasks - user wants to retry installation
+                // This happens when download completed but installation failed (e.g., permission denied)
+                existingTask.status == InstallTaskStatus.PENDING_INSTALL -> {
+                    // Promote to front and resume installation phase
+                    promoteTask(releaseName)
+                    viewModelScope.launch {
+                        _events.emit(MainEvent.ShowMessage("Retrying installation for ${game.gameName}..."))
                     }
                 }
                 // PAUSED tasks at front: Resume
@@ -1356,112 +1870,131 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize active task state before enqueuing work
         activeReleaseName = task.releaseName
 
+        // Check if installation can be resumed from various recovery points
+        // Use withContext(Dispatchers.IO) to avoid blocking main thread with file I/O
+        val context = getApplication<Application>()
+
+        // Check CRITICAL permissions before processing queue task
+        // This prevents tasks from starting if critical permissions were revoked
+        // Battery optimization permission is optional and doesn't block installation
+        if (!PermissionManager.hasCriticalPermissions(context)) {
+            Log.w(TAG, "Permissions missing for ${task.releaseName}, blocking queue processing")
+            updateTaskStatus(task.releaseName, InstallTaskStatus.PAUSED)
+            _events.emit(MainEvent.ShowMessage("Permissions required. Grant them in Settings to continue."))
+            return
+        }
+
+        // Moved signal creation after early returns to prevent signal leakage.
         // Create task-specific completion signal - will be completed when extraction/installation finishes
         // This ensures the queue processor waits for the FULL pipeline before starting next task
         val completionSignal = CompletableDeferred<Unit>()
         taskCompletionSignals[task.releaseName] = completionSignal
-
-        // Check if installation can be resumed from various recovery points
-        // Use withContext(Dispatchers.IO) to avoid blocking main thread with file I/O
-        val context = getApplication<Application>()
-        val recoveryState = withContext(Dispatchers.IO) {
-            val tempInstallRoot = File(context.filesDir, "install_temp")
-            val hash = com.vrpirates.rookieonquest.data.CryptoUtils.md5(task.releaseName + "\n")
-            val gameTempDir = File(tempInstallRoot, hash)
-            val extractionMarker = File(gameTempDir, "extraction_done.marker")
-            val extractionDir = File(gameTempDir, "extracted")
-
-            // Check for staged APK in externalFilesDir (ready for install, extraction already done)
-            // Uses packageName.apk naming convention to prevent cross-contamination between installation tasks
-            // Validates APK integrity (including package name and version match) using repository helper
-            val expectedVersion = game.versionCode.toLongOrNull()
-            val stagedApk = repository.getValidStagedApk(task.packageName, expectedVersion)
-
-            Triple(stagedApk, extractionMarker.exists() && extractionDir.exists(), gameTempDir)
-        }
-        val (stagedApk, isExtractionComplete, _) = recoveryState
-
-        if (stagedApk != null) {
-            // APK is already staged - skip extraction entirely, go directly to APK install
-            Log.i(TAG, "Staged APK found for ${task.releaseName}, launching installer directly")
-            updateTaskStatus(task.releaseName, InstallTaskStatus.INSTALLING)
-            _events.emit(MainEvent.InstallApk(stagedApk))
-
-            // Story 1.7 Code Review Round 9 Fix: Set PENDING_INSTALL instead of COMPLETED
-            // Installation is non-blocking - we need to verify via PackageManager later.
-            // Do NOT cleanup or remove from queue - verification handles that.
-            updateTaskStatus(task.releaseName, InstallTaskStatus.PENDING_INSTALL)
-
-            // Story 1.7: Do NOT cleanup or remove from queue here
-            // The task must persist with PENDING_INSTALL status until verifyPendingInstallations()
-            // confirms the package is installed via PackageManager.
-            // Cleanup will happen after successful verification in checkInstallationStatusSilent().
-            progressThrottleMap.remove(task.releaseName)
-            totalBytesWrittenSet.remove(task.releaseName)
-
-            withContext(Dispatchers.Main) {
-                updateOverlayAfterTaskComplete(task.releaseName)
-                refreshInstalledPackages()
-            }
-
-            taskCompletionSignals[task.releaseName]?.complete(Unit)
-            taskCompletionSignals.remove(task.releaseName)
-            return
-        }
-
-                if (isExtractionComplete) {
-                    // Story 1.7: Zombie Recovery - skip download/extraction, go directly to installation
-                    Log.i(TAG, "Zombie Recovery: Extraction complete for ${task.releaseName}, starting installation at 94%")
-                    runInstallationPhase(task, game)
-                    // Wait for installation to complete before returning
-                    taskCompletionSignals[task.releaseName]?.await()
-                    return
-                }
-        Log.i(TAG, "Enqueueing WorkManager download for: ${task.releaseName}")
-
-        // Enqueue download via WorkManager - survives process death
-        repository.enqueueDownload(
-            releaseName = task.releaseName,
-            isDownloadOnly = task.isDownloadOnly,
-            keepApk = _keepApks.value
-        )
-
-        // Observe WorkManager status and sync with our UI/queue state
-        observeDownloadWork(task.releaseName, task.gameName)
-
-        // CRITICAL: Wait for the FULL pipeline to complete (download + extraction + installation)
-        // This prevents the queue processor from starting the next task prematurely
-        //
-        // Adaptive timeout calculation:
-        // - Base: 5 minutes minimum (for small games and overhead)
-        // - Scale: 2 minutes per 500 MB (accounts for download + extraction on Quest hardware)
-        // - Cap: 6 hours maximum (for very large games like 100GB+)
-        // Note: Previous 2-hour cap was insufficient for games >60GB
-        // Code Review Fix (Item 5): Increased from 1 min/500MB to 2 min/500MB for Quest VR hardware
-        // Quest headsets may have slower storage and CPU compared to typical Android devices
-        val fileSizeMb = task.totalBytes / (1024 * 1024)
-        val baseTimeoutMinutes = 5L
-        val scaledMinutes = fileSizeMb / 250 // 2 minutes per 500 MB (1 min per 250 MB)
-        val timeoutMinutes = (baseTimeoutMinutes + scaledMinutes).coerceIn(5, 360)
-        val timeoutMs = timeoutMinutes * 60 * 1000L
-
-        Log.d(TAG, "Task timeout for ${task.releaseName}: ${timeoutMinutes}min (size: ${fileSizeMb}MB)")
-
+        
         try {
-            withTimeoutOrNull(timeoutMs) {
-                taskCompletionSignals[task.releaseName]?.await()
-            } ?: run {
-                // Timeout reached - worker likely failed silently
-                Log.e(TAG, "Task completion timeout for ${task.releaseName} after ${timeoutMinutes}min - marking as FAILED")
-                updateTaskStatus(task.releaseName, InstallTaskStatus.FAILED)
-                _events.emit(MainEvent.ShowMessage("Installation timed out for ${task.gameName}"))
-                taskCompletionSignals.remove(task.releaseName)
+            val recoveryState = withContext(Dispatchers.IO) {
+                val tempInstallRoot = File(context.filesDir, "install_temp")
+                val hash = com.vrpirates.rookieonquest.data.CryptoUtils.md5(task.releaseName + "\n")
+                val gameTempDir = File(tempInstallRoot, hash)
+                val extractionMarker = File(gameTempDir, "extraction_done.marker")
+                val extractionDir = File(gameTempDir, "extracted")
+
+                // Check for staged APK in externalFilesDir (ready for install, extraction already done)
+                // Uses packageName.apk naming convention to prevent cross-contamination between installation tasks
+                // Validates APK integrity (including package name and version match) using repository helper
+                val expectedVersion = game.versionCode.toLongOrNull()
+                val stagedApk = repository.getValidStagedApk(task.packageName, expectedVersion)
+
+                Triple(stagedApk, extractionMarker.exists() && extractionDir.exists(), gameTempDir)
             }
-        } catch (e: CancellationException) {
-            // Task was cancelled (pause/cancel) - propagate cancellation
-            Log.d(TAG, "Task completion signal cancelled for ${task.releaseName}")
+            val (stagedApk, isExtractionComplete, _) = recoveryState
+
+            if (stagedApk != null) {
+                // APK is already staged - skip extraction entirely, go directly to APK install
+                Log.i(TAG, "Staged APK found for ${task.releaseName}, launching installer directly")
+                updateTaskStatus(task.releaseName, InstallTaskStatus.INSTALLING)
+                _events.emit(MainEvent.InstallApk(stagedApk))
+
+                // Set PENDING_INSTALL instead of COMPLETED
+                // Installation is non-blocking - we need to verify via PackageManager later.
+                // Do NOT cleanup or remove from queue - verification handles that.
+                updateTaskStatus(task.releaseName, InstallTaskStatus.PENDING_INSTALL)
+
+                // Do NOT cleanup or remove from queue here
+                // The task must persist with PENDING_INSTALL status until verifyPendingInstallations()
+                // confirms the package is installed via PackageManager.
+                // Cleanup will happen after successful verification in checkInstallationStatusSilent().
+                progressThrottleMap.remove(task.releaseName)
+                totalBytesWrittenSet.remove(task.releaseName)
+
+                withContext(Dispatchers.Main) {
+                    updateOverlayAfterTaskComplete(task.releaseName)
+                    refreshInstalledPackages()
+                }
+
+                taskCompletionSignals[task.releaseName]?.complete(Unit)
+                return
+            }
+
+            if (isExtractionComplete) {
+                // Zombie Recovery - skip download/extraction, go directly to installation
+                Log.i(TAG, "Zombie Recovery: Extraction complete for ${task.releaseName}, starting installation at 94%")
+                runInstallationPhase(task, game)
+                // Wait for installation to complete before returning
+                taskCompletionSignals[task.releaseName]?.await()
+                return
+            }
+            Log.i(TAG, "Enqueueing WorkManager download for: ${task.releaseName}")
+
+            // Enqueue download via WorkManager - survives process death
+            repository.enqueueDownload(
+                releaseName = task.releaseName,
+                isDownloadOnly = task.isDownloadOnly,
+                keepApk = _keepApks.value
+            )
+
+            // Observe WorkManager status and sync with our UI/queue state
+            observeDownloadWork(task.releaseName, task.gameName)
+
+            // CRITICAL: Wait for the FULL pipeline to complete (download + extraction + installation)
+            // This prevents the queue processor from starting the next task prematurely
+            //
+            // Adaptive timeout calculation:
+            // - Base: 5 minutes minimum (for small games and overhead)
+            // - Scale: 2 minutes per 500 MB (accounts for download + extraction on Quest hardware)
+            // - Cap: 6 hours maximum (for very large games like 100GB+)
+            // Note: Previous 2-hour cap was insufficient for games >60GB
+            // Code Review Fix (Item 5): Increased from 1 min/500MB to 2 min/500MB for Quest VR hardware
+            // Quest headsets may have slower storage and CPU compared to typical Android devices
+            val fileSizeMb = task.totalBytes / (1024 * 1024)
+            val baseTimeoutMinutes = 5L
+            val scaledMinutes = fileSizeMb / 250 // 2 minutes per 500 MB (1 min per 250 MB)
+            val timeoutMinutes = (baseTimeoutMinutes + scaledMinutes).coerceIn(5, 360)
+            val timeoutMs = timeoutMinutes * 60 * 1000L
+
+            Log.d(TAG, "Task timeout for ${task.releaseName}: ${timeoutMinutes}min (size: ${fileSizeMb}MB)")
+
+            // Added try-finally to ensure taskCompletionSignals are always cleaned up,
+            // preventing queue processor stall in case of exceptions (e.g., SecurityException from copyDataToSdcard)
+            try {
+                withTimeoutOrNull(timeoutMs) {
+                    taskCompletionSignals[task.releaseName]?.await()
+                } ?: run {
+                    // Timeout reached - worker likely failed silently
+                    Log.e(TAG, "Task completion timeout for ${task.releaseName} after ${timeoutMinutes}min - marking as FAILED")
+                    updateTaskStatus(task.releaseName, InstallTaskStatus.FAILED)
+                    _events.emit(MainEvent.ShowMessage("Installation timed out for ${task.gameName}"))
+                }
+            } catch (e: CancellationException) {
+                // Task was cancelled (pause/cancel) - propagate cancellation
+                Log.d(TAG, "Task completion signal cancelled for ${task.releaseName}")
+                throw e
+            }
+        } finally {
+            // CRITICAL: Always remove the signal from the map to prevent memory leaks
+            // and ensure the queue processor can continue even if an unexpected exception occurred
+            // The signal may have already been completed and removed by observeDownloadWork or runInstallationPhase
+            // but we ensure it's cleaned up here as well for safety
             taskCompletionSignals.remove(task.releaseName)
-            throw e
         }
     }
 
@@ -1534,7 +2067,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Story 1.7: Zombie Recovery - Run installation phase only (OBB + APK staging).
+     * Zombie Recovery - Run installation phase only (OBB + APK staging).
      * This method is called when extraction is already complete (extraction_done.marker exists).
      * It skips download/extraction and starts installation at 94% progress.
      */
@@ -1549,7 +2082,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Call repository.installFromExtracted which only does OBB + staging
                 val apkFile = repository.installFromExtracted(
                     game = game
-                ) { message, progress, current, total ->
+                ) { _, progress, current, total ->
                     updateTaskProgress(task.releaseName, progress, current, total)
                 }
 
@@ -1561,11 +2094,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // Story 1.7: Set status to PENDING_INSTALL after launching installer
+                // Set status to PENDING_INSTALL after launching installer
                 // (waiting for user to complete installation in system installer)
                 updateTaskStatus(task.releaseName, InstallTaskStatus.PENDING_INSTALL)
 
-                // Story 1.7 Code Review Round 9 Fix: Do NOT remove from queue
+                // Do NOT remove from queue
                 // The task must persist with PENDING_INSTALL status in DB so it can be:
                 // 1. Restored after app restart
                 // 2. Verified via verifyPendingInstallations()
@@ -1732,11 +2265,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
 
-                    // Story 1.7: Set status to PENDING_INSTALL after launching installer
+                    // Set status to PENDING_INSTALL after launching installer
                     // (waiting for user to complete installation in system installer)
                     updateTaskStatus(releaseName, InstallTaskStatus.PENDING_INSTALL)
 
-                    // Story 1.7: DO NOT clean up temp files yet - wait for verification
+                    // DO NOT clean up temp files yet - wait for verification
                     // Cleanup will happen after checkInstallationStatus() confirms installation
 
                     // CRITICAL FIX: Do NOT remove from queue - PENDING_INSTALL must persist in DB
@@ -2066,24 +2599,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Story 1.7: Verify all PENDING_INSTALL tasks automatically.
+     * Verify all PENDING_INSTALL tasks automatically.
      * This method should be called when app returns to foreground (onResume in MainActivity).
      *
      * It scans the install queue for tasks with PENDING_INSTALL status and verifies each one.
      * Successfully verified installations are marked COMPLETED and cleaned up.
      *
-     * Code Review Fix: Consolidates UI messages to prevent Snackbar spam during batch verification.
+     * Consolidates UI messages to prevent Snackbar spam during batch verification.
      */
     fun verifyPendingInstallations() {
         viewModelScope.launch(Dispatchers.IO) {
-            // Story 1.7 Code Review Round 8: Use Mutex to prevent concurrent executions
+            // Use Mutex to prevent concurrent executions
             // Multiple triggers (startup, resume, user action) could cause overlapping verification
             verificationMutex.withLock {
                 try {
                 // Get all PENDING_INSTALL tasks from the queue
                 val pendingTasks = installQueue.value.filter { it.status == InstallTaskStatus.PENDING_INSTALL }
 
-                // Code Review Note (Item 6): Staged APK cleanup when user cancels installation
+                // Note: Staged APK cleanup when user cancels installation
                 // If user cancels the system installation, the staged APK remains in externalFilesDir
                 // This is acceptable because:
                 // 1. The APK will be cleaned up on next app restart via verifyAndCleanupInstalls()
@@ -2099,15 +2632,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 Log.i(TAG, "Found ${pendingTasks.size} pending installation(s) to verify")
 
-                // Code Review Fix: Track verification results to consolidate UI messages
-                // Story 1.7 Code Review Round 9: Added failure tracking and detailed logging
+                // Track verification results to consolidate UI messages
+                // Added failure tracking and detailed logging
                 var verifiedCount = 0
                 var pendingCount = 0
                 var failedCount = 0
                 val failedGames = mutableListOf<String>()
 
                 // Verify each pending installation (silently - no individual messages)
-                // Code Review Fix (Item 4): Add delay between installations to prevent UI confusion
+                // Add delay between installations to prevent UI confusion
                 // Multiple system installer dialogs opening simultaneously can overwhelm users
                 for ((index, task) in pendingTasks.withIndex()) {
                     val game = games.value.find { it.releaseName == task.releaseName }
@@ -2132,13 +2665,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // Story 1.7 Code Review Round 9: Log detailed failure info for diagnostics
+                // Log detailed failure info for diagnostics
                 if (failedGames.isNotEmpty()) {
                     Log.e(TAG, "Verification failed for ${failedGames.size} game(s): ${failedGames.joinToString(", ")}")
                 }
 
-                // Code Review Fix: Show consolidated message instead of per-task messages
-                // Story 1.7 Code Review Round 9: Include failure info in message when relevant
+                // Show consolidated message instead of per-task messages
+                // Include failure info in message when relevant
                 if (verifiedCount > 0 || pendingCount > 0 || failedCount > 0) {
                     val message = when {
                         // All verified
@@ -2175,7 +2708,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Story 1.7: Post-Install Verification - Check if installation was successful.
+     * Post-Install Verification - Check if installation was successful.
      * This method should be called when app returns to foreground or user clicks "Verify".
      * It checks PackageManager for installed package and verifies version matches catalog.
      *
@@ -2198,7 +2731,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Story 1.7 Code Review Fix: Silent version of checkInstallationStatus for batch verification.
+     * Silent version of checkInstallationStatus for batch verification.
      * Does not emit UI messages - caller is responsible for consolidated messaging.
      *
      * @return true if installation was successfully verified, false if still pending or failed
@@ -2225,20 +2758,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return false
             }
 
-            // Story 1.7: Parse catalog versionCode (String) to Long for comparison
+            // Parse catalog versionCode (String) to Long for comparison
             // Handle edge cases: empty string, malformed, null -> 0L
             val catalogVersion = catalogVersionCode.toLongOrNull() ?: 0L
 
             // Get installed version (handle both legacy and long version codes)
-            val installedVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                packageInfo.versionCode.toLong()
-            }
+            val installedVersion = packageInfo.longVersionCode
 
             Log.d(TAG, "Version comparison for $packageName: catalog=$catalogVersion, installed=$installedVersion")
 
-            // Story 1.7 Code Review Fix: Use >= comparison instead of strict equality
+            // Use >= comparison instead of strict equality
             // This allows verification to succeed if user installs a newer version than catalog
             if (installedVersion >= catalogVersion) {
                 Log.i(TAG, "Installation verification successful for $packageName (installed version $installedVersion >= catalog $catalogVersion)")
