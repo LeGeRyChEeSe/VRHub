@@ -174,6 +174,23 @@ object Constants {
     const val STAGED_APK_MAX_AGE_MS = 1000 * 60 * 60 * 24L
 
     /**
+     * Duration for which a dismissed catalog update banner remains hidden (24 hours).
+     */
+    const val BANNER_DISMISSAL_DURATION_MS = 1000 * 60 * 60 * 24L
+
+    /**
+     * SharedPreferences keys used across the application.
+     */
+    object PreferenceKeys {
+        const val LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
+        const val KEEP_APKS = "keep_apks"
+        const val CATALOG_UPDATE_AVAILABLE = "catalog_update_available"
+        const val CATALOG_UPDATE_GAME_COUNT = "catalog_update_game_count"
+        const val CATALOG_UPDATE_DISMISSED_TIME = "catalog_update_dismissed_time"
+        const val META_LAST_MODIFIED = "meta_last_modified"
+    }
+
+    /**
      * Minimum estimated APK size for space checks (500 MB).
      * Used when exact APK size is unknown during pre-flight space verification.
      * APK is staged to externalFilesDir before installation, requiring external storage space.

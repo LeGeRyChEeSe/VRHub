@@ -1,5 +1,6 @@
 package com.vrpirates.rookieonquest
 
+import android.app.Application
 import android.content.ClipboardManager
 import android.content.ClipData
 import android.content.Context
@@ -58,10 +59,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.FileProvider
+import com.vrpirates.rookieonquest.data.MainRepository
 import com.vrpirates.rookieonquest.ui.*
 import com.vrpirates.rookieonquest.ui.theme.RookieOnQuestTheme
+import com.vrpirates.rookieonquest.worker.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -69,6 +74,10 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Schedule periodic catalog update checks (AC 1)
+        CatalogUpdateWorker.schedule(this)
+
         setContent {
             RookieOnQuestTheme {
                 Surface(
@@ -84,9 +93,24 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel()) {
+fun MainScreen() {
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
+    
+    // Explicitly create the factory to inject dependencies
+    val factory = remember(application) {
+        MainViewModelFactory(
+            application = application,
+            repository = MainRepository(application)
+        )
+    }
+    
+    // Get the ViewModel using the factory
+    val viewModel: MainViewModel = viewModel(factory = factory)
+
     val games by viewModel.games.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val syncMessage by viewModel.syncMessage.collectAsState()
     val installQueue by viewModel.installQueue.collectAsState()
     val showInstallOverlay by viewModel.showInstallOverlay.collectAsState()
     val viewedReleaseName by viewModel.viewedReleaseName.collectAsState()
@@ -102,12 +126,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val isUpdateCheckInProgress by viewModel.isUpdateCheckInProgress.collectAsState()
     val isUpdateDownloading by viewModel.isUpdateDownloading.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
+    val isCatalogUpdateAvailable by viewModel.isCatalogUpdateAvailable.collectAsState()
+    val catalogUpdateCount by viewModel.catalogUpdateCount.collectAsState()
+    val lastSyncTime by viewModel.lastSyncTime.collectAsState()
     
     val listState = rememberLazyListState()
     val staggeredGridState = rememberLazyStaggeredGridState()
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
     
     var showUpdateDialogState by remember { mutableStateOf<com.vrpirates.rookieonquest.network.GitHubRelease?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -323,7 +349,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 it.status != InstallTaskStatus.PAUSED &&
                                 it.status != InstallTaskStatus.BLOCKED_BY_PERMISSIONS
                             } || isUpdateDownloading,
-                            permissionsMissing = !missingPermissions.isNullOrEmpty()
+                            permissionsMissing = !missingPermissions.isNullOrEmpty(),
+                            lastSyncTime = lastSyncTime
                         )
                     },
                     containerColor = Color.Black,
@@ -341,84 +368,109 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     }
                 ) { innerPadding ->
                     Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            if (games.isNotEmpty() && searchQuery.isEmpty() && selectedFilter == FilterStatus.ALL && sortMode == SortMode.NAME_ASC) {
-                                AlphabetIndexer(
-                                    alphabetInfo = alphabetInfo,
-                                    onLetterClick = { index ->
-                                        coroutineScope.launch { 
-                                            if (isWide) staggeredGridState.scrollToItem(index)
-                                            else listState.scrollToItem(index) 
+                        Column {
+                            CatalogUpdateBanner(
+                                isVisible = isCatalogUpdateAvailable,
+                                updateCount = catalogUpdateCount,
+                                onSyncClick = { viewModel.refreshData() },
+                                onDismiss = { viewModel.dismissCatalogUpdate() }
+                            )
+                            
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                // AC 4: Stable layout to prevent jumping
+                                val showIndexer = games.isNotEmpty() && searchQuery.isEmpty() && 
+                                                selectedFilter == FilterStatus.ALL && sortMode == SortMode.NAME_ASC
+                                
+                                AnimatedVisibility(
+                                    visible = showIndexer,
+                                    enter = expandHorizontally() + fadeIn(),
+                                    exit = shrinkHorizontally() + fadeOut()
+                                ) {
+                                    Row {
+                                        AlphabetIndexer(
+                                            alphabetInfo = alphabetInfo,
+                                            onLetterClick = { index ->
+                                                coroutineScope.launch { 
+                                                    if (isWide) staggeredGridState.scrollToItem(index)
+                                                    else listState.scrollToItem(index) 
+                                                }
+                                            }
+                                        )
+                                        Box(
+                                            modifier = Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.1f))
+                                        )
+                                    }
+                                }
+
+                                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                    if (games.isEmpty()) {
+                                        if (isRefreshing) {
+                                            LoadingScreen("Loading Catalog...")
+                                        } else if (error != null) {
+                                            ErrorScreen(error!!, onRetry = { viewModel.refreshData() })
+                                        } else {
+                                            // Show empty state if not refreshing and no error
+                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Text("No games found", color = Color.Gray)
+                                            }
                                         }
-                                    }
-                                )
-                                Box(
-                                    modifier = Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.1f))
-                                )
-                            }
-
-                            if (isRefreshing && games.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    LoadingScreen("Loading Catalog...")
-                                }
-                            } else if (error != null && games.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    ErrorScreen(error!!, onRetry = { viewModel.refreshData() })
-                                }
-                            } else if (isWide) {
-                                LazyVerticalStaggeredGrid(
-                                    columns = StaggeredGridCells.Fixed(3),
-                                    state = staggeredGridState,
-                                    contentPadding = PaddingValues(12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalItemSpacing = 8.dp,
-                                    modifier = Modifier.weight(1f).fillMaxHeight()
-                                ) {
-                                    items(games, key = { it.packageName + it.releaseName }) { game ->
-                                        GameListItem(
-                                            game = game,
-                                            onInstallClick = { viewModel.installGame(game.releaseName) },
-                                            onUninstallClick = { viewModel.uninstallGame(game.packageName) },
-                                            onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
-                                            onDeleteDownloadClick = { gameToDelete = game },
-                                            onResumeClick = { viewModel.resumeInstall(game.releaseName) },
-                                            onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
-                                            isGridItem = true,
-                                            permissionsMissing = missingPermissions?.isNotEmpty() == true
-                                        )
-                                    }
-                                }
-                            } else {
-                                LazyColumn(
-                                    state = listState,
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                                    modifier = Modifier.weight(1f).fillMaxHeight()
-                                ) {
-                                    items(games, key = { it.packageName + it.releaseName }) { game ->
-                                        GameListItem(
-                                            game = game,
-                                            onInstallClick = { viewModel.installGame(game.releaseName) },
-                                            onUninstallClick = { viewModel.uninstallGame(game.packageName) },
-                                            onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
-                                            onDeleteDownloadClick = { gameToDelete = game },
-                                            onResumeClick = { viewModel.resumeInstall(game.releaseName) },
-                                            onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
-                                            permissionsMissing = missingPermissions?.isNotEmpty() == true
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        if (isRefreshing && games.isNotEmpty()) {
-                            SyncingOverlay()
-                        }
+                                    } else {
+                                        if (isWide) {
+                                            LazyVerticalStaggeredGrid(
+                                                columns = StaggeredGridCells.Fixed(3),
+                                                state = staggeredGridState,
+                                                contentPadding = PaddingValues(12.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalItemSpacing = 8.dp,
+                                                modifier = Modifier.fillMaxSize()
+                                            ) {
+                                                items(games, key = { it.packageName + it.releaseName }) { game ->
+                                                    GameListItem(
+                                                        game = game,
+                                                        onInstallClick = { viewModel.installGame(game.releaseName) },
+                                                        onUninstallClick = { viewModel.uninstallGame(game.packageName) },
+                                                        onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
+                                                        onDeleteDownloadClick = { gameToDelete = game },
+                                                        onResumeClick = { viewModel.resumeInstall(game.releaseName) },
+                                                        onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
+                                                        isGridItem = true,
+                                                        permissionsMissing = missingPermissions?.isNotEmpty() == true
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            LazyColumn(
+                                                state = listState,
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                                                modifier = Modifier.fillMaxSize()
+                                            ) {
+                                                items(games, key = { it.packageName + it.releaseName }) { game ->
+                                                    GameListItem(
+                                                        game = game,
+                                                        onInstallClick = { viewModel.installGame(game.releaseName) },
+                                                        onUninstallClick = { viewModel.uninstallGame(game.packageName) },
+                                                        onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
+                                                        onDeleteDownloadClick = { gameToDelete = game },
+                                                        onResumeClick = { viewModel.resumeInstall(game.releaseName) },
+                                                        onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
+                                                        permissionsMissing = missingPermissions?.isNotEmpty() == true
+                                                    )
+                                                }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                            
+                                                                if (isRefreshing && games.isNotEmpty()) {                        SyncingOverlay(syncMessage)
                     }
                 }
             }
         }
+    }
 
-        if (showInstallOverlay) {
+    if (showInstallOverlay) {
             val taskToShow = installQueue.find { it.releaseName == viewedReleaseName }
                 ?: installQueue.find { it.status.isProcessing() }
                 ?: installQueue.firstOrNull()
@@ -439,6 +491,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
         if (showSettingsDialog) {
             SettingsDialog(
+                lastSyncTime = lastSyncTime,
                 keepApks = keepApks,
                 onToggleKeepApks = { viewModel.toggleKeepApks() },
                 onExportDiagnostics = { viewModel.exportDiagnostics(toFile = false) },
@@ -808,7 +861,8 @@ fun CustomTopBar(
     onRefreshClick: () -> Unit,
     isRefreshing: Boolean,
     isInstalling: Boolean,
-    permissionsMissing: Boolean
+    permissionsMissing: Boolean,
+    lastSyncTime: Long
 ) {
     var showSortMenu by remember { mutableStateOf(false) }
 
@@ -824,17 +878,25 @@ fun CustomTopBar(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "ROOKIE ON QUEST",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp
-                    ),
-                    color = Color.White
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "ROOKIE ON QUEST",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
+                        ),
+                        color = Color.White
+                    )
+                    
+                    if (lastSyncTime > 0) {
+                        Text(
+                            text = "Last synced: ${com.vrpirates.rookieonquest.logic.DateUtils.formatTimeAgo(lastSyncTime)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Gray
+                        )
+                    }
+                }
                 
-                Spacer(modifier = Modifier.weight(1f))
-
                 Box {
                     IconButton(onClick = { showSortMenu = true }) {
                         Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color.White)
@@ -1018,7 +1080,7 @@ fun CustomTopBar(
 }
 
 @Composable
-fun SyncingOverlay() {
+fun SyncingOverlay(message: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1040,7 +1102,7 @@ fun SyncingOverlay() {
                     color = MaterialTheme.colorScheme.secondary
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("Syncing catalog...", color = Color.White, fontSize = 14.sp)
+                Text(message, color = Color.White, fontSize = 14.sp)
             }
         }
     }
@@ -1315,6 +1377,7 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
 
 @Composable
 fun SettingsDialog(
+    lastSyncTime: Long,
     keepApks: Boolean,
     onToggleKeepApks: () -> Unit,
     onExportDiagnostics: () -> Unit,
@@ -1327,6 +1390,16 @@ fun SettingsDialog(
         title = { Text("App Settings") },
         text = {
             Column {
+                if (lastSyncTime > 0) {
+                    val timeAgo = com.vrpirates.rookieonquest.logic.DateUtils.formatTimeAgo(lastSyncTime)
+                    Text(
+                        text = "Last catalog sync: $timeAgo",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 16.dp, start = 16.dp)
+                    )
+                }
+
                 ListItem(
                     headlineContent = { Text("Keep APKs after install") },
                     supportingContent = { Text("Saved to Download/RookieOnQuest") },
@@ -1660,3 +1733,4 @@ fun parseMarkdown(text: String) = buildAnnotatedString {
         append("\n")
     }
 }
+

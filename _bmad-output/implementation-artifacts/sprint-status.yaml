@@ -68,10 +68,10 @@ development_status:
   3-4-quest-vr-overlay-notification-compatibility: backlog
   epic-3-retrospective: optional
 
-  epic-4: backlog
+  epic-4: in-progress
   4-1-metadata-load-progress-tracking-system: backlog
   4-2-conditional-sort-by-size-with-ui-feedback: backlog
-  4-3-catalog-update-detection-and-synchronization: backlog
+  4-3-catalog-update-detection-and-synchronization: done
   epic-4-retrospective: optional
 
   epic-5: backlog

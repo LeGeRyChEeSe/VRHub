@@ -337,10 +337,12 @@ data class PermissionFlowState(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+class MainViewModel(
+    application: Application,
+    private val repository: MainRepository
+) : AndroidViewModel(application) {
     private val TAG = "MainViewModel"
 
-    private val repository = MainRepository(application)
     private val prefs = application.getSharedPreferences(com.vrpirates.rookieonquest.data.Constants.PREFS_NAME, Context.MODE_PRIVATE)
     
     private val _searchQuery = MutableStateFlow("")
@@ -384,6 +386,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _permissionFlowState.value = _permissionFlowState.value.copy(pendingGameInstall = value)
         }
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing
+
+    private val _syncMessage = MutableStateFlow("Syncing catalog...")
+    val syncMessage: StateFlow<String> = _syncMessage.asStateFlow()
+
+    private val _lastSyncTime = MutableStateFlow(prefs.getLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.LAST_SYNC_TIMESTAMP, 0L))
+    val lastSyncTime: StateFlow<Long> = _lastSyncTime.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private val _visibleIndices = MutableStateFlow<List<Int>>(emptyList())
     private val priorityUpdateChannel = Channel<Unit>(Channel.CONFLATED)
 
@@ -399,10 +413,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _updateProgress = MutableStateFlow("")
     val updateProgress: StateFlow<String> = _updateProgress
 
-    private val _keepApks = MutableStateFlow(prefs.getBoolean("keep_apks", false))
+    private val _keepApks = MutableStateFlow(prefs.getBoolean(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.KEEP_APKS, false))
     val keepApks: StateFlow<Boolean> = _keepApks
 
+    // AC 2: Catalog update availability state
+    private val _isCatalogUpdateAvailable = MutableStateFlow(prefs.getBoolean(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE, false))
+    private val _catalogUpdateCount = MutableStateFlow(prefs.getInt(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, 0))
+    val catalogUpdateCount: StateFlow<Int> = _catalogUpdateCount
+    
+    // Banner persists until user syncs or dismisses (dismissed state persists for 24h)
+    val isCatalogUpdateAvailable: StateFlow<Boolean> = combine(
+        _isCatalogUpdateAvailable,
+        _isRefreshing
+    ) { available, refreshing ->
+        if (refreshing) return@combine false
+        if (!available) return@combine false
+        
+        val lastDismissed = prefs.getLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_TIME, 0L)
+        val isStillDismissed = (System.currentTimeMillis() - lastDismissed) < com.vrpirates.rookieonquest.data.Constants.BANNER_DISMISSAL_DURATION_MS
+        
+        !isStillDismissed
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val _catalogUpdateInfo = MutableStateFlow<String?>(null)
+    val catalogUpdateInfo: StateFlow<String?> = _catalogUpdateInfo
+
     private val _isAppVisible = MutableStateFlow(false)
+
+    // Listen for preference changes from CatalogUpdateWorker
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+        when (key) {
+            com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE -> {
+                _isCatalogUpdateAvailable.value = sharedPreferences.getBoolean(key, false)
+            }
+            com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT -> {
+                _catalogUpdateCount.value = sharedPreferences.getInt(key, 0)
+            }
+            com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.LAST_SYNC_TIMESTAMP -> {
+                _lastSyncTime.value = sharedPreferences.getLong(key, 0L)
+            }
+        }
+    }
 
     // Queue Management (v2.5.0 - Room DB as source of truth)
     // Single StateFlow derived from Room DB - installQueue IS the source of truth for UI
@@ -522,7 +573,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         var downloadedCount = 0
         var newCount = 0
         
-        val lastSync = prefs.getLong("last_catalog_sync_time", 0L)
+        val lastSync = prefs.getLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.LAST_SYNC_TIMESTAMP, 0L)
 
         list.forEach { game ->
             val installedVersion = installed[game.packageName]
@@ -575,7 +626,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val queue = args[6] as List<InstallTaskState>
 
         val firstInQueue = queue.firstOrNull()?.releaseName
-        val lastSync = prefs.getLong("last_catalog_sync_time", 0L)
+        val lastSync = prefs.getLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.LAST_SYNC_TIMESTAMP, 0L)
 
         val filteredList = list.filter { game ->
             val installedVersion = installed[game.packageName]
@@ -676,12 +727,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList<Char>() to emptyMap<Char, Int>())
 
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing
-
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error
-
     // Composite Install State for legacy UI support
     val installState: StateFlow<InstallState> = installQueue.map { queue ->
         val active = queue.find { it.status.isProcessing() }
@@ -701,6 +746,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InstallState())
     
     init {
+        // Diagnostic logging to verify catalog loading (Story 4.3 Task 6)
+        viewModelScope.launch {
+            _allGames.collect { games ->
+                Log.d(TAG, "Games loaded: ${games.size}")
+            }
+        }
+
+        // Register listener for background worker updates
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
+
         // Initialize PermissionManager with application context
         com.vrpirates.rookieonquest.data.PermissionManager.init(getApplication())
 
@@ -753,8 +808,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isUpdateCheckInProgress.value = true
             try {
+                // CRITICAL FIX: Force initial sync on first launch when database is empty
+                // This ensures new users get the catalog downloaded automatically
+                val currentGameCount = repository.getAllGamesFlow().first().size
+                val needsInitialSync = currentGameCount == 0
+
+                Log.d(TAG, "Startup check: gameCount=$currentGameCount, needsInitialSync=$needsInitialSync")
+
+                checkForCatalogUpdate() // AC 1: Check on startup
                 val updateAvailable = checkForAppUpdates()
-                if (!updateAvailable) {
+
+                Log.d(TAG, "Update available: $updateAvailable, will force sync: ${!updateAvailable || needsInitialSync}")
+
+                if (!updateAvailable || needsInitialSync) {
+                    // CRITICAL: Force initial catalog sync on first launch
+                    if (needsInitialSync) {
+                        Log.d(TAG, "Forcing initial catalog download...")
+                        refreshData()
+                    }
                     refreshInstalledPackages()
                     refreshDownloadedReleases()
                     startMetadataFetchLoop()
@@ -1167,11 +1238,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             _isRefreshing.value = true
             _error.value = null
+            _syncMessage.value = "Starting sync..."
+            
+            var newGamesCount = 0
             try {
                 withContext(Dispatchers.IO) {
                     // 1. Sync Catalog first to have the latest games list
                     val config = repository.fetchConfig()
-                    repository.syncCatalog(config.baseUri)
+                    newGamesCount = repository.syncCatalog(config.baseUri) { progress ->
+                        _syncMessage.value = progress
+                    }
 
                     // 2. Refresh statuses now that we have the latest catalog
                     // We get the fresh games list directly to be immediate
@@ -1180,10 +1256,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val installed = repository.getInstalledPackagesMap()
                     _installedPackages.value = installed
                     refreshDownloadedReleases(freshGames)
-
-                    // Store current sync time after successful sync
-                    prefs.edit().putLong("last_catalog_sync_time", now).apply()
+                    
+                    // AC 4: Update "Last synced" preference
+                    prefs.edit().putLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.LAST_SYNC_TIMESTAMP, now).apply()
+                    
+                    // Dismiss the update banner if it was showing
+                    _isCatalogUpdateAvailable.value = false
                 }
+                
+                // AC 4: Success feedback (Snackbar)
+                _events.emit(MainEvent.ShowMessage("Catalog updated successfully: $newGamesCount new games found"))
+                
                 priorityUpdateChannel.trySend(Unit)
             } catch (e: Exception) {
                 com.vrpirates.rookieonquest.data.LogUtils.e(TAG, "Refresh error", e)
@@ -1484,6 +1567,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         isPermissionFlowActive = false
         _permissionFlowState.value = PermissionFlowState()
         // Note: pendingInstallAfterPermissions is preserved for later retry
+    }
+
+    /**
+     * Checks for catalog updates manually (e.g. on startup).
+     * Lightweight HEAD request to mirror.
+     */
+    fun checkForCatalogUpdate() {
+        viewModelScope.launch {
+            try {
+                val remoteLastModified = repository.getRemoteCatalogInfo()
+                val available = repository.isCatalogUpdateAvailable(remoteLastModified)
+                _isCatalogUpdateAvailable.value = available
+                prefs.edit().putBoolean(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE, available).apply()
+            } catch (e: Exception) {
+                Log.w(TAG, "Manual catalog update check failed", e)
+                // Expose error to user via StateFlow
+                _error.value = "Update check failed: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Dismisses the catalog update banner.
+     * Persists dismissal for 24 hours per AC 2.
+     *
+     * RACE CONDITION FIX: Use synchronized check/update via prefs editor
+     * to ensure consistency when multiple updates occur.
+     */
+    fun dismissCatalogUpdate() {
+        prefs.edit()
+            .putLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_TIME, System.currentTimeMillis())
+            .commit()
+        // Trigger flow update by re-emitting current value
+        _isCatalogUpdateAvailable.value = _isCatalogUpdateAvailable.value
+    }
+
+
+    override fun onCleared() {
+        super.onCleared()
+        prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
     }
 
     fun setSearchQuery(query: String) {
