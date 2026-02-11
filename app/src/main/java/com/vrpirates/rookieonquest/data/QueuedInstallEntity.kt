@@ -23,6 +23,7 @@ data class QueuedInstallEntity(
     val queuePosition: Int,
     val createdAt: Long,
     val lastUpdatedAt: Long,
+    val downloadStartedAt: Long? = null,
     val isDownloadOnly: Boolean = false
 ) {
     // NOTE: Validation removed from init block to prevent crash loops when Room reads
@@ -46,7 +47,8 @@ data class QueuedInstallEntity(
             totalBytes: Long?,
             queuePosition: Int,
             createdAt: Long,
-            lastUpdatedAt: Long
+            lastUpdatedAt: Long,
+            downloadStartedAt: Long? = null
         ): List<String> {
             val errors = mutableListOf<String>()
 
@@ -84,6 +86,14 @@ data class QueuedInstallEntity(
             if (downloadedBytes != null && totalBytes != null && downloadedBytes > totalBytes) {
                 errors.add("downloadedBytes ($downloadedBytes) cannot exceed totalBytes ($totalBytes)")
             }
+            downloadStartedAt?.let { startedAt ->
+                if (startedAt <= 0) {
+                    errors.add("downloadStartedAt must be positive if set, got $startedAt")
+                }
+                if (startedAt < createdAt) {
+                    errors.add("downloadStartedAt ($startedAt) cannot be before createdAt ($createdAt)")
+                }
+            }
 
             return errors
         }
@@ -101,6 +111,7 @@ data class QueuedInstallEntity(
             queuePosition: Int,
             createdAt: Long = System.currentTimeMillis(),
             lastUpdatedAt: Long = System.currentTimeMillis(),
+            downloadStartedAt: Long? = null,
             isDownloadOnly: Boolean = false
         ): QueuedInstallEntity {
             val errors = validate(
@@ -111,7 +122,8 @@ data class QueuedInstallEntity(
                 totalBytes = totalBytes,
                 queuePosition = queuePosition,
                 createdAt = createdAt,
-                lastUpdatedAt = lastUpdatedAt
+                lastUpdatedAt = lastUpdatedAt,
+                downloadStartedAt = downloadStartedAt
             )
             if (errors.isNotEmpty()) {
                 throw IllegalArgumentException("Invalid QueuedInstallEntity: ${errors.joinToString("; ")}")
@@ -125,6 +137,7 @@ data class QueuedInstallEntity(
                 queuePosition = queuePosition,
                 createdAt = createdAt,
                 lastUpdatedAt = lastUpdatedAt,
+                downloadStartedAt = downloadStartedAt,
                 isDownloadOnly = isDownloadOnly
             )
         }
@@ -142,6 +155,7 @@ data class QueuedInstallEntity(
             queuePosition: Int,
             createdAt: Long = System.currentTimeMillis(),
             lastUpdatedAt: Long = System.currentTimeMillis(),
+            downloadStartedAt: Long? = null,
             isDownloadOnly: Boolean = false
         ) = QueuedInstallEntity(
             releaseName = releaseName,
@@ -152,6 +166,7 @@ data class QueuedInstallEntity(
             queuePosition = queuePosition,
             createdAt = createdAt,
             lastUpdatedAt = lastUpdatedAt,
+            downloadStartedAt = downloadStartedAt,
             isDownloadOnly = isDownloadOnly
         )
     }
@@ -168,7 +183,8 @@ data class QueuedInstallEntity(
         totalBytes = totalBytes,
         queuePosition = queuePosition,
         createdAt = createdAt,
-        lastUpdatedAt = lastUpdatedAt
+        lastUpdatedAt = lastUpdatedAt,
+        downloadStartedAt = downloadStartedAt
     )
 
     /**

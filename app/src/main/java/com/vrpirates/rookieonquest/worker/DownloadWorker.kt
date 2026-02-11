@@ -586,7 +586,13 @@ class DownloadWorker(
 
     private suspend fun updateStatus(releaseName: String, status: InstallStatus) {
         try {
-            queuedInstallDao.updateStatus(releaseName, status.name, System.currentTimeMillis())
+            val now = System.currentTimeMillis()
+            queuedInstallDao.updateStatus(releaseName, status.name, now)
+            
+            // Set download start time if transitioning to DOWNLOADING for the first time
+            if (status == InstallStatus.DOWNLOADING) {
+                queuedInstallDao.setDownloadStartTimeIfNull(releaseName, now)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to update status for $releaseName", e)
         }

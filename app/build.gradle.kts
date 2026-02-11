@@ -25,7 +25,7 @@ android {
         // Fallback values are maintained for local building.
         //
         // DRY PRINCIPLE NOTE:
-        // The values 9 (versionCode) and "2.5.0" (versionName) are the SINGLE SOURCE OF TRUTH.
+        // The values 10 (versionCode) and "2.5.0-rc.1" (versionName) are the SINGLE SOURCE OF TRUTH.
         // The GHA workflow (release.yml) extracts these values from this file rather than
         // hardcoding them, ensuring consistency.
         //
@@ -270,6 +270,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     kapt("androidx.room:room-compiler:$roomVersion")
+    androidTestImplementation("androidx.room:room-testing:$roomVersion")
 
     // WorkManager for background download tasks
     val workVersion = "2.9.1"

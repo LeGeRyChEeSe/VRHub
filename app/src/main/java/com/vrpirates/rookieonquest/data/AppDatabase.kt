@@ -5,20 +5,23 @@ import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [GameEntity::class, QueuedInstallEntity::class], version = 4, exportSchema = false)
+@Database(entities = [GameEntity::class, QueuedInstallEntity::class, InstallHistoryEntity::class], version = 5, exportSchema = false)
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun gameDao(): GameDao
     abstract fun queuedInstallDao(): QueuedInstallDao
+    abstract fun installHistoryDao(): InstallHistoryDao
 
     companion object {
         private const val TAG = "AppDatabase"
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 try {
                     Log.i(TAG, "Starting migration 2 -> 3: Adding install_queue table")
@@ -33,7 +36,8 @@ abstract class AppDatabase : RoomDatabase() {
                             totalBytes INTEGER,
                             queuePosition INTEGER NOT NULL,
                             createdAt INTEGER NOT NULL,
-                            lastUpdatedAt INTEGER NOT NULL
+                            lastUpdatedAt INTEGER NOT NULL,
+                            downloadStartedAt INTEGER
                         )
                     """.trimIndent())
 
@@ -49,7 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_3_4 = object : Migration(3, 4) {
+        internal val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 try {
                     Log.i(TAG, "Starting migration 3 -> 4: Adding isDownloadOnly column to install_queue")
@@ -70,7 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
          * Creates the complete install_queue table schema in one step,
          * avoiding unnecessary ALTER TABLE operations.
          */
-        private val MIGRATION_2_4 = object : Migration(2, 4) {
+        internal val MIGRATION_2_4 = object : Migration(2, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 try {
                     Log.i(TAG, "Starting migration 2 -> 4: Adding install_queue table with complete schema")
@@ -86,6 +90,7 @@ abstract class AppDatabase : RoomDatabase() {
                             queuePosition INTEGER NOT NULL,
                             createdAt INTEGER NOT NULL,
                             lastUpdatedAt INTEGER NOT NULL,
+                            downloadStartedAt INTEGER,
                             isDownloadOnly INTEGER NOT NULL DEFAULT 0
                         )
                     """.trimIndent())
@@ -102,6 +107,42 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                try {
+                    Log.i(TAG, "Starting migration 4 -> 5: Adding install_history table")
+
+                    // Create install_history table
+                    database.execSQL("""
+                        CREATE TABLE IF NOT EXISTS install_history (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            releaseName TEXT NOT NULL,
+                            gameName TEXT NOT NULL,
+                            packageName TEXT NOT NULL,
+                            installedAt INTEGER NOT NULL,
+                            downloadDurationMs INTEGER NOT NULL,
+                            fileSizeBytes INTEGER NOT NULL,
+                            status TEXT NOT NULL,
+                            errorMessage TEXT,
+                            createdAt INTEGER NOT NULL,
+                            FOREIGN KEY (releaseName) REFERENCES games(releaseName) ON DELETE CASCADE
+                        )
+                    """.trimIndent())
+
+                    // Create indexes for performance
+                    database.execSQL("CREATE INDEX IF NOT EXISTS index_install_history_releaseName ON install_history(releaseName)")
+                    database.execSQL("CREATE INDEX IF NOT EXISTS index_install_history_status ON install_history(status)")
+                    database.execSQL("CREATE INDEX IF NOT EXISTS index_install_history_installedAt ON install_history(installedAt)")
+                    database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_install_history_releaseName_createdAt ON install_history(releaseName, createdAt)")
+
+                    Log.i(TAG, "Migration 4 -> 5 completed successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Migration 4 -> 5 FAILED", e)
+                    throw e
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -109,7 +150,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rookie_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_2_4)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_2_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

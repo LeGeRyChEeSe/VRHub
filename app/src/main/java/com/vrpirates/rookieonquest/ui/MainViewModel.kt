@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.vrpirates.rookieonquest.BuildConfig
 import com.vrpirates.rookieonquest.data.GameData
+import com.vrpirates.rookieonquest.data.Constants
 import com.vrpirates.rookieonquest.data.InstallUtils
 import com.vrpirates.rookieonquest.data.PermissionManager
 import kotlinx.coroutines.sync.Mutex
@@ -100,6 +101,30 @@ enum class SortMode {
     SIZE,
     POPULARITY
 }
+
+enum class HistorySortMode {
+    DATE_DESC, // Default (Newest first)
+    DATE_ASC,
+    NAME_ASC,
+    NAME_DESC,
+    SIZE_DESC,
+    DURATION_DESC
+}
+
+enum class HistoryDateFilter {
+    ALL,
+    LAST_7_DAYS,
+    LAST_30_DAYS,
+    LAST_3_MONTHS
+}
+
+data class HistoryStats(
+    val successRate: Float,
+    val averageDurationMs: Long,
+    val totalDownloadedBytes: Long,
+    val topGames: List<String>,
+    val errorSummary: Map<String, Int> = emptyMap()
+)
 
 enum class InstallStatus {
     NOT_INSTALLED,
@@ -446,6 +471,177 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _viewedReleaseName = MutableStateFlow<String?>(null)
     val viewedReleaseName: StateFlow<String?> = _viewedReleaseName
 
+    private val _historyQuery = MutableStateFlow("")
+    val historyQuery: StateFlow<String> = _historyQuery
+
+    private val _historyStatusFilter = MutableStateFlow<com.vrpirates.rookieonquest.data.InstallStatus?>(null)
+    val historyStatusFilter: StateFlow<com.vrpirates.rookieonquest.data.InstallStatus?> = _historyStatusFilter
+
+    private val _historySortMode = MutableStateFlow(HistorySortMode.DATE_DESC)
+    val historySortMode: StateFlow<HistorySortMode> = _historySortMode
+
+    private val _historyDateFilter = MutableStateFlow(HistoryDateFilter.ALL)
+    val historyDateFilter: StateFlow<HistoryDateFilter> = _historyDateFilter
+
+    private val _historyLimit = MutableStateFlow(50)
+
+    val installHistory: StateFlow<List<com.vrpirates.rookieonquest.data.InstallHistoryEntity>> = 
+        combine(_historyQuery, _historyStatusFilter, _historyLimit, _historySortMode, _historyDateFilter) { query, status, limit, sort, dateFilter ->
+            val queryToUse = if (query.isBlank()) null else query
+            val minTimestamp = when (dateFilter) {
+                HistoryDateFilter.ALL -> null
+                HistoryDateFilter.LAST_7_DAYS -> System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
+                HistoryDateFilter.LAST_30_DAYS -> System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+                HistoryDateFilter.LAST_3_MONTHS -> System.currentTimeMillis() - (90L * 24 * 60 * 60 * 1000)
+            }
+            repository.db.installHistoryDao().searchAndFilterFlowWithLimitAndSort(
+                queryToUse,
+                status,
+                minTimestamp,
+                limit,
+                sort.name
+            )
+        }
+        .flatMapLatest { it }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val historyStats: StateFlow<HistoryStats?> = installHistory
+        .flatMapLatest { _ -> // Re-calculate when history changes
+            flow {
+                val dao = repository.db.installHistoryDao()
+                val successCount = dao.getCountByStatus(com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
+                val failedCount = dao.getCountByStatus(com.vrpirates.rookieonquest.data.InstallStatus.FAILED)
+                val totalCount = successCount + failedCount
+                
+                if (totalCount == 0) {
+                    emit(null)
+                    return@flow
+                }
+
+                val avgDuration = dao.getAverageDuration(com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
+                val totalSize = dao.getTotalDownloadedSize(com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
+                val topGames = dao.getMostInstalledGames(3)
+                
+                val allHistory = dao.getAll()
+                val errors = allHistory
+                    .filter { !it.errorMessage.isNullOrBlank() }
+                    .groupBy { it.errorMessage!! }
+                    .mapValues { it.value.size }
+                    .toList()
+                    .sortedByDescending { it.second }
+                    .take(5)
+                    .toMap()
+
+                emit(HistoryStats(
+                    successRate = if (totalCount > 0) successCount.toFloat() / totalCount else 0f,
+                    averageDurationMs = avgDuration,
+                    totalDownloadedBytes = totalSize,
+                    topGames = topGames.map { it.gameName },
+                    errorSummary = errors
+                ))
+            }
+        }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val canLoadMoreHistory: StateFlow<Boolean> = installHistory.map { history ->
+        // Only allow loading more if we have at least 'limit' items and haven't reached a reasonable cap
+        history.size >= _historyLimit.value && _historyLimit.value < Constants.MAX_HISTORY_LIMIT
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    /**
+     * Updates the history search query with validation.
+     * Limits query length to 100 characters to prevent performance/memory issues.
+     * 
+     * NOTE: This method is responsible for escaping LIKE special characters (%, _, \) 
+     * to prevent SQL injection or unexpected pattern matching. The DAO provides the
+     * corresponding ESCAPE '\' clause.
+     */
+    fun setHistoryQuery(query: String) {
+        val validatedQuery = if (query.length > 100) query.take(100) else query
+        // Escape LIKE special characters (%, _, \) using \ as escape character
+        val escapedQuery = validatedQuery
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+
+        if (_historyQuery.value != escapedQuery) {
+            _historyQuery.value = escapedQuery
+            _historyLimit.value = 50 // Reset pagination
+        }
+    }
+
+    fun setHistoryStatusFilter(status: com.vrpirates.rookieonquest.data.InstallStatus?) {
+        if (_historyStatusFilter.value != status) {
+            _historyStatusFilter.value = status
+            _historyLimit.value = 50 // Reset pagination
+        }
+    }
+
+    fun setHistorySortMode(mode: HistorySortMode) {
+        if (_historySortMode.value != mode) {
+            _historySortMode.value = mode
+            _historyLimit.value = 50 // Reset pagination
+        }
+    }
+
+    fun setHistoryDateFilter(filter: HistoryDateFilter) {
+        if (_historyDateFilter.value != filter) {
+            _historyDateFilter.value = filter
+            _historyLimit.value = 50 // Reset pagination
+        }
+    }
+
+    fun loadMoreHistory() {
+        // Increment limit by 50, but cap to prevent excessive memory usage
+        if (_historyLimit.value < Constants.MAX_HISTORY_LIMIT) {
+            _historyLimit.value += 50
+        } else {
+            // Notify user that maximum history limit has been reached
+            viewModelScope.launch {
+                _events.emit(MainEvent.ShowMessage("Maximum history limit reached (${Constants.MAX_HISTORY_LIMIT} items)"))
+            }
+        }
+    }
+
+    fun deleteHistoryEntry(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                repository.db.installHistoryDao().deleteById(id)
+                _events.emit(MainEvent.ShowMessage("Entry deleted from history"))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete history entry", e)
+                _events.emit(MainEvent.ShowMessage("Failed to delete entry"))
+            }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                repository.db.installHistoryDao().deleteAll()
+                _events.emit(MainEvent.ShowMessage("Installation history cleared"))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear history", e)
+                _events.emit(MainEvent.ShowMessage("Failed to clear history"))
+            }
+        }
+    }
+
+    fun exportHistory(format: String = "txt") {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _events.emit(MainEvent.ShowMessage("Exporting history ($format)..."))
+                val filePath = repository.exportHistory(format)
+                _events.emit(MainEvent.ShowMessage("History exported to: $filePath"))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to export history", e)
+                _events.emit(MainEvent.ShowMessage("Failed to export history: ${e.message}"))
+            }
+        }
+    }
+
     private var queueProcessorJob: Job? = null
     private var currentTaskJob: Job? = null
     private var activeReleaseName: String? = null
@@ -752,16 +948,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             _isUpdateCheckInProgress.value = true
+            Log.d(TAG, "Startup: Starting background initialization")
             try {
-                val updateAvailable = checkForAppUpdates()
+                // Trigger initial catalog sync in parallel if database is empty
+                // This ensures the catalog starts loading immediately without waiting for update check
+                launch {
+                    val gameCount = repository.db.gameDao().getCount()
+                    if (gameCount == 0) {
+                        Log.i(TAG, "Startup: Catalog is empty, triggering auto-refresh in parallel")
+                        refreshData()
+                    } else {
+                        Log.d(TAG, "Startup: Catalog already has $gameCount games")
+                    }
+                }
+
+                // Add timeout to prevent hanging on update check if network is slow/unreachable
+                Log.d(TAG, "Startup: Checking for app updates...")
+                val updateAvailable = withTimeoutOrNull(5000) { checkForAppUpdates() } ?: false
+                Log.d(TAG, "Startup: Update check complete, available: $updateAvailable")
+                
                 if (!updateAvailable) {
                     refreshInstalledPackages()
                     refreshDownloadedReleases()
                     startMetadataFetchLoop()
                     repository.verifyAndCleanupInstalls()
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Startup: Error during initialization", e)
             } finally {
                 _isUpdateCheckInProgress.value = false
+                Log.d(TAG, "Startup: Background initialization complete")
             }
         }
 
@@ -2173,8 +2389,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         updateTaskStatus(releaseName, InstallTaskStatus.COMPLETED)
                         delay(1000)
 
-                        // Remove completed task from Room DB
-                        repository.removeFromQueue(releaseName)
+                        // Archive completed task to history
+                        val archived = repository.archiveTask(releaseName, com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
+                        if (!archived) {
+                            withContext(Dispatchers.Main) {
+                                _events.emit(MainEvent.ShowMessage("Failed to archive task to history. It will remain in queue."))
+                            }
+                        }
                         progressThrottleMap.remove(releaseName)
                         totalBytesWrittenSet.remove(releaseName)
 
@@ -2206,13 +2427,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } else {
                 Log.e(TAG, "Game not found for download-only: $releaseName")
-                // Fallback: just clean up the task
+                // Fallback: archive as failed
                 try {
-                    repository.removeFromQueue(releaseName)
+                    repository.archiveTask(releaseName, com.vrpirates.rookieonquest.data.InstallStatus.FAILED, "Game not found in catalog")
                     progressThrottleMap.remove(releaseName)
                     totalBytesWrittenSet.remove(releaseName)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to remove task from DB", e)
+                    Log.e(TAG, "Failed to archive task", e)
                 }
                 updateOverlayAfterTaskComplete(releaseName)
                 signalTaskComplete()
@@ -2333,6 +2554,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _events.emit(MainEvent.ShowMessage("STORAGE ERROR: $errorMessage"))
         } else {
             _events.emit(MainEvent.ShowMessage("Failed to download $gameName: $errorMessage"))
+        }
+
+        // Archive failed task to history
+        val archived = repository.archiveTask(releaseName, com.vrpirates.rookieonquest.data.InstallStatus.FAILED, errorMessage)
+        if (!archived) {
+            Log.e(TAG, "Failed to archive failed task $releaseName")
         }
     }
 
@@ -2657,11 +2884,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         if (wasVerified) verifiedCount++ else pendingCount++
                     } else {
                         Log.w(TAG, "Game not found in catalog for pending installation: ${task.releaseName}")
-                        // Game removed from catalog? Track as failure and clean up
+                        // Game removed from catalog? Track as failure and archive
                         failedCount++
                         failedGames.add(task.gameName)
                         repository.cleanupInstall(task.releaseName)
-                        repository.removeFromQueue(task.releaseName)
+                        val archived = repository.archiveTask(task.releaseName, com.vrpirates.rookieonquest.data.InstallStatus.FAILED, "Game not found in catalog")
+                        if (!archived) {
+                            Log.e(TAG, "Failed to archive task ${task.releaseName} (game not found)")
+                        }
                     }
                 }
 
@@ -2778,8 +3008,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Clean up temp files after successful verification
                 repository.cleanupInstall(releaseName)
 
-                // Remove from queue now that verification is complete
-                repository.removeFromQueue(releaseName)
+                // Archive completed task to history
+                repository.archiveTask(releaseName, com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
 
                 true
             } else {

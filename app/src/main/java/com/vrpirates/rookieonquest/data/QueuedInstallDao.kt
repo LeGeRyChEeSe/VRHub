@@ -34,6 +34,9 @@ interface QueuedInstallDao {
     @Query("UPDATE install_queue SET status = :status, lastUpdatedAt = :timestamp WHERE releaseName = :releaseName")
     suspend fun updateStatus(releaseName: String, status: String, timestamp: Long): Int
 
+    @Query("UPDATE install_queue SET downloadStartedAt = :timestamp, lastUpdatedAt = :timestamp WHERE releaseName = :releaseName AND downloadStartedAt IS NULL")
+    suspend fun setDownloadStartTimeIfNull(releaseName: String, timestamp: Long): Int
+
     @Query("UPDATE install_queue SET progress = :progress, downloadedBytes = :downloadedBytes, totalBytes = :totalBytes, lastUpdatedAt = :timestamp WHERE releaseName = :releaseName")
     suspend fun updateProgress(
         releaseName: String,

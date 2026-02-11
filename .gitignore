@@ -70,3 +70,4 @@ package.json
 
 # Story worktree tracking
 .story-id
+.story-files

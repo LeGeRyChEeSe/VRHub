@@ -174,6 +174,12 @@ object Constants {
     const val STAGED_APK_MAX_AGE_MS = 1000 * 60 * 60 * 24L
 
     /**
+     * Maximum number of items to load in history view to prevent excessive memory usage.
+     * Used for pagination capping.
+     */
+    const val MAX_HISTORY_LIMIT = 1000
+
+    /**
      * Minimum estimated APK size for space checks (500 MB).
      * Used when exact APK size is unknown during pre-flight space verification.
      * APK is staged to externalFilesDir before installation, requiring external storage space.
@@ -186,6 +192,26 @@ object Constants {
      * This value (1000ms) ensures updates happen at least once per second.
      */
     const val EXTRACTION_PROGRESS_THROTTLE_MS = 1000L
+}
+
+/**
+ * Date and time related constants
+ */
+object DateTimeConstants {
+    /**
+     * Default date format pattern for history and logs: "MMM d, yyyy HH:mm"
+     * Example: "Jan 1, 2026 14:30"
+     */
+    const val DATE_FORMAT_PATTERN = "MMM d, yyyy HH:mm"
+
+    /**
+     * Thread-safe formatter for installation history dates.
+     * Uses the system default timezone and locale.
+     */
+    val HISTORY_DATE_FORMATTER: java.time.format.DateTimeFormatter by lazy {
+        java.time.format.DateTimeFormatter.ofPattern(DATE_FORMAT_PATTERN, java.util.Locale.getDefault())
+            .withZone(java.time.ZoneId.systemDefault())
+    }
 }
 
 /**

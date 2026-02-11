@@ -186,7 +186,7 @@
 }
 
 # ================================================================================
-# Application Data Classes
+# Application Data & Network Classes
 # ================================================================================
 # Keep data classes that are serialized/deserialized by Gson.
 # These are specific to Rookie On Quest app.
@@ -205,7 +205,7 @@
 # - Room entities with relationships
 #
 # PERFORMANCE IMPACT:
-# These packages are small (~10-20 classes) so full preservation has minimal
+# These packages are small (~20-30 classes) so full preservation has minimal
 # impact on APK size. The safety benefit outweighs the marginal size cost.
 #
 # FUTURE OPTIMIZATION (Story 8.7):
@@ -215,4 +215,4 @@
 # - Then replace these rules with annotation-based keeping
 #
 -keep class com.vrpirates.rookieonquest.data.** { *; }
--keep class com.vrpirates.rookieonquest.model.** { *; }
+-keep class com.vrpirates.rookieonquest.network.** { *; }

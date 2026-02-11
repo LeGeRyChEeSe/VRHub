@@ -29,7 +29,10 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -37,6 +40,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
+import androidx.room.withTransaction
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.Data
@@ -50,10 +54,12 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.channelFlow
 
-class MainRepository(private val context: Context) {
+class MainRepository(
+    private val context: Context,
+    val db: AppDatabase = AppDatabase.getDatabase(context)
+) {
     private val TAG = "MainRepository"
     private val catalogMutex = Mutex()
-    private val db = AppDatabase.getDatabase(context)
     private val gameDao = db.gameDao()
 
     // Use shared network instances from NetworkModule (singleton)
@@ -107,63 +113,81 @@ class MainRepository(private val context: Context) {
 
     suspend fun syncCatalog(baseUri: String) = withContext(Dispatchers.IO) {
         catalogMutex.withLock {
+            Log.i(TAG, "Starting catalog sync from: $baseUri")
             val sanitizedBase = if (baseUri.endsWith("/")) baseUri else "$baseUri/"
             val metaUrl = "${sanitizedBase}meta.7z"
             
-            val lastModified = getRemoteLastModified(metaUrl)
-            val savedModified = prefs.getString("meta_last_modified", "")
-            
-            if (catalogCacheFile.exists() && lastModified == savedModified && lastModified != null && gameDao.getCount() > 0) {
-                return@withLock
-            }
-
-            val tempMetaFile = File.createTempFile("meta_", ".7z", context.cacheDir)
             try {
-                downloadFile(metaUrl, tempMetaFile)
-
-                val passwordsToTry = listOfNotNull(decodedPassword, cachedConfig?.password64, null).distinct()
-                var gameListContent = ""
-                var success = false
-
-                for (pass in passwordsToTry) {
-                    try {
-                        extractMetaToCache(tempMetaFile, pass) { content -> gameListContent = content }
-                        success = true
-                        break
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Extraction failed with password attempt: ${e.message}")
-                    }
+                val lastModified = getRemoteLastModified(metaUrl)
+                val savedModified = prefs.getString("meta_last_modified", "")
+                Log.d(TAG, "Remote last modified: $lastModified, saved: $savedModified")
+                
+                if (catalogCacheFile.exists() && lastModified == savedModified && lastModified != null && gameDao.getCount() > 0) {
+                    Log.i(TAG, "Catalog is up to date, skipping sync")
+                    return@withLock
                 }
 
-                if (success && gameListContent.isNotEmpty()) {
-                    if (lastModified != null) {
-                        prefs.edit().putString("meta_last_modified", lastModified).apply()
+                Log.i(TAG, "Downloading catalog meta file: $metaUrl")
+                val tempMetaFile = File.createTempFile("meta_", ".7z", context.cacheDir)
+                try {
+                    downloadFile(metaUrl, tempMetaFile)
+                    Log.d(TAG, "Meta file downloaded, size: ${tempMetaFile.length()} bytes")
+
+                    val passwordsToTry = listOfNotNull(decodedPassword, cachedConfig?.password64, null).distinct()
+                    var gameListContent = ""
+                    var success = false
+
+                    for (pass in passwordsToTry) {
+                        try {
+                            Log.d(TAG, "Attempting extraction with password: ${if (pass != null) "****" else "none"}")
+                            extractMetaToCache(tempMetaFile, pass) { content -> gameListContent = content }
+                            success = true
+                            Log.i(TAG, "Extraction successful")
+                            break
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Extraction failed with password attempt: ${e.message}")
+                        }
                     }
-                    val newList = CatalogParser.parse(gameListContent)
-                    
-                    val existingData = gameDao.getAllGamesList().associateBy { it.releaseName }
-                    
-                    val entities = newList.map { game ->
-                        val existing = existingData[game.releaseName]
-                        val isNewOrUpdated = existing == null || existing.versionCode != game.versionCode
+
+                    if (success && gameListContent.isNotEmpty()) {
+                        if (lastModified != null) {
+                            prefs.edit().putString("meta_last_modified", lastModified).apply()
+                        }
+                        Log.i(TAG, "Parsing catalog content...")
+                        val newList = CatalogParser.parse(gameListContent)
+                        Log.i(TAG, "Parsed ${newList.size} games")
                         
-                        // Local description check
-                        val localNote = File(notesDir, "${game.releaseName}.txt")
-                        val description = if (localNote.exists()) localNote.readText() else existing?.description ?: game.description
+                        val existingData = gameDao.getAllGamesList().associateBy { it.releaseName }
                         
-                        game.copy(
-                            sizeBytes = game.sizeBytes ?: existing?.sizeBytes,
-                            description = description,
-                            isFavorite = existing?.isFavorite ?: false,
-                            lastUpdated = if (isNewOrUpdated) System.currentTimeMillis() else (existing?.lastUpdated ?: System.currentTimeMillis()),
-                            popularity = game.popularity
-                        ).toEntity()
+                        val entities = newList.map { game ->
+                            val existing = existingData[game.releaseName]
+                            val isNewOrUpdated = existing == null || existing.versionCode != game.versionCode
+                            
+                            // Local description check
+                            val localNote = File(notesDir, "${game.releaseName}.txt")
+                            val description = if (localNote.exists()) localNote.readText() else existing?.description ?: game.description
+                            
+                            game.copy(
+                                sizeBytes = game.sizeBytes ?: existing?.sizeBytes,
+                                description = description,
+                                isFavorite = existing?.isFavorite ?: false,
+                                lastUpdated = if (isNewOrUpdated) System.currentTimeMillis() else (existing?.lastUpdated ?: System.currentTimeMillis()),
+                                popularity = game.popularity
+                            ).toEntity()
+                        }
+                        
+                        Log.i(TAG, "Inserting ${entities.size} games into database")
+                        gameDao.insertGames(entities)
+                        Log.i(TAG, "Catalog sync complete")
+                    } else {
+                        Log.e(TAG, "Failed to extract catalog content or content empty")
                     }
-                    
-                    gameDao.insertGames(entities)
+                } finally {
+                    if (tempMetaFile.exists()) tempMetaFile.delete()
                 }
-            } finally {
-                if (tempMetaFile.exists()) tempMetaFile.delete()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during catalog sync: ${e.message}", e)
+                throw e
             }
         }
     }
@@ -1864,13 +1888,145 @@ class MainRepository(private val context: Context) {
     }
 
     suspend fun saveLogs(logs: String): String = withContext(Dispatchers.IO) {
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+        val timestamp = LocalDateTime.now().format(formatter)
         val fileName = "rookie_logs_$timestamp.txt"
         val file = File(logsDir, fileName)
         if (!logsDir.exists()) logsDir.mkdirs()
         file.writeText(logs)
         MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null, null)
         fileName
+    }
+
+    suspend fun exportHistory(format: String = "txt"): String = withContext(Dispatchers.IO) {
+        val history = db.installHistoryDao().getAll()
+        
+        if (history.isEmpty()) {
+            throw IllegalStateException("Installation history is empty. Nothing to export.")
+        }
+
+        // Max size validation (prevent OOM for extremely large history)
+        if (history.size > 10000) {
+            Log.e(TAG, "exportHistory: History too large (${history.size} entries)")
+            throw IllegalStateException("History is too large to export. Please clear history first.")
+        }
+        
+        // Size warning for history export (>1000 entries)
+        if (history.size > 1000) {
+            Log.w(TAG, "exportHistory: Large history detected (${history.size} entries). Exporting may be slow.")
+        }
+
+        if (!logsDir.exists() && !logsDir.mkdirs()) {
+            Log.e(TAG, "exportHistory: Failed to create logs directory: ${logsDir.absolutePath}")
+            throw IOException("Could not create directory for history export")
+        }
+
+        if (!logsDir.canWrite()) {
+            Log.e(TAG, "exportHistory: Logs directory is not writable: ${logsDir.absolutePath}")
+            throw IOException("Logs directory is not writable. Check storage permissions.")
+        }
+
+        val fileFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+        val timestamp = LocalDateTime.now().format(fileFormatter)
+        val extension = if (format.lowercase() == "json") "json" else "txt"
+        val fileName = "rookie_history_$timestamp.$extension"
+        val file = File(logsDir, fileName)
+        
+        val content = if (format.lowercase() == "json") {
+            // Memory safety check specifically for JSON serialization (AC Review fix)
+            // Although checked at the top of the method, this provides extra safety for the heavier JSON format
+            if (history.size > 10000) {
+                throw IllegalStateException("History is too large for JSON export (max 10,000 entries)")
+            }
+            com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(history)
+        } else {
+            val displayFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                .withZone(ZoneId.systemDefault())
+            
+            val sb = StringBuilder()
+            sb.append("ROOKIE ON QUEST - INSTALLATION HISTORY\n")
+            sb.append("Generated on: ${displayFormatter.format(Instant.now())}\n")
+            sb.append("========================================\n\n")
+            
+            history.forEach { entry ->
+                val date = displayFormatter.format(Instant.ofEpochMilli(entry.installedAt))
+                val durationSeconds = entry.downloadDurationMs / 1000
+                sb.append("Game: ${entry.gameName}\n")
+                sb.append("Package: ${entry.packageName}\n")
+                sb.append("Release: ${entry.releaseName}\n")
+                sb.append("Status: ${entry.status}\n")
+                sb.append("Installed At: $date\n")
+                sb.append("Duration: ${durationSeconds / 60}m ${durationSeconds % 60}s\n")
+                sb.append("Size: ${InstallUtils.formatBytes(entry.fileSizeBytes)}\n")
+                if (!entry.errorMessage.isNullOrBlank()) {
+                    sb.append("Error: ${entry.errorMessage}\n")
+                }
+                sb.append("----------------------------------------\n")
+            }
+            sb.toString()
+        }
+        
+        try {
+            file.writeText(content)
+            if (!file.exists() || file.length() == 0L) {
+                throw IOException("Export file was not created or is empty")
+            }
+            
+            // Wait for MediaScanner to complete to ensure file is visible to other apps (AC 6)
+            // Added timeout (AC Review) to prevent indefinite blocking
+            withTimeout(5000) {
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null) { path, uri ->
+                        if (uri != null) {
+                            Log.i(TAG, "exportHistory: MediaScanner completed for $path, uri=$uri")
+                            continuation.resume(Unit)
+                        } else {
+                            Log.w(TAG, "exportHistory: MediaScanner failed for $path (uri is null)")
+                            // Resume anyway but log warning - file exists on disk but might not show in picker immediately
+                            continuation.resume(Unit)
+                        }
+                    }
+                }
+            }
+            
+            compressExportIfNeeded(fileName)
+        } catch (e: Exception) {
+            Log.e(TAG, "exportHistory: Failed to write history file", e)
+            throw e
+        }
+    }
+
+    /**
+     * Compresses an export file into a ZIP archive if it's larger than 1MB.
+     * @param fileName Name of the file to compress
+     * @return Absolute path of the final file (original or ZIP)
+     */
+    suspend fun compressExportIfNeeded(fileName: String): String = withContext(Dispatchers.IO) {
+        val file = File(logsDir, fileName)
+        if (!file.exists() || file.length() < 1024 * 1024) return@withContext file.absolutePath
+
+        val zipFileName = fileName.substringBeforeLast(".") + ".zip"
+        val zipFile = File(logsDir, zipFileName)
+
+        try {
+            java.util.zip.ZipOutputStream(zipFile.outputStream()).use { zos ->
+                val entry = java.util.zip.ZipEntry(fileName)
+                zos.putNextEntry(entry)
+                file.inputStream().use { it.copyTo(zos) }
+                zos.closeEntry()
+            }
+            
+            // Delete original file after compression
+            file.delete()
+            
+            // Scan the ZIP file
+            MediaScannerConnection.scanFile(context, arrayOf(zipFile.absolutePath), null, null)
+            
+            zipFile.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compress export file", e)
+            file.absolutePath // Return original if compression fails
+        }
     }
 
     suspend fun clearCache(): Long = withContext(Dispatchers.IO) {
@@ -2145,12 +2301,18 @@ class MainRepository(private val context: Context) {
         releaseName: String,
         status: InstallStatus
     ) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
         // InstallStatus enum guarantees status.name is always a valid status string
         db.queuedInstallDao().updateStatus(
             releaseName = releaseName,
             status = status.name,
-            timestamp = System.currentTimeMillis()
+            timestamp = now
         )
+
+        // Set download start time if transitioning to DOWNLOADING for the first time
+        if (status == InstallStatus.DOWNLOADING) {
+            db.queuedInstallDao().setDownloadStartTimeIfNull(releaseName, now)
+        }
     }
 
     /**
@@ -2198,6 +2360,62 @@ class MainRepository(private val context: Context) {
                 totalBytes = totalBytes,
                 timestamp = System.currentTimeMillis()
             )
+        }
+    }
+
+    /**
+     * Moves a task from the installation queue to the history.
+     */
+    suspend fun archiveTask(
+        releaseName: String,
+        status: InstallStatus,
+        errorMessage: String? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        val queueEntry = db.queuedInstallDao().getByReleaseName(releaseName) ?: run {
+            Log.w(TAG, "archiveTask: Task $releaseName not found in queue")
+            return@withContext false
+        }
+        
+        // Use data from catalog if available, otherwise fallback to releaseName (AC Review fix)
+        val game = gameDao.getByReleaseName(releaseName)
+        if (game == null) {
+            Log.w(TAG, "archiveTask: Game data for $releaseName not found in catalog, using fallback names")
+        }
+
+        val now = System.currentTimeMillis()
+        // includes queue wait time only if it never reached DOWNLOADING status
+        val startTime = queueEntry.downloadStartedAt ?: queueEntry.createdAt
+        val durationMs = now - startTime
+
+        val historyEntry = InstallHistoryEntity(
+            releaseName = releaseName,
+            gameName = game?.gameName ?: releaseName,
+            packageName = game?.packageName ?: "",
+            installedAt = now,
+            downloadDurationMs = durationMs,
+            fileSizeBytes = queueEntry.totalBytes ?: 0L,
+            status = status,
+            errorMessage = errorMessage,
+            createdAt = queueEntry.createdAt
+        )
+
+        try {
+            // Use withTransaction for atomicity (Room KTX)
+            db.withTransaction {
+                // Duplicate prevention: check inside transaction to prevent race conditions (AC Review fix)
+                val existingCount = db.installHistoryDao().countByReleaseAndCreatedAt(releaseName, queueEntry.createdAt)
+                if (existingCount == 0) {
+                    db.installHistoryDao().insert(historyEntry)
+                } else {
+                    Log.w(TAG, "archiveTask: Task $releaseName with createdAt ${queueEntry.createdAt} already archived (skipped insert)")
+                }
+                db.queuedInstallDao().deleteByReleaseName(releaseName)
+            }
+            Log.i(TAG, "Archived task $releaseName to history with status $status")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to archive task $releaseName", e)
+            false
         }
     }
 

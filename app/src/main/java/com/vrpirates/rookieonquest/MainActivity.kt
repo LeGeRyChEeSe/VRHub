@@ -99,6 +99,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val alphabetInfo by viewModel.alphabetInfo.collectAsState()
     val keepApks by viewModel.keepApks.collectAsState()
     
+    // Navigation state
+    var currentScreen by remember { mutableStateOf("catalog") }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    
     val isUpdateCheckInProgress by viewModel.isUpdateCheckInProgress.collectAsState()
     val isUpdateDownloading by viewModel.isUpdateDownloading.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
@@ -303,115 +307,198 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             }
             missingPermissions == null -> LoadingScreen("Checking permissions...")
             else -> {
-                Scaffold(
-                    snackbarHost = { SnackbarHost(snackbarHostState) },
-                    topBar = {
-                        CustomTopBar(
-                            searchQuery = searchQuery,
-                            onSearchQueryChange = { viewModel.setSearchQuery(it) },
-                            selectedFilter = selectedFilter,
-                            onFilterChange = { viewModel.setFilter(it) },
-                            sortMode = sortMode,
-                            onSortChange = { viewModel.setSortMode(it) },
-                            filterCounts = filterCounts,
-                            onSettingsClick = { showSettingsDialog = true },
-                            onRefreshClick = { viewModel.refreshData() },
-                            isRefreshing = isRefreshing,
-                            isInstalling = installQueue.any { 
-                                it.status != InstallTaskStatus.COMPLETED && 
-                                it.status != InstallTaskStatus.FAILED && 
-                                it.status != InstallTaskStatus.PAUSED &&
-                                it.status != InstallTaskStatus.BLOCKED_BY_PERMISSIONS
-                            } || isUpdateDownloading,
-                            permissionsMissing = !missingPermissions.isNullOrEmpty()
-                        )
-                    },
-                    containerColor = Color.Black,
-                    bottomBar = {
-                        AnimatedVisibility(
-                            visible = !showInstallOverlay && installQueue.isNotEmpty(),
-                            enter = slideInVertically(initialOffsetY = { it }),
-                            exit = slideOutVertically(targetOffsetY = { it })
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    gesturesEnabled = currentScreen == "catalog",
+                    drawerContent = {
+                        ModalDrawerSheet(
+                            drawerContainerColor = Color(0xFF121212),
+                            drawerContentColor = Color.White,
+                            drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
                         ) {
-                            BottomQueueBar(
-                                queue = installQueue,
-                                onClick = { viewModel.showOverlay() }
+                            Spacer(Modifier.height(24.dp))
+                            Text(
+                                "ROOKIE",
+                                modifier = Modifier.padding(horizontal = 28.dp),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 4.sp,
+                                color = Color.White
                             )
+                            Spacer(Modifier.height(24.dp))
+                            NavigationDrawerItem(
+                                label = { Text("Catalog", fontWeight = FontWeight.Bold) },
+                                selected = currentScreen == "catalog",
+                                onClick = {
+                                    currentScreen = "catalog"
+                                    coroutineScope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.Apps, null) },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                    selectedIconColor = MaterialTheme.colorScheme.secondary,
+                                    selectedTextColor = MaterialTheme.colorScheme.secondary,
+                                    unselectedIconColor = Color.Gray,
+                                    unselectedTextColor = Color.Gray
+                                ),
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                            NavigationDrawerItem(
+                                label = { Text("Installation History", fontWeight = FontWeight.Bold) },
+                                selected = currentScreen == "history",
+                                onClick = {
+                                    currentScreen = "history"
+                                    coroutineScope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.History, null) },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                    selectedIconColor = MaterialTheme.colorScheme.secondary,
+                                    selectedTextColor = MaterialTheme.colorScheme.secondary,
+                                    unselectedIconColor = Color.Gray,
+                                    unselectedTextColor = Color.Gray
+                                ),
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.05f))
+                            NavigationDrawerItem(
+                                label = { Text("Settings", fontWeight = FontWeight.Bold) },
+                                selected = false,
+                                onClick = {
+                                    showSettingsDialog = true
+                                    coroutineScope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.Settings, null) },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    unselectedIconColor = Color.Gray,
+                                    unselectedTextColor = Color.Gray
+                                ),
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                            Spacer(Modifier.height(12.dp))
                         }
                     }
-                ) { innerPadding ->
-                    Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            if (games.isNotEmpty() && searchQuery.isEmpty() && selectedFilter == FilterStatus.ALL && sortMode == SortMode.NAME_ASC) {
-                                AlphabetIndexer(
-                                    alphabetInfo = alphabetInfo,
-                                    onLetterClick = { index ->
-                                        coroutineScope.launch { 
-                                            if (isWide) staggeredGridState.scrollToItem(index)
-                                            else listState.scrollToItem(index) 
+                ) {
+                    if (currentScreen == "history") {
+                        BackHandler { currentScreen = "catalog" }
+                        InstallHistoryScreen(
+                            viewModel = viewModel,
+                            onBack = { currentScreen = "catalog" }
+                        )
+                    } else {
+                        Scaffold(
+                            snackbarHost = { SnackbarHost(snackbarHostState) },
+                            topBar = {
+                                CustomTopBar(
+                                    searchQuery = searchQuery,
+                                    onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                                    selectedFilter = selectedFilter,
+                                    onFilterChange = { viewModel.setFilter(it) },
+                                    sortMode = sortMode,
+                                    onSortChange = { viewModel.setSortMode(it) },
+                                    filterCounts = filterCounts,
+                                    onSettingsClick = { showSettingsDialog = true },
+                                    onRefreshClick = { viewModel.refreshData() },
+                                    onNavigationClick = { coroutineScope.launch { drawerState.open() } },
+                                    isRefreshing = isRefreshing,
+                                    isInstalling = installQueue.any { 
+                                        it.status != InstallTaskStatus.COMPLETED && 
+                                        it.status != InstallTaskStatus.FAILED && 
+                                        it.status != InstallTaskStatus.PAUSED &&
+                                        it.status != InstallTaskStatus.BLOCKED_BY_PERMISSIONS
+                                    } || isUpdateDownloading,
+                                    permissionsMissing = !missingPermissions.isNullOrEmpty()
+                                )
+                            },
+                            containerColor = Color.Black,
+                            bottomBar = {
+                                AnimatedVisibility(
+                                    visible = !showInstallOverlay && installQueue.isNotEmpty(),
+                                    enter = slideInVertically(initialOffsetY = { it }),
+                                    exit = slideOutVertically(targetOffsetY = { it })
+                                ) {
+                                    BottomQueueBar(
+                                        queue = installQueue,
+                                        onClick = { viewModel.showOverlay() }
+                                    )
+                                }
+                            }
+                        ) { innerPadding ->
+                            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                                Row(modifier = Modifier.fillMaxSize()) {
+                                    if (games.isNotEmpty() && searchQuery.isEmpty() && selectedFilter == FilterStatus.ALL && sortMode == SortMode.NAME_ASC) {
+                                        AlphabetIndexer(
+                                            alphabetInfo = alphabetInfo,
+                                            onLetterClick = { index ->
+                                                coroutineScope.launch { 
+                                                    if (isWide) staggeredGridState.scrollToItem(index)
+                                                    else listState.scrollToItem(index) 
+                                                }
+                                            }
+                                        )
+                                        Box(
+                                            modifier = Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.1f))
+                                        )
+                                    }
+
+                                    if (isRefreshing && games.isEmpty()) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            LoadingScreen("Loading Catalog...")
+                                        }
+                                    } else if (error != null && games.isEmpty()) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            ErrorScreen(error!!, onRetry = { viewModel.refreshData() })
+                                        }
+                                    } else if (isWide) {
+                                        LazyVerticalStaggeredGrid(
+                                            columns = StaggeredGridCells.Fixed(3),
+                                            state = staggeredGridState,
+                                            contentPadding = PaddingValues(12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalItemSpacing = 8.dp,
+                                            modifier = Modifier.weight(1f).fillMaxHeight()
+                                        ) {
+                                            items(games, key = { it.packageName + it.releaseName }) { game ->
+                                                GameListItem(
+                                                    game = game,
+                                                    onInstallClick = { viewModel.installGame(game.releaseName) },
+                                                    onUninstallClick = { viewModel.uninstallGame(game.packageName) },
+                                                    onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
+                                                    onDeleteDownloadClick = { gameToDelete = game },
+                                                    onResumeClick = { viewModel.resumeInstall(game.releaseName) },
+                                                    onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
+                                                    isGridItem = true,
+                                                    permissionsMissing = missingPermissions?.isNotEmpty() == true
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        LazyColumn(
+                                            state = listState,
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                                            modifier = Modifier.weight(1f).fillMaxHeight()
+                                        ) {
+                                            items(games, key = { it.packageName + it.releaseName }) { game ->
+                                                GameListItem(
+                                                    game = game,
+                                                    onInstallClick = { viewModel.installGame(game.releaseName) },
+                                                    onUninstallClick = { viewModel.uninstallGame(game.packageName) },
+                                                    onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
+                                                    onDeleteDownloadClick = { gameToDelete = game },
+                                                    onResumeClick = { viewModel.resumeInstall(game.releaseName) },
+                                                    onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
+                                                    permissionsMissing = missingPermissions?.isNotEmpty() == true
+                                                )
+                                            }
                                         }
                                     }
-                                )
-                                Box(
-                                    modifier = Modifier.fillMaxHeight().width(1.dp).background(Color.White.copy(alpha = 0.1f))
-                                )
-                            }
+                                }
 
-                            if (isRefreshing && games.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    LoadingScreen("Loading Catalog...")
-                                }
-                            } else if (error != null && games.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    ErrorScreen(error!!, onRetry = { viewModel.refreshData() })
-                                }
-                            } else if (isWide) {
-                                LazyVerticalStaggeredGrid(
-                                    columns = StaggeredGridCells.Fixed(3),
-                                    state = staggeredGridState,
-                                    contentPadding = PaddingValues(12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalItemSpacing = 8.dp,
-                                    modifier = Modifier.weight(1f).fillMaxHeight()
-                                ) {
-                                    items(games, key = { it.packageName + it.releaseName }) { game ->
-                                        GameListItem(
-                                            game = game,
-                                            onInstallClick = { viewModel.installGame(game.releaseName) },
-                                            onUninstallClick = { viewModel.uninstallGame(game.packageName) },
-                                            onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
-                                            onDeleteDownloadClick = { gameToDelete = game },
-                                            onResumeClick = { viewModel.resumeInstall(game.releaseName) },
-                                            onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
-                                            isGridItem = true,
-                                            permissionsMissing = missingPermissions?.isNotEmpty() == true
-                                        )
-                                    }
-                                }
-                            } else {
-                                LazyColumn(
-                                    state = listState,
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                                    modifier = Modifier.weight(1f).fillMaxHeight()
-                                ) {
-                                    items(games, key = { it.packageName + it.releaseName }) { game ->
-                                        GameListItem(
-                                            game = game,
-                                            onInstallClick = { viewModel.installGame(game.releaseName) },
-                                            onUninstallClick = { viewModel.uninstallGame(game.packageName) },
-                                            onDownloadOnlyClick = { viewModel.installGame(game.releaseName, downloadOnly = true) },
-                                            onDeleteDownloadClick = { gameToDelete = game },
-                                            onResumeClick = { viewModel.resumeInstall(game.releaseName) },
-                                            onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
-                                            permissionsMissing = missingPermissions?.isNotEmpty() == true
-                                        )
-                                    }
+                                if (isRefreshing && games.isNotEmpty()) {
+                                    SyncingOverlay()
                                 }
                             }
-                        }
-
-                        if (isRefreshing && games.isNotEmpty()) {
-                            SyncingOverlay()
                         }
                     }
                 }
@@ -806,6 +893,7 @@ fun CustomTopBar(
     filterCounts: Map<FilterStatus, Int>,
     onSettingsClick: () -> Unit,
     onRefreshClick: () -> Unit,
+    onNavigationClick: () -> Unit,
     isRefreshing: Boolean,
     isInstalling: Boolean,
     permissionsMissing: Boolean
@@ -824,20 +912,35 @@ fun CustomTopBar(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(onClick = onNavigationClick) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Menu",
+                        tint = Color.White,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+
                 Text(
                     text = "ROOKIE ON QUEST",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Black,
                         letterSpacing = 2.sp
                     ),
-                    color = Color.White
+                    color = Color.White,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 
-                Spacer(modifier = Modifier.weight(1f))
-
                 Box {
                     IconButton(onClick = { showSortMenu = true }) {
-                        Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color.White)
+                        Icon(
+                            imageVector = Icons.Default.Sort,
+                            contentDescription = "Sort",
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
+                        )
                     }
                     DropdownMenu(
                         expanded = showSortMenu,
@@ -868,14 +971,20 @@ fun CustomTopBar(
                 
                 IconButton(onClick = onRefreshClick, enabled = !isInstalling && !permissionsMissing) {
                     Icon(
-                        Icons.Default.Refresh,
+                        imageVector = Icons.Default.Refresh,
                         contentDescription = "Refresh",
-                        tint = if (isRefreshing) MaterialTheme.colorScheme.secondary else Color.White
+                        tint = if (isRefreshing) MaterialTheme.colorScheme.secondary else Color.White,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
                 
                 IconButton(onClick = onSettingsClick) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                        modifier = Modifier.size(30.dp)
+                    )
                 }
             }
             
