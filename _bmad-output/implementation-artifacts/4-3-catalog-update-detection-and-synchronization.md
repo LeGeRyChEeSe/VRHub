@@ -1,6 +1,6 @@
 # Story 4.3: Catalog Update Detection and Synchronization
 
-Status: done
+Status: review
 
 ## Story
 
@@ -138,6 +138,7 @@ The version bump to `2.5.0-rc.1` (versionCode 10) in `build.gradle.kts` is perfo
 - app/src/main/java/com/vrpirates/rookieonquest/logic/CatalogUtils.kt
 - app/src/main/java/com/vrpirates/rookieonquest/logic/DateUtils.kt
 - app/src/main/java/com/vrpirates/rookieonquest/MainActivity.kt
+- app/src/main/res/values/strings.xml
 - app/src/test/java/com/vrpirates/rookieonquest/logic/CatalogUtilsTest.kt
 - app/src/test/java/com/vrpirates/rookieonquest/logic/DateUtilsTest.kt (NEW)
 - app/src/test/java/com/vrpirates/rookieonquest/ui/MainViewModelTest.kt (NEW)
@@ -181,10 +182,28 @@ gemini-2.0-flash-exp
 - **Review Follow-up (Round 4 - Device Testing):** **NEW BUG DISCOVERED** - After Factory fix, catalog no longer loads any games. MainViewModelFactory uses `LocalContext.current.applicationContext` which may not provide correct context to MainRepository/GameDao, causing empty game list.
 - **Review Follow-up (Round 5 - Fix Verified):** Created `MainViewModelFactory.kt` and updated `MainActivity.kt` to pass the `application` context from the activity level, ensuring `MainRepository` receives a valid context for database initialization. Updated `MainViewModel` logging to verify game count. Verified fix with successful project build.
 - **Review Follow-up (Round 6 - Verification):** Verified that progress messages in `MainRepository.kt` use forward slashes `/3` as required. Confirmed with `grep` and manual inspection. No code changes needed as it was already correct in the current workspace.
+- **Review Follow-up (Round 8 - Initial Sync):** Fixed startup logic to trigger initial sync when DB is empty.
+- **Review Follow-up (Round 9 - Final Polish):** Preserved screenshot metadata during sync, optimized `meta.7z` download redundancy, localized `DateUtils`, and enhanced banner dismissal logic to reset on newer updates. Verified all changes with unit tests.
+- **Review Follow-up (Round 10 - UX & Accuracy):** Improved accuracy of sync success message, enhanced error visibility in UI during sync, and expanded `CatalogUtils` unit tests.
 
 ### Review Follow-ups (AI) - Eighth Review (2026-02-11) - Device Testing Final
 
 - [x] [AI-Review][CRITICAL] **INITIAL SYNC BUG FIXED** - Application did not download catalog on first launch when database was empty. User saw "No games found" screen with empty game list. Fixed by modifying `MainViewModel.kt` startup logic to detect empty database (`currentGameCount == 0`) and force call to `refreshData()` which triggers full catalog download (meta.7z, thumbnails, icons, notes). Verified on real Quest device - catalog now syncs automatically and 2500+ games display correctly on first launch. [MainViewModel.kt:808-832]
 - [x] [AI-Review][LOW] Added debug logging to track initial sync behavior (`Log.d(TAG, "Startup check: gameCount=$currentGameCount, needsInitialSync=$needsInitialSync")`) for future troubleshooting.
 
-**NOTE:** This review found NO CRITICAL issues - all ACs are implemented and verified working on real device. Code is production-ready.
+### Review Follow-ups (AI) - Ninth Review (2026-02-11) - Adversarial Review
+- [x] [AI-Review][HIGH] Data Loss: Preserve existing `screenshotUrlsJson` in `MainRepository.syncCatalog` when updating games [MainRepository.kt:180-200]
+- [x] [AI-Review][MEDIUM] Redundancy: Optimize `CatalogUpdateWorker` and `syncCatalog` to avoid downloading `meta.7z` twice if already fresh [CatalogUpdateWorker.kt, MainRepository.kt]
+- [x] [AI-Review][MEDIUM] UX: Reset update banner dismissal if a NEWER catalog version is detected (compare dates, don't just wait 24h) [MainViewModel.kt:338]
+- [x] [AI-Review][MEDIUM] Robustness: Check `response.isSuccessful` in `MainRepository.getRemoteLastModified` before returning header [MainRepository.kt:2103]
+- [x] [AI-Review][LOW] UX: Update `calculateUpdateCountFromMeta` in manual `checkForCatalogUpdate` to keep banner informative [MainViewModel.kt:1561]
+- [x] [AI-Review][LOW] UI: Reset `_syncMessage` to default "Syncing catalog..." after sync completion or error [MainViewModel.kt:1435]
+- [x] [AI-Review][LOW] Localization: Move hardcoded strings in `DateUtils.kt` to `strings.xml` [DateUtils.kt]
+- [x] [AI-Review][LOW] Hygiene: Remove UTF-8 BOM from `build.gradle.kts` [build.gradle.kts:1]
+
+**NOTE:** All Ninth Review items addressed. Story moved to review status.
+
+### Review Follow-ups (AI) - Tenth Review (2026-02-11) - Adversarial Code Review
+- [x] [AI-Review][MEDIUM] AC 4: Fix "new games found" message accuracy - current `updateCount` in syncCatalog() counts ALL new/updated games, not just new games. Either: (1) Track actual new games separately in syncCatalog, or (2) Change message to "new/updated games found" [MainRepository.kt:212-217, MainViewModel.kt:1278]
+- [x] [AI-Review][LOW] UX: Don't reset `_syncMessage` to "Syncing catalog..." after error - user loses error context. Keep error message visible or use separate error state [MainViewModel.kt:1286]
+- [x] [AI-Review][LOW] Tests: Add unit tests for `CatalogUtils.isUpdateAvailable()` covering all documented cases in KDoc (remote null, empty DB, dates match/differ) [CatalogUtils.kt:34-45]
