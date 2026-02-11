@@ -185,9 +185,12 @@ object Constants {
         const val LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         const val KEEP_APKS = "keep_apks"
         const val CATALOG_UPDATE_AVAILABLE = "catalog_update_available"
+        const val CATALOG_UPDATE_REMOTE_LAST_MODIFIED = "catalog_update_remote_last_modified"
         const val CATALOG_UPDATE_GAME_COUNT = "catalog_update_game_count"
         const val CATALOG_UPDATE_DISMISSED_TIME = "catalog_update_dismissed_time"
+        const val CATALOG_UPDATE_DISMISSED_LAST_MODIFIED = "catalog_update_dismissed_last_modified"
         const val META_LAST_MODIFIED = "meta_last_modified"
+        const val CACHED_CATALOG_LAST_MODIFIED = "cached_catalog_last_modified"
     }
 
     /**

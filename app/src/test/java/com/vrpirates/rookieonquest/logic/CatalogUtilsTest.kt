@@ -46,4 +46,14 @@ class CatalogUtilsTest {
         )
         assertFalse(available)
     }
+
+    @Test
+    fun `isUpdateAvailable returns true when saved date is null but remote is present and count is positive`() {
+        val available = CatalogUtils.isUpdateAvailable(
+            remoteLastModified = "new_date",
+            savedLastModified = null,
+            currentItemCount = 10
+        )
+        assertTrue(available)
+    }
 }

@@ -157,73 +157,89 @@ class MainRepository(
             
             onProgress("Checking for updates...")
             val lastModified = getRemoteLastModified(metaUrl)
-            val savedModified = prefs.getString(Constants.PreferenceKeys.META_LAST_MODIFIED, "")
+            val dbModified = prefs.getString(Constants.PreferenceKeys.META_LAST_MODIFIED, "")
+            val cacheModified = prefs.getString(Constants.PreferenceKeys.CACHED_CATALOG_LAST_MODIFIED, "")
             
-            if (catalogCacheFile.exists() && lastModified == savedModified && lastModified != null && gameDao.getCount() > 0) {
+            if (catalogCacheFile.exists() && lastModified == dbModified && lastModified != null && gameDao.getCount() > 0) {
                 onProgress("Catalog is up to date")
                 return@withLock
             }
 
+            var gameListContent: String? = null
             // AC 3: Standardized progress messages
-            onProgress("Step 1/3: Downloading")
-            val tempMetaFile = File.createTempFile("meta_", ".7z", context.cacheDir)
-            try {
-                downloadFile(metaUrl, tempMetaFile)
+            
+            // Optimization: Use cached game list if it matches remote Last-Modified
+            if (lastModified == cacheModified && catalogCacheFile.exists()) {
+                onProgress("Step 1/3: Using cached catalog")
+                gameListContent = catalogCacheFile.readText()
+            } else {
+                onProgress("Step 1/3: Downloading")
+                val tempMetaFile = File.createTempFile("meta_", ".7z", context.cacheDir)
+                try {
+                    downloadFile(metaUrl, tempMetaFile)
 
-                val passwordsToTry = listOfNotNull(decodedPassword, cachedConfig?.password64, null).distinct()
-                var gameListContent = ""
-                var success = false
+                    val passwordsToTry = listOfNotNull(decodedPassword, cachedConfig?.password64, null).distinct()
+                    var success = false
 
-                onProgress("Step 2/3: Extracting")
-                for (pass in passwordsToTry) {
-                    try {
-                        extractMetaToCache(tempMetaFile, pass) { content -> gameListContent = content }
-                        success = true
-                        break
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Extraction failed with password attempt: ${e.message}")
-                    }
-                }
-
-                if (success && gameListContent.isNotEmpty()) {
-                    onProgress("Step 3/3: Updating Database")
-                    if (lastModified != null) {
-                        prefs.edit().putString(Constants.PreferenceKeys.META_LAST_MODIFIED, lastModified).apply()
-                    }
-                    val newList = CatalogParser.parse(gameListContent)
-                    
-                    val existingData = gameDao.getAllGamesList().associateBy { it.releaseName }
-                    
-                    val entities = newList.map { game ->
-                        val existing = existingData[game.releaseName]
-                        val isNewOrUpdated = existing == null || existing.versionCode != game.versionCode
-                        
-                        if (isNewOrUpdated) {
-                            updateCount++
+                    onProgress("Step 2/3: Extracting")
+                    for (pass in passwordsToTry) {
+                        try {
+                            extractMetaToCache(tempMetaFile, pass) { content -> gameListContent = content }
+                            success = true
+                            break
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Extraction failed with password attempt: ${e.message}")
                         }
-
-                        // Local description check
-                        val localNote = File(notesDir, "${game.releaseName}.txt")
-                        val description = if (localNote.exists()) localNote.readText() else existing?.description ?: game.description
-                        
-                        game.copy(
-                            sizeBytes = game.sizeBytes ?: existing?.sizeBytes,
-                            description = description,
-                            isFavorite = existing?.isFavorite ?: false,
-                            lastUpdated = if (isNewOrUpdated) System.currentTimeMillis() else (existing?.lastUpdated ?: System.currentTimeMillis()),
-                            popularity = game.popularity
-                        ).toEntity()
                     }
                     
-                    gameDao.insertGames(entities)
-                    
-                    // Reset catalog update count after successful sync
-                    prefs.edit().putInt(Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, 0).apply()
-                    
-                    onProgress("Catalog updated: $updateCount new/updated games found")
+                    if (success && lastModified != null) {
+                        prefs.edit().putString(Constants.PreferenceKeys.CACHED_CATALOG_LAST_MODIFIED, lastModified).apply()
+                    }
+                } finally {
+                    if (tempMetaFile.exists()) tempMetaFile.delete()
                 }
-            } finally {
-                if (tempMetaFile.exists()) tempMetaFile.delete()
+            }
+
+            if (gameListContent != null && gameListContent!!.isNotEmpty()) {
+                onProgress("Step 3/3: Updating Database")
+                if (lastModified != null) {
+                    prefs.edit().putString(Constants.PreferenceKeys.META_LAST_MODIFIED, lastModified).apply()
+                }
+                val newList = CatalogParser.parse(gameListContent!!)
+                
+                val existingData = gameDao.getAllGamesList().associateBy { it.releaseName }
+                
+                val entities = newList.map { game ->
+                    val existing = existingData[game.releaseName]
+                    val isNewOrUpdated = existing == null || existing.versionCode != game.versionCode
+                    
+                    if (isNewOrUpdated) {
+                        updateCount++
+                    }
+
+                    // Local description check
+                    val localNote = File(notesDir, "${game.releaseName}.txt")
+                    val description = if (localNote.exists()) localNote.readText() else existing?.description ?: game.description
+                    
+                    // AC 9: Preserve screenshots to prevent data loss
+                    val screenshots = game.screenshotUrls ?: existing?.screenshotUrlsJson?.split("|")?.filter { it.isNotEmpty() }
+
+                    game.copy(
+                        sizeBytes = game.sizeBytes ?: existing?.sizeBytes,
+                        description = description,
+                        screenshotUrls = screenshots,
+                        isFavorite = existing?.isFavorite ?: false,
+                        lastUpdated = if (isNewOrUpdated) System.currentTimeMillis() else (existing?.lastUpdated ?: System.currentTimeMillis()),
+                        popularity = game.popularity
+                    ).toEntity()
+                }
+                
+                gameDao.insertGames(entities)
+                
+                // Reset catalog update count after successful sync
+                prefs.edit().putInt(Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, 0).apply()
+                
+                onProgress("Catalog updated: $updateCount new/updated games found")
             }
         }
         return@withContext updateCount
@@ -2100,7 +2116,9 @@ class MainRepository(
     private suspend fun getRemoteLastModified(url: String): String? {
         return try {
             val request = Request.Builder().url(url).head().header("User-Agent", Constants.USER_AGENT).build()
-            okHttpClient.newCall(request).await().use { it.header("Last-Modified") }
+            okHttpClient.newCall(request).await().use { response ->
+                if (response.isSuccessful) response.header("Last-Modified") else null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch remote last-modified for $url", e)
             null
@@ -2110,6 +2128,9 @@ class MainRepository(
     /**
      * Calculates how many games would be added or updated if a sync was performed.
      * This downloads meta.7z but only parses the game list, without updating the DB.
+     * 
+     * Optimization: After successful extraction, it updates CACHED_CATALOG_LAST_MODIFIED
+     * to allow syncCatalog to skip download/extraction if the file is still fresh.
      *
      * ### Error Handling:
      * - Returns **0** if the network is unavailable or the download fails.
@@ -2123,6 +2144,8 @@ class MainRepository(
         val config = fetchConfig()
         val sanitizedBase = if (config.baseUri.endsWith("/")) config.baseUri else "${config.baseUri}/"
         val metaUrl = "${sanitizedBase}meta.7z"
+        
+        val lastModified = getRemoteLastModified(metaUrl)
         
         val tempMetaFile = File.createTempFile("meta_check_", ".7z", context.cacheDir)
         try {
@@ -2141,6 +2164,10 @@ class MainRepository(
             }
             
             if (success && gameListContent.isNotEmpty()) {
+                if (lastModified != null) {
+                    prefs.edit().putString(Constants.PreferenceKeys.CACHED_CATALOG_LAST_MODIFIED, lastModified).apply()
+                }
+                
                 val newList = CatalogParser.parse(gameListContent)
                 val existingNames = gameDao.getAllGamesList().associateBy { it.releaseName }
                 

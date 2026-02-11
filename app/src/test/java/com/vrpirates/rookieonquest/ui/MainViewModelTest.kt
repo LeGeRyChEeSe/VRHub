@@ -58,6 +58,7 @@ class MainViewModelTest {
         every { application.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE) } returns prefs
         every { prefs.edit() } returns editor
         every { editor.putBoolean(any(), any()) } returns editor
+        every { editor.putString(any(), any()) } returns editor
         every { editor.putLong(any(), any()) } returns editor
         every { editor.putInt(any(), any()) } returns editor
         every { editor.apply() } just Runs
@@ -84,6 +85,7 @@ class MainViewModelTest {
         val date = "Mon, 10 Feb 2026 12:00:00 GMT"
         coEvery { repository.getRemoteCatalogInfo() } returns date
         coEvery { repository.isCatalogUpdateAvailable(date) } returns true
+        coEvery { repository.calculateUpdateCountFromMeta() } returns 5
         
         // Start collecting the flow in backgroundScope to keep it active
         backgroundScope.launch { viewModel.isCatalogUpdateAvailable.collect {} }
@@ -97,6 +99,8 @@ class MainViewModelTest {
         // Then
         assertTrue(viewModel.isCatalogUpdateAvailable.value)
         verify { editor.putBoolean(Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE, true) }
+        verify { editor.putString(Constants.PreferenceKeys.CATALOG_UPDATE_REMOTE_LAST_MODIFIED, date) }
+        verify { editor.putInt(Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, 5) }
     }
 
     @Test
@@ -115,20 +119,17 @@ class MainViewModelTest {
         // Then
         assertFalse(viewModel.isCatalogUpdateAvailable.value)
         verify { editor.putBoolean(Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE, false) }
+        verify { editor.putString(Constants.PreferenceKeys.CATALOG_UPDATE_REMOTE_LAST_MODIFIED, date) }
     }
 
     @Test
     fun `dismissCatalogUpdate updates prefs and re-emits state`() = runTest {
-        // Given
-        // Initial state
-        // We need to trigger checkForCatalogUpdate first to set it to true if we want to test re-emission
-        // but re-emission just sets it to itself.
-        
         // When
         viewModel.dismissCatalogUpdate()
 
         // Then
         verify { editor.putLong(Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_TIME, any()) }
+        verify { editor.putString(Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_LAST_MODIFIED, any()) }
         verify { editor.commit() }
     }
 }

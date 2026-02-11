@@ -1,6 +1,6 @@
 # Story 4.3: Catalog Update Detection and Synchronization
 
-Status: review
+Status: done
 
 ## Story
 

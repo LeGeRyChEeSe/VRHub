@@ -890,7 +890,7 @@ fun CustomTopBar(
                     
                     if (lastSyncTime > 0) {
                         Text(
-                            text = "Last synced: ${com.vrpirates.rookieonquest.logic.DateUtils.formatTimeAgo(lastSyncTime)}",
+                            text = "Last synced: ${com.vrpirates.rookieonquest.logic.DateUtils.formatTimeAgo(LocalContext.current, lastSyncTime)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.Gray
                         )
@@ -1391,7 +1391,8 @@ fun SettingsDialog(
         text = {
             Column {
                 if (lastSyncTime > 0) {
-                    val timeAgo = com.vrpirates.rookieonquest.logic.DateUtils.formatTimeAgo(lastSyncTime)
+                    val context = LocalContext.current
+                    val timeAgo = com.vrpirates.rookieonquest.logic.DateUtils.formatTimeAgo(context, lastSyncTime)
                     Text(
                         text = "Last catalog sync: $timeAgo",
                         style = MaterialTheme.typography.bodySmall,

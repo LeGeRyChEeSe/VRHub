@@ -67,4 +67,11 @@
     <string name="game_btn_download">DOWNLOAD</string>
     <string name="game_btn_uninstall">UNINSTALL</string>
     <string name="game_btn_delete_download">DELETE DOWNLOAD</string>
+
+    <!-- Story 4.3: Catalog Update Strings -->
+    <string name="time_never">Never</string>
+    <string name="time_just_now">Just now</string>
+    <string name="time_minutes_ago">%1$dm ago</string>
+    <string name="time_hours_ago">%1$dh ago</string>
+    <string name="time_days_ago">%1$dd ago</string>
 </resources>

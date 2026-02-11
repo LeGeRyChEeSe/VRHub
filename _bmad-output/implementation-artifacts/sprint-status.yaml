@@ -71,7 +71,7 @@ development_status:
   epic-4: in-progress
   4-1-metadata-load-progress-tracking-system: backlog
   4-2-conditional-sort-by-size-with-ui-feedback: backlog
-  4-3-catalog-update-detection-and-synchronization: review
+  4-3-catalog-update-detection-and-synchronization: done
   epic-4-retrospective: optional
 
   epic-5: backlog

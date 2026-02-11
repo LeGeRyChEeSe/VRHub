@@ -421,18 +421,26 @@ class MainViewModel(
     private val _catalogUpdateCount = MutableStateFlow(prefs.getInt(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, 0))
     val catalogUpdateCount: StateFlow<Int> = _catalogUpdateCount
     
+    private val _catalogUpdateRemoteLastModified = MutableStateFlow(prefs.getString(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_REMOTE_LAST_MODIFIED, ""))
+
     // Banner persists until user syncs or dismisses (dismissed state persists for 24h)
+    // AC 9: Reset dismissal if a NEWER catalog version is detected
     val isCatalogUpdateAvailable: StateFlow<Boolean> = combine(
         _isCatalogUpdateAvailable,
-        _isRefreshing
-    ) { available, refreshing ->
+        _isRefreshing,
+        _catalogUpdateRemoteLastModified
+    ) { available, refreshing, remoteLastModified ->
         if (refreshing) return@combine false
         if (!available) return@combine false
         
-        val lastDismissed = prefs.getLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_TIME, 0L)
-        val isStillDismissed = (System.currentTimeMillis() - lastDismissed) < com.vrpirates.rookieonquest.data.Constants.BANNER_DISMISSAL_DURATION_MS
+        val lastDismissedTime = prefs.getLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_TIME, 0L)
+        val lastDismissedModified = prefs.getString(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_LAST_MODIFIED, "")
         
-        !isStillDismissed
+        // AC 9: Reset dismissal if remote version is different from what was dismissed
+        val isNewerThanDismissed = remoteLastModified != lastDismissedModified
+        val isExpired = (System.currentTimeMillis() - lastDismissedTime) >= com.vrpirates.rookieonquest.data.Constants.BANNER_DISMISSAL_DURATION_MS
+        
+        isNewerThanDismissed || isExpired
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _catalogUpdateInfo = MutableStateFlow<String?>(null)
@@ -442,12 +450,14 @@ class MainViewModel(
 
     // Listen for preference changes from CatalogUpdateWorker
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
-        when (key) {
-            com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE -> {
-                _isCatalogUpdateAvailable.value = sharedPreferences.getBoolean(key, false)
-            }
-            com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT -> {
-                _catalogUpdateCount.value = sharedPreferences.getInt(key, 0)
+                when (key) {
+                    com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE -> {
+                        _isCatalogUpdateAvailable.value = sharedPreferences.getBoolean(key, false)
+                    }
+                    com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_REMOTE_LAST_MODIFIED -> {
+                        _catalogUpdateRemoteLastModified.value = sharedPreferences.getString(key, "")
+                    }
+                    com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT -> {                _catalogUpdateCount.value = sharedPreferences.getInt(key, 0)
             }
             com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.LAST_SYNC_TIMESTAMP -> {
                 _lastSyncTime.value = sharedPreferences.getLong(key, 0L)
@@ -1265,12 +1275,15 @@ class MainViewModel(
                 }
                 
                 // AC 4: Success feedback (Snackbar)
-                _events.emit(MainEvent.ShowMessage("Catalog updated successfully: $newGamesCount new games found"))
+                _events.emit(MainEvent.ShowMessage("Catalog updated successfully: $newGamesCount new/updated games found"))
                 
                 priorityUpdateChannel.trySend(Unit)
             } catch (e: Exception) {
                 com.vrpirates.rookieonquest.data.LogUtils.e(TAG, "Refresh error", e)
-                _error.value = "Error: ${e.message}"
+                val errorMessage = "Error: ${e.message}"
+                _error.value = errorMessage
+                _syncMessage.value = errorMessage
+                _events.emit(MainEvent.ShowMessage(errorMessage))
             } finally {
                 _isRefreshing.value = false
             }
@@ -1579,7 +1592,23 @@ class MainViewModel(
                 val remoteLastModified = repository.getRemoteCatalogInfo()
                 val available = repository.isCatalogUpdateAvailable(remoteLastModified)
                 _isCatalogUpdateAvailable.value = available
-                prefs.edit().putBoolean(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE, available).apply()
+                
+                val editor = prefs.edit()
+                    .putBoolean(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_AVAILABLE, available)
+                
+                if (remoteLastModified != null) {
+                    _catalogUpdateRemoteLastModified.value = remoteLastModified
+                    editor.putString(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_REMOTE_LAST_MODIFIED, remoteLastModified)
+                }
+                
+                if (available) {
+                    // AC 9: Update count even in manual check to keep banner informative
+                    val count = repository.calculateUpdateCountFromMeta()
+                    _catalogUpdateCount.value = count
+                    editor.putInt(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, count)
+                }
+                
+                editor.apply()
             } catch (e: Exception) {
                 Log.w(TAG, "Manual catalog update check failed", e)
                 // Expose error to user via StateFlow
@@ -1598,6 +1627,7 @@ class MainViewModel(
     fun dismissCatalogUpdate() {
         prefs.edit()
             .putLong(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_TIME, System.currentTimeMillis())
+            .putString(com.vrpirates.rookieonquest.data.Constants.PreferenceKeys.CATALOG_UPDATE_DISMISSED_LAST_MODIFIED, _catalogUpdateRemoteLastModified.value)
             .commit()
         // Trigger flow update by re-emitting current value
         _isCatalogUpdateAvailable.value = _isCatalogUpdateAvailable.value

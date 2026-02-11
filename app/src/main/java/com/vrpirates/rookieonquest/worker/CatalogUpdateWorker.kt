@@ -76,16 +76,24 @@ class CatalogUpdateWorker(
                 // AC 2: Get "[X] games added/updated" count
                 // This requires downloading meta.7z but it's small
                 val updateCount = repository.calculateUpdateCountFromMeta()
-                prefs.edit()
+                val editor = prefs.edit()
                     .putBoolean(KEY_UPDATE_AVAILABLE, true)
                     .putInt(Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, updateCount)
-                    .apply()
+                
+                if (remoteLastModified != null) {
+                    editor.putString(Constants.PreferenceKeys.CATALOG_UPDATE_REMOTE_LAST_MODIFIED, remoteLastModified)
+                }
+                editor.apply()
                 Log.i(TAG, "Catalog update available: $updateCount games added/updated")
             } else {
-                prefs.edit()
+                val editor = prefs.edit()
                     .putBoolean(KEY_UPDATE_AVAILABLE, false)
                     .putInt(Constants.PreferenceKeys.CATALOG_UPDATE_GAME_COUNT, 0)
-                    .apply()
+                
+                if (remoteLastModified != null) {
+                    editor.putString(Constants.PreferenceKeys.CATALOG_UPDATE_REMOTE_LAST_MODIFIED, remoteLastModified)
+                }
+                editor.apply()
                 Log.i(TAG, "Catalog is up to date")
             }
             
