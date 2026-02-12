@@ -436,8 +436,8 @@ CREATE TABLE install_history (
 
 ## Story Completion Status
 
-- **Status:** in-progress
-- **Note:** Seventeenth code review - Worktree contamination detected (worktrees/story-4-3-catalog-sync-and-ui-fix/ still exists). Previous review items falsely marked as resolved. Implementation is complete but structural issues must be addressed before marking "done".
+- **Status:** review
+- **Note:** Seventeenth review findings addressed. Worktree contamination resolved, planning artifacts tracked, and whitespace cleaned. Implementation is complete and ready for final review.
 
 ## Dev Agent Record
 
@@ -481,6 +481,11 @@ Gemini 2.0 Flash
 - Added history export functionality to text file in Downloads folder.
 - Modified `DownloadWorker.kt` to track actual download start time, enabling accurate download duration calculation in history.
 - Incremented `versionCode` (9→10) and updated `versionName` to `2.5.0-rc.1` in `build.gradle.kts`.
+- **Review Fixes Applied (Seventeenth Review):**
+    - Removed worktree contamination by deleting nested `worktrees/story-4-3-catalog-sync-and-ui-fix/` directory.
+    - Tracked missing planning artifact `sprint-change-proposal-2026-02-11.md`.
+    - Committed whitespace fixes in `MainActivity.kt` and `MainViewModel.kt`.
+    - Updated story status to `review` and synchronized `sprint-status.yaml`.
 - **Review Fixes Applied (Sixteenth Review):**
     - Resolved worktree contamination by aborting corrupted merge with Story 4.3 and remaining on Story 1.9 branch.
     - Removed untracked temporary development file `MainActivity_4.3.kt`.
@@ -520,11 +525,6 @@ Gemini 2.0 Flash
 - **Review Fixes Applied (Fourteenth Review):**
     - Verified `.story-id` is correctly ignored and staged for deletion in git.
     - Added `.story-files` to `.gitignore` and documented its use as a worktree manifest.
-- **Review Fixes Applied (Sixteenth Review):**
-    - Resolved worktree contamination by aborting corrupted merge with Story 4.3 and remaining on Story 1.9 branch.
-    - Removed untracked temporary development file `MainActivity_4.3.kt`.
-    - Fixed trailing whitespace issues in `MainActivity.kt`, `MainViewModel.kt`, and `Constants.kt`.
-    - Verified clean build and all tests passing.
 - **Review Fixes Applied (Fifteenth Review):**
     - Updated story status to "done" after all review items resolved.
     - Removed redundant "// Duration logic" comment in `MainRepository.kt`.
