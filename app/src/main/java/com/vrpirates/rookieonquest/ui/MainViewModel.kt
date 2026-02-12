@@ -271,11 +271,11 @@ fun com.vrpirates.rookieonquest.data.QueuedInstallEntity.toInstallTaskState(
     val missingCritical = missingPermissions.filter {
         it != RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS
     }
-    
+
     // Distinguish between user-paused and permission-blocked
-    val isBlockedByPermissions = (statusEnum == InstallTaskStatus.PAUSED || statusEnum == InstallTaskStatus.BLOCKED_BY_PERMISSIONS) && 
+    val isBlockedByPermissions = (statusEnum == InstallTaskStatus.PAUSED || statusEnum == InstallTaskStatus.BLOCKED_BY_PERMISSIONS) &&
         missingCritical.isNotEmpty()
-    
+
     val finalStatus = if (isBlockedByPermissions) InstallTaskStatus.BLOCKED_BY_PERMISSIONS else statusEnum
 
     // Generate status message based on current state using localized strings
@@ -367,7 +367,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = MainRepository(application)
     private val prefs = application.getSharedPreferences(com.vrpirates.rookieonquest.data.Constants.PREFS_NAME, Context.MODE_PRIVATE)
-    
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
@@ -485,7 +485,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _historyLimit = MutableStateFlow(50)
 
-    val installHistory: StateFlow<List<com.vrpirates.rookieonquest.data.InstallHistoryEntity>> = 
+    val installHistory: StateFlow<List<com.vrpirates.rookieonquest.data.InstallHistoryEntity>> =
         combine(_historyQuery, _historyStatusFilter, _historyLimit, _historySortMode, _historyDateFilter) { query, status, limit, sort, dateFilter ->
             val queryToUse = if (query.isBlank()) null else query
             val minTimestamp = when (dateFilter) {
@@ -513,7 +513,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val successCount = dao.getCountByStatus(com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
                 val failedCount = dao.getCountByStatus(com.vrpirates.rookieonquest.data.InstallStatus.FAILED)
                 val totalCount = successCount + failedCount
-                
+
                 if (totalCount == 0) {
                     emit(null)
                     return@flow
@@ -522,7 +522,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val avgDuration = dao.getAverageDuration(com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
                 val totalSize = dao.getTotalDownloadedSize(com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
                 val topGames = dao.getMostInstalledGames(3)
-                
+
                 val allHistory = dao.getAll()
                 val errors = allHistory
                     .filter { !it.errorMessage.isNullOrBlank() }
@@ -553,8 +553,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Updates the history search query with validation.
      * Limits query length to 100 characters to prevent performance/memory issues.
-     * 
-     * NOTE: This method is responsible for escaping LIKE special characters (%, _, \) 
+     *
+     * NOTE: This method is responsible for escaping LIKE special characters (%, _, \)
      * to prevent SQL injection or unexpected pattern matching. The DAO provides the
      * corresponding ESCAPE '\' clause.
      */
@@ -711,30 +711,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) { list, installed, downloaded ->
         val counts = mutableMapOf<FilterStatus, Int>()
         counts[FilterStatus.ALL] = list.size
-        
+
         var favoriteCount = 0
         var installedCount = 0
         var updateCount = 0
         var downloadedCount = 0
         var newCount = 0
-        
+
         val lastSync = prefs.getLong("last_catalog_sync_time", 0L)
 
         list.forEach { game ->
             val installedVersion = installed[game.packageName]
             val catalogVersion = game.versionCode.toLongOrNull() ?: 0L
-            
+
             if (game.isFavorite) {
                 favoriteCount++
             }
-            
+
             if (installedVersion != null) {
                 installedCount++
                 if (catalogVersion > installedVersion) {
                     updateCount++
                 }
             }
-            
+
             if (downloaded.contains(game.releaseName)) {
                 downloadedCount++
             }
@@ -743,7 +743,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 newCount++
             }
         }
-        
+
         counts[FilterStatus.FAVORITES] = favoriteCount
         counts[FilterStatus.INSTALLED] = installedCount
         counts[FilterStatus.DOWNLOADED] = downloadedCount
@@ -754,8 +754,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     @Suppress("UNCHECKED_CAST")
     val games: StateFlow<List<GameItemState>> = combine(
-        _allGames, 
-        _searchQuery, 
+        _allGames,
+        _searchQuery,
         _installedPackages,
         _downloadedReleases,
         _selectedFilter,
@@ -783,8 +783,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             val isDownloaded = downloaded.contains(game.releaseName)
 
-            val matchesQuery = query.isBlank() || 
-                game.gameName.contains(query, ignoreCase = true) || 
+            val matchesQuery = query.isBlank() ||
+                game.gameName.contains(query, ignoreCase = true) ||
                 game.packageName.contains(query, ignoreCase = true)
 
             val matchesFilter = when (filter) {
@@ -808,17 +808,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             SortMode.SIZE -> filteredList.sortedByDescending { it.sizeBytes ?: 0L }
             SortMode.POPULARITY -> filteredList.sortedByDescending { it.popularity }
         }
-        
+
         sortedList.map { game ->
             val installedVersion = installed[game.packageName]
             val catalogVersion = game.versionCode.toLongOrNull() ?: 0L
-            
+
             val status = when {
                 installedVersion == null -> InstallStatus.NOT_INSTALLED
                 catalogVersion > installedVersion -> InstallStatus.UPDATE_AVAILABLE
                 else -> InstallStatus.INSTALLED
             }
-            
+
             val isDownloaded = downloaded.contains(game.releaseName)
             val queueTask = queue.find { it.releaseName == game.releaseName }
 
@@ -829,9 +829,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 File(repository.thumbnailsDir, "${game.packageName}.jpg"),
                 File(repository.thumbnailsDir, "${game.packageName}.jpeg")
             )
-            
+
             val iconFile = iconLocations.find { it.exists() }
-            
+
             GameItemState(
                 name = game.gameName,
                 version = game.versionCode,
@@ -895,7 +895,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             InstallState(isInstalling = false)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InstallState())
-    
+
     init {
         // Initialize PermissionManager with application context
         com.vrpirates.rookieonquest.data.PermissionManager.init(getApplication())
@@ -966,7 +966,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "Startup: Checking for app updates...")
                 val updateAvailable = withTimeoutOrNull(5000) { checkForAppUpdates() } ?: false
                 Log.d(TAG, "Startup: Update check complete, available: $updateAvailable")
-                
+
                 if (!updateAvailable) {
                     refreshInstalledPackages()
                     refreshDownloadedReleases()
@@ -1169,12 +1169,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val downloaded = withContext(Dispatchers.IO) {
                     val dir = repository.downloadsDir
                     if (!dir.exists()) return@withContext emptySet<String>()
-                    
+
                     val games = gamesOverride ?: _allGames.value
                     if (games.isEmpty()) return@withContext emptySet<String>()
 
                     val releaseNamesWithFolders = dir.listFiles()?.filter { it.isDirectory }?.map { it.name }?.toSet() ?: emptySet()
-                    
+
                     games.filter { game ->
                         val safeDirName = game.releaseName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
                         releaseNamesWithFolders.contains(safeDirName)
@@ -1191,10 +1191,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             val latest = githubService.getLatestRelease()
             val currentVersion = BuildConfig.VERSION_NAME
-            
+
             val latestClean = latest.tagName.lowercase().removePrefix("v")
             val currentClean = currentVersion.lowercase().removePrefix("v")
-            
+
             if (isVersionNewer(latestClean, currentClean)) {
                 _isUpdateDialogShowing.value = true
                 _events.emit(MainEvent.ShowUpdatePopup(latest))
@@ -1211,7 +1211,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun isVersionNewer(latest: String, current: String): Boolean {
         val latestParts = latest.split('.').mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
         val currentParts = current.split('.').mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
-        
+
         val maxLength = maxOf(latestParts.size, currentParts.size)
         for (i in 0 until maxLength) {
             val latestPart = latestParts.getOrElse(i) { 0 }
@@ -1227,19 +1227,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 _isUpdateDownloading.value = true
                 _isUpdateDialogShowing.value = false
-                
+
                 val apkAsset = release.assets.find { it.name.endsWith(".apk", true) }
                     ?: throw Exception("No APK found in release assets")
-                
+
                 val context = getApplication<Application>()
                 val targetFile = File(context.getExternalFilesDir(null), "rookie_update.apk")
-                
+
                 val request = Request.Builder().url(apkAsset.downloadUrl).build()
                 okHttpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
                     val totalSize = response.body?.contentLength() ?: -1L
                     var downloaded = 0L
-                    
+
                     response.body?.byteStream()?.use { input ->
                         targetFile.outputStream().use { output ->
                             val buffer = ByteArray(8192 * 8)
@@ -1256,7 +1256,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                
+
                 _updateProgress.value = "Launching installer..."
                 withContext(Dispatchers.Main) {
                     if (!_isAppVisible.value) {
@@ -1296,7 +1296,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isAppVisible.value = visible
             if (visible) {
                 priorityUpdateChannel.trySend(Unit)
-                refreshInstalledPackages() 
+                refreshInstalledPackages()
                 refreshDownloadedReleases()
                 viewModelScope.launch {
                     repository.verifyAndCleanupInstalls()
@@ -1328,7 +1328,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 val visible = _visibleIndices.value
                 val filteredGames = games.value
-                
+
                 val prioritizedPackages = visible.mapNotNull { index ->
                     filteredGames.getOrNull(index)?.packageName
                 }.toSet()
@@ -1351,7 +1351,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } catch (e: Exception) {
                         delay(2000)
                     }
-                    
+
                     select<Unit> {
                         priorityUpdateChannel.onReceive { }
                         onTimeout(100.milliseconds) { }
@@ -1409,7 +1409,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    
+
     /**
      * Check permissions and update state.
      * Uses permissionCheckMutex to prevent concurrent executions from multiple triggers.
@@ -1958,9 +1958,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (currentQueue.isEmpty()) return
 
         val taskToView = _viewedReleaseName.value?.let { v -> currentQueue.find { it.releaseName == v } }?.releaseName
-            ?: currentQueue.find { it.status.isProcessing() }?.releaseName 
+            ?: currentQueue.find { it.status.isProcessing() }?.releaseName
             ?: currentQueue.firstOrNull()?.releaseName
-            
+
         if (taskToView != null) {
             _viewedReleaseName.value = taskToView
             _showInstallOverlay.value = true
@@ -2105,7 +2105,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // This ensures the queue processor waits for the FULL pipeline before starting next task
         val completionSignal = CompletableDeferred<Unit>()
         taskCompletionSignals[task.releaseName] = completionSignal
-        
+
         try {
             val recoveryState = withContext(Dispatchers.IO) {
                 val tempInstallRoot = File(context.filesDir, "install_temp")
@@ -2456,12 +2456,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         keepApk = _keepApks.value,
                         downloadOnly = false,
                         skipRemoteVerification = true // Skip HEAD requests - files already verified by WorkManager
-                                        ) { message, progress, current, total ->    
+                                        ) { message, progress, current, total ->
                                             // The repository already scales progress (0-0.8 download, 0.8-1.0 extraction)
                                             // So we use it directly instead of re-scaling which would cause jumps
                                             val adjustedProgress = progress
-                    
-                                            // Determine status from message        
+
+                                            // Determine status from message
                                             val status = when {
                                                 message.contains("Extract", ignoreCase = true) -> InstallTaskStatus.EXTRACTING
                                                 message.contains("Installing", ignoreCase = true) -> InstallTaskStatus.INSTALLING
@@ -2469,7 +2469,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                                 message.contains("Launching", ignoreCase = true) -> InstallTaskStatus.INSTALLING
                                                 else -> InstallTaskStatus.EXTRACTING
                                             }
-                    
+
                                             updateTaskProgress(releaseName, adjustedProgress, current, total)
                         // Update status if changed
                         val currentTask = installQueue.value.find { it.releaseName == releaseName }
@@ -2809,7 +2809,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _events.emit(MainEvent.ShowMessage("Collecting logs..."))
                 val process = Runtime.getRuntime().exec("logcat -d")
                 val logs = process.inputStream.bufferedReader().use { it.readText() }
-                
+
                 if (toFile) {
                     val fileName = repository.saveLogs(logs)
                     _events.emit(MainEvent.ShowMessage("Logs saved to Download/RookieOnQuest/$fileName"))

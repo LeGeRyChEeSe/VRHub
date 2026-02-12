@@ -98,21 +98,21 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val missingPermissions by viewModel.missingPermissions.collectAsState()
     val alphabetInfo by viewModel.alphabetInfo.collectAsState()
     val keepApks by viewModel.keepApks.collectAsState()
-    
+
     // Navigation state
     var currentScreen by remember { mutableStateOf("catalog") }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    
+
     val isUpdateCheckInProgress by viewModel.isUpdateCheckInProgress.collectAsState()
     val isUpdateDownloading by viewModel.isUpdateDownloading.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
-    
+
     val listState = rememberLazyListState()
     val staggeredGridState = rememberLazyStaggeredGridState()
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    
+
     var showUpdateDialogState by remember { mutableStateOf<com.vrpirates.rookieonquest.network.GitHubRelease?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var gameToDelete by remember { mutableStateOf<GameItemState?>(null) }
@@ -278,7 +278,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isWide = maxWidth > 800.dp
-        
+
         when {
             isUpdateCheckInProgress -> LoadingScreen("Checking for updates...")
             isUpdateDownloading -> {
@@ -402,9 +402,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     onRefreshClick = { viewModel.refreshData() },
                                     onNavigationClick = { coroutineScope.launch { drawerState.open() } },
                                     isRefreshing = isRefreshing,
-                                    isInstalling = installQueue.any { 
-                                        it.status != InstallTaskStatus.COMPLETED && 
-                                        it.status != InstallTaskStatus.FAILED && 
+                                    isInstalling = installQueue.any {
+                                        it.status != InstallTaskStatus.COMPLETED &&
+                                        it.status != InstallTaskStatus.FAILED &&
                                         it.status != InstallTaskStatus.PAUSED &&
                                         it.status != InstallTaskStatus.BLOCKED_BY_PERMISSIONS
                                     } || isUpdateDownloading,
@@ -431,9 +431,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                         AlphabetIndexer(
                                             alphabetInfo = alphabetInfo,
                                             onLetterClick = { index ->
-                                                coroutineScope.launch { 
+                                                coroutineScope.launch {
                                                     if (isWide) staggeredGridState.scrollToItem(index)
-                                                    else listState.scrollToItem(index) 
+                                                    else listState.scrollToItem(index)
                                                 }
                                             }
                                         )
@@ -509,7 +509,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             val taskToShow = installQueue.find { it.releaseName == viewedReleaseName }
                 ?: installQueue.find { it.status.isProcessing() }
                 ?: installQueue.firstOrNull()
-            
+
             if (taskToShow != null) {
                 QueueManagerOverlay(
                     queue = installQueue,
@@ -718,9 +718,9 @@ fun SetupLayout(
                     tint = iconColor,
                     modifier = Modifier.size(80.dp)
                 )
-                
+
                 Spacer(modifier = Modifier.height(32.dp))
-                
+
                 Text(
                     text = title,
                     style = MaterialTheme.typography.headlineMedium,
@@ -728,9 +728,9 @@ fun SetupLayout(
                     color = Color.White,
                     textAlign = TextAlign.Center
                 )
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyLarge,
@@ -738,14 +738,14 @@ fun SetupLayout(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(0.9f)
                 )
-                
+
                 Spacer(modifier = Modifier.height(48.dp))
-                
+
                 content()
             }
-            
+
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -760,7 +760,7 @@ fun SetupLayout(
                 ) {
                     Text(primaryButtonText, fontWeight = FontWeight.Black, fontSize = 18.sp, color = if (iconColor == Color.White) Color.Black else Color.White)
                 }
-                
+
                 if (secondaryButtonText != null && onSecondaryClick != null) {
                     Spacer(modifier = Modifier.height(16.dp))
                     TextButton(
@@ -807,7 +807,7 @@ fun PermissionOverlay(
                         Icons.Default.BatteryChargingFull
                     )
                 }
-                
+
                 Surface(
                     color = Color.White.copy(alpha = 0.05f),
                     shape = RoundedCornerShape(20.dp),
@@ -932,7 +932,7 @@ fun CustomTopBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                
+
                 Box {
                     IconButton(onClick = { showSortMenu = true }) {
                         Icon(
@@ -968,7 +968,7 @@ fun CustomTopBar(
                         )
                     }
                 }
-                
+
                 IconButton(onClick = onRefreshClick, enabled = !isInstalling && !permissionsMissing) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
@@ -977,7 +977,7 @@ fun CustomTopBar(
                         modifier = Modifier.size(30.dp)
                     )
                 }
-                
+
                 IconButton(onClick = onSettingsClick) {
                     Icon(
                         imageVector = Icons.Default.Settings,
@@ -987,7 +987,7 @@ fun CustomTopBar(
                     )
                 }
             }
-            
+
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
@@ -1196,7 +1196,7 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
 
 @Composable
 fun InstallationOverlay(
-    activeTask: InstallTaskState, 
+    activeTask: InstallTaskState,
     onCancel: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -1213,7 +1213,7 @@ fun InstallationOverlay(
             verticalArrangement = Arrangement.Center
         ) {
             val progress = if (activeTask.progress >= 0f) activeTask.progress else null
-            
+
             Text(
                 text = activeTask.gameName,
                 style = MaterialTheme.typography.headlineMedium,
@@ -1221,9 +1221,9 @@ fun InstallationOverlay(
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
-            
+
             Spacer(modifier = Modifier.height(48.dp))
-            
+
             if (progress != null) {
                 Box(contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
@@ -1260,9 +1260,9 @@ fun InstallationOverlay(
                     strokeWidth = 6.dp
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(48.dp))
-            
+
             // Story 1.7 Code Review Fix: User-friendly status messages instead of raw enum names
             val statusMessage = activeTask.message ?: when (activeTask.status) {
                 InstallTaskStatus.PENDING_INSTALL -> stringResource(R.string.status_pending_install)
@@ -1291,15 +1291,15 @@ fun InstallationOverlay(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(64.dp))
-            
+
             if (!isAppUpdate) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
-                    if (activeTask.status == InstallTaskStatus.PAUSED || 
+                    if (activeTask.status == InstallTaskStatus.PAUSED ||
                         activeTask.status == InstallTaskStatus.FAILED ||
                         activeTask.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS) {
                         Button(
@@ -1442,7 +1442,7 @@ fun SettingsDialog(
                     trailingContent = { Switch(checked = keepApks, onCheckedChange = { onToggleKeepApks() }) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
-                
+
                 Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
 
                 ListItem(
@@ -1456,9 +1456,9 @@ fun SettingsDialog(
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { onClearCache() }
                 )
-                
+
                 Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
-                
+
                 ListItem(
                     headlineContent = { Text("Export Diagnostics") },
                     supportingContent = { Text("Copy application logs to clipboard") },
@@ -1510,7 +1510,7 @@ fun AlphabetIndexer(
                 val interactionSource = remember { MutableInteractionSource() }
                 val isHovered by interactionSource.collectIsHoveredAsState()
                 val scale by animateFloatAsState(if (isHovered) 1.8f else 1f, label = "magnify")
-                
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1732,24 +1732,24 @@ fun QueueManagerOverlay(
 fun parseMarkdown(text: String) = buildAnnotatedString {
     val cleanText = text.replace(Regex("""^[\uFEFF\u200B\u200C\u200D\u200E\u200F]+"""), "").trim()
     val lines = cleanText.split(Regex("\\r?\\n"))
-    
+
     lines.forEach { line ->
         val trimmed = line.trim()
         if (trimmed.isEmpty()) {
             append("\n")
             return@forEach
         }
-        
+
         val headerMatch = Regex("""^#+\s*(.*)$""").find(trimmed)
         if (headerMatch != null) {
             val title = headerMatch.groupValues[1].replace("*", "").trim()
             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)) {
                 append(title)
             }
-            append("\n\n") 
+            append("\n\n")
             return@forEach
         }
-        
+
         var content = trimmed
         if (trimmed.startsWith("-") || trimmed.startsWith("*") || trimmed.startsWith("·") || trimmed.startsWith("•")) {
             append("  • ")
