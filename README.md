@@ -33,7 +33,7 @@ A standalone Meta Quest application to browse, download, and install VR games na
 **Rookie On Quest** is a standalone client for the Meta Quest, built natively with **Kotlin** and **Jetpack Compose**. It is important to note that this application is **entirely dependent on the servers and infrastructure maintained by the [Rookie](https://github.com/VRPirates/rookie)/VRPirates team**. It functions as a specialized interface for their services, and its operation relies completely on their continued work and server availability.
 
 > [!NOTE]
-> 📊 **Check out our [Project Dashboard](PROJECT_DASHBOARD.md)** for a visual roadmap, current status, and simplified architecture diagrams.
+> 📊 **Check out our [Project Dashboard](PROJECT_DASHBOARD.md)** and **[Roadmap](ROADMAP.md)** for a visual progress, current status, and simplified architecture diagrams.
 
 ## Special Thanks
 
