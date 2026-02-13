@@ -1051,110 +1051,131 @@ class MainRepository(
 
                     // Note: Skip separate "Preparing extraction" call here - merge already ended at 85%
                     // The counting phase will maintain 85% until extraction starts
-                    val password = decodedPassword ?: ""
+                    // Try multiple password variants for extraction robustness (Story 4.3 Round 20 Fix)
+                    val passwordsToTry = (listOfNotNull(decodedPassword, cachedConfig?.password64) + listOf<String?>(null)).distinct()
+                    var extractionSuccess = false
+                    var lastExtractionError: Exception? = null
 
-                    SevenZFile.builder().setFile(combinedFile).setPassword(password.toCharArray()).get().use { sevenZFile ->
-                        // Count total entries for progress calculation (Story 1.6)
-                        // SevenZFile.entries provides an Iterable that can be iterated without consuming entries
-                        var totalEntryBytes = 0L
-                        var totalEntryCount = 0
-                        sevenZFile.entries.forEachIndexed { index, entry ->
-                            totalEntryBytes += entry.size
-                            totalEntryCount++
-                            // Update progress during counting for large archives (Code Review fix)
-                            // Stays at EXTRACTING (85%) - counting is part of extraction phase, not a step back
-                            if (index % 100 == 0) {
-                                currentCoroutineContext().ensureActive()
-                                onProgress("Analyzing archive...", Constants.PROGRESS_MILESTONE_EXTRACTING, 0, 0)
-                            }
-                        }
-                        // Use entry count as fallback for archives with only zero-byte entries (e.g., directories only)
-                        // This prevents progress from freezing at 85% when totalEntryBytes = 0
-                        val useEntryCount = totalEntryBytes == 0L && totalEntryCount > 0
-
-                        var extractedBytes = 0L
-                        var extractedEntryCount = 0
-                        var lastProgressUpdateMs = 0L
-                        // Extraction spans 85-92% for monotonic progress (not 85-100% which causes backwards jump to 94%/96% for OBB/APK)
-                        val extractionPhaseSpan = Constants.PROGRESS_MILESTONE_EXTRACTION_END - Constants.PROGRESS_MILESTONE_EXTRACTING
-                        // Reuse buffer across all files to reduce GC pressure
-                        val extractionBuffer = ByteArray(DownloadUtils.DOWNLOAD_BUFFER_SIZE)
-                        // Cache canonical path outside loop to avoid repeated IO calls
-                        val canonicalExtractDir = extractionDir.canonicalPath
-
-                        var entry = sevenZFile.nextEntry
-                        while (entry != null) {
-                            currentCoroutineContext().ensureActive()
-                            // Keep APK, OBB and EVERYTHING ELSE (important for Quake3Quest style structures)
-                            val outFile = File(extractionDir, entry.name)
-
-                            // Zip Slip vulnerability protection: Validate that the resolved path
-                            // is within the extraction directory to prevent directory traversal attacks
-                            val canonicalOutFile = outFile.canonicalPath
-                            if (!canonicalOutFile.startsWith(canonicalExtractDir + File.separator) &&
-                                canonicalOutFile != canonicalExtractDir) {
-                                val errorMsg = "Zip Slip detected! Malicious entry: ${entry.name}"
-                                Log.e(TAG, errorMsg)
-                                // Fail loudly instead of skipping silently to prevent broken installations (Adversarial Review fix)
-                                throw IOException(errorMsg)
-                            }
-
-                            if (entry.isDirectory) outFile.mkdirs()
-                            else {
-                                outFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
-                                FileOutputStream(outFile).use { out ->
-                                    var bytesRead: Int
-                                    while (true) {
+                    for (pass in passwordsToTry) {
+                        try {
+                            Log.d(TAG, "Attempting extraction with password: ${if (pass != null) "****" else "none"}")
+                            SevenZFile.builder().setFile(combinedFile).setPassword(pass?.toCharArray()).get().use { sevenZFile ->
+                                // Count total entries for progress calculation (Story 1.6)
+                                // SevenZFile.entries provides an Iterable that can be iterated without consuming entries
+                                var totalEntryBytes = 0L
+                                var totalEntryCount = 0
+                                sevenZFile.entries.forEachIndexed { index, entry ->
+                                    totalEntryBytes += entry.size
+                                    totalEntryCount++
+                                    // Update progress during counting for large archives (Code Review fix)
+                                    // Stays at EXTRACTING (85%) - counting is part of extraction phase, not a step back
+                                    if (index % 100 == 0) {
                                         currentCoroutineContext().ensureActive()
-                                        bytesRead = sevenZFile.read(extractionBuffer)
-                                        if (bytesRead == -1) break
-                                        out.write(extractionBuffer, 0, bytesRead)
-
-                                        // Track actual bytes extracted for progress (NFR-P10 fix)
-                                        // Update inside loop to prevent UI freeze during large file extraction
-                                        extractedBytes += bytesRead
-                                        // Use monotonic clock for throttling to avoid issues with system time changes
-                                        val now = SystemClock.elapsedRealtime()
-                                        if (now - lastProgressUpdateMs >= Constants.EXTRACTION_PROGRESS_THROTTLE_MS) {
-                                            // Use entry count as fallback for zero-byte archives
-                                            val extractionProgress = when {
-                                                useEntryCount -> extractedEntryCount.toFloat() / totalEntryCount
-                                                totalEntryBytes > 0 -> extractedBytes.toFloat() / totalEntryBytes
-                                                else -> 0f
-                                            }
-                                            // Scale extraction progress: 85-92% of total (monotonic before OBB at 94%, APK at 96%)
-                                            val scaledProgress = Constants.PROGRESS_MILESTONE_EXTRACTING +
-                                                    (extractionProgress * extractionPhaseSpan)
-                                            onProgress(
-                                                "Extracting... ${(extractionProgress * 100).toInt()}%",
-                                                scaledProgress,
-                                                extractedBytes,
-                                                totalEntryBytes
-                                            )
-                                            lastProgressUpdateMs = now
-                                        }
+                                        onProgress("Analyzing archive...", Constants.PROGRESS_MILESTONE_EXTRACTING, 0, 0)
                                     }
                                 }
+                                // Use entry count as fallback for archives with only zero-byte entries (e.g., directories only)
+                                // This prevents progress from freezing at 85% when totalEntryBytes = 0
+                                val useEntryCount = totalEntryBytes == 0L && totalEntryCount > 0
+
+                                var extractedBytes = 0L
+                                var extractedEntryCount = 0
+                                var lastProgressUpdateMs = 0L
+                                // Extraction spans 85-92% for monotonic progress (not 85-100% which causes backwards jump to 94%/96% for OBB/APK)
+                                val extractionPhaseSpan = Constants.PROGRESS_MILESTONE_EXTRACTION_END - Constants.PROGRESS_MILESTONE_EXTRACTING
+                                // Reuse buffer across all files to reduce GC pressure
+                                val extractionBuffer = ByteArray(DownloadUtils.DOWNLOAD_BUFFER_SIZE)
+                                // Cache canonical path outside loop to avoid repeated IO calls
+                                val canonicalExtractDir = extractionDir.canonicalPath
+
+                                var entry = sevenZFile.nextEntry
+                                while (entry != null) {
+                                    currentCoroutineContext().ensureActive()
+                                    // Keep APK, OBB and EVERYTHING ELSE (important for Quake3Quest style structures)
+                                    val outFile = File(extractionDir, entry.name)
+
+                                    // Zip Slip vulnerability protection: Validate that the resolved path
+                                    // is within the extraction directory to prevent directory traversal attacks
+                                    val canonicalOutFile = outFile.canonicalPath
+                                    if (!canonicalOutFile.startsWith(canonicalExtractDir + File.separator) &&
+                                        canonicalOutFile != canonicalExtractDir) {
+                                        val errorMsg = "Zip Slip detected! Malicious entry: ${entry.name}"
+                                        Log.e(TAG, errorMsg)
+                                        // Fail loudly instead of skipping silently to prevent broken installations (Adversarial Review fix)
+                                        throw IOException(errorMsg)
+                                    }
+
+                                    if (entry.isDirectory) outFile.mkdirs()
+                                    else {
+                                        outFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
+                                        FileOutputStream(outFile).use { out ->
+                                            var bytesRead: Int
+                                            while (true) {
+                                                currentCoroutineContext().ensureActive()
+                                                bytesRead = sevenZFile.read(extractionBuffer)
+                                                if (bytesRead == -1) break
+                                                out.write(extractionBuffer, 0, bytesRead)
+
+                                                // Track actual bytes extracted for progress (NFR-P10 fix)
+                                                // Update inside loop to prevent UI freeze during large file extraction
+                                                extractedBytes += bytesRead
+                                                // Use monotonic clock for throttling to avoid issues with system time changes
+                                                val now = SystemClock.elapsedRealtime()
+                                                if (now - lastProgressUpdateMs >= Constants.EXTRACTION_PROGRESS_THROTTLE_MS) {
+                                                    // Use entry count as fallback for zero-byte archives
+                                                    val extractionProgress = when {
+                                                        useEntryCount -> extractedEntryCount.toFloat() / totalEntryCount
+                                                        totalEntryBytes > 0 -> extractedBytes.toFloat() / totalEntryBytes
+                                                        else -> 0f
+                                                    }
+                                                    // Scale extraction progress: 85-92% of total (monotonic before OBB at 94%, APK at 96%)
+                                                    val scaledProgress = Constants.PROGRESS_MILESTONE_EXTRACTING +
+                                                            (extractionProgress * extractionPhaseSpan)
+                                                    onProgress(
+                                                        "Extracting... ${(extractionProgress * 100).toInt()}%",
+                                                        scaledProgress,
+                                                        extractedBytes,
+                                                        totalEntryBytes
+                                                    )
+                                                    lastProgressUpdateMs = now
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Increment entry counter for progress tracking (used as fallback for zero-byte archives)
+                                    extractedEntryCount++
+                                    entry = sevenZFile.nextEntry
+                                }
                             }
-
-                            // Increment entry counter for progress tracking (used as fallback for zero-byte archives)
-                            extractedEntryCount++
-                            entry = sevenZFile.nextEntry
+                            extractionSuccess = true
+                            Log.i(TAG, "Extraction successful with password variant")
+                            break
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Extraction attempt failed with password: ${e.message}")
+                            lastExtractionError = e
+                            // Clean up partial extraction for next password attempt
+                            extractionDir.deleteRecursively()
+                            extractionDir.mkdirs()
                         }
+                    }
 
-                        // Final progress update to ensure we reach EXTRACTION_END milestone
-                        // This handles cases where the last chunk didn't trigger a throttled update
-                        onProgress(
-                            "Extraction complete",
-                            Constants.PROGRESS_MILESTONE_EXTRACTION_END,
-                            extractedBytes,
-                            totalEntryBytes
-                        )
+                    if (!extractionSuccess) {
+                        throw lastExtractionError ?: Exception("Extraction failed with all password variants")
+                    }
 
-                        // Log if extraction took >2 minutes (NFR-P11 compliance)
-                        if (WakeLockManager.hasExceededTwoMinutes()) {
-                            Log.i(TAG, "Extraction completed after ${WakeLockManager.getHeldDurationMs() / 1000}s (wake lock held)")
-                        }
+                    // Final progress update to ensure we reach EXTRACTION_END milestone
+                    // This handles cases where the last chunk didn't trigger a throttled update
+                    onProgress(
+                        "Extraction complete",
+                        Constants.PROGRESS_MILESTONE_EXTRACTION_END,
+                        0, // Bytes info not strictly needed for final status
+                        0
+                    )
+
+                    // Log if extraction took >2 minutes (NFR-P11 compliance)
+                    if (WakeLockManager.hasExceededTwoMinutes()) {
+                        Log.i(TAG, "Extraction completed after ${WakeLockManager.getHeldDurationMs() / 1000}s (wake lock held)")
                     }
                     extractionMarker.createNewFile()
                 } catch (e: CancellationException) {

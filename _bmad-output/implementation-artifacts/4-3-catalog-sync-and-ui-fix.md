@@ -354,6 +354,7 @@ Gemini 2.0 Flash
     - Stabilized list scroll position and fixed TopBar truncation fallback.
     - Improved GameDetailView layout and hardened integration tests.
     - Optimized MainViewModel coroutine handling and worker implementation.
+- [2026-02-13] Fixed critical extraction regression in `installGame` where incorrect password handling caused "Archive is corrupted" errors. Synchronized password logic with `syncCatalog`.
 
 ### Completion Notes List
 
@@ -398,6 +399,8 @@ Gemini 2.0 Flash
     - Refactored `MainViewModel` to eliminate redundant coroutines and lock contention during manual sync.
     - Enhanced TopBar responsiveness with a shorter "ROOKIE" title fallback for extremely narrow screens.
     - Improved developer experience with detailed metadata detection logs and cleaner worker implementation.
+- **Critical Post-Review Fix:**
+    - Resolved widespread extraction failures in `installGame` by implementing multi-password attempt logic (matching `syncCatalog`). This fixed the "Archive is corrupted" errors caused by incorrect Base64 password decoding assumptions.
 - **Round 14 Code Review Resolution:**
     - Documented new `ui/components/` package structure in File List.
     - Expanded `CatalogUtils.CACHE_FRESHNESS_THRESHOLD_MS` documentation.
