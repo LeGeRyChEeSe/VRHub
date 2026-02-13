@@ -1345,6 +1345,22 @@ fun InstallationOverlay(
                 textAlign = TextAlign.Center
             )
 
+            if (activeTask.isLocalInstall) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = "FAST TRACK",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(48.dp))
 
             if (progress != null) {
@@ -1397,6 +1413,7 @@ fun InstallationOverlay(
                 InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> stringResource(R.string.status_blocked_permissions)
                 InstallTaskStatus.COMPLETED -> stringResource(R.string.status_completed)
                 InstallTaskStatus.FAILED -> stringResource(R.string.status_failed)
+                InstallTaskStatus.LOCAL_VERIFYING -> stringResource(R.string.status_local_verifying)
             }
             Text(
                 text = statusMessage,

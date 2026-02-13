@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [GameEntity::class, QueuedInstallEntity::class, InstallHistoryEntity::class], version = 5, exportSchema = false)
+@Database(entities = [GameEntity::class, QueuedInstallEntity::class, InstallHistoryEntity::class], version = 6, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun gameDao(): GameDao
@@ -20,6 +20,25 @@ abstract class AppDatabase : RoomDatabase() {
         private const val TAG = "AppDatabase"
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        internal val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                try {
+                    Log.i(TAG, "Starting migration 5 -> 6: Adding isLocalInstall column")
+
+                    // Add isLocalInstall column to install_queue
+                    database.execSQL("ALTER TABLE install_queue ADD COLUMN isLocalInstall INTEGER NOT NULL DEFAULT 0")
+
+                    // Add isLocalInstall column to install_history
+                    database.execSQL("ALTER TABLE install_history ADD COLUMN isLocalInstall INTEGER NOT NULL DEFAULT 0")
+
+                    Log.i(TAG, "Migration 5 -> 6 completed successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Migration 5 -> 6 FAILED", e)
+                    throw e
+                }
+            }
+        }
 
         internal val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -150,7 +169,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rookie_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_2_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_2_4, MIGRATION_4_5, MIGRATION_5_6)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

@@ -24,7 +24,8 @@ data class QueuedInstallEntity(
     val createdAt: Long,
     val lastUpdatedAt: Long,
     val downloadStartedAt: Long? = null,
-    val isDownloadOnly: Boolean = false
+    val isDownloadOnly: Boolean = false,
+    val isLocalInstall: Boolean = false
 ) {
     // NOTE: Validation removed from init block to prevent crash loops when Room reads
     // invalid data written via @Query methods. Use validate() or create() for safe construction.
@@ -112,7 +113,8 @@ data class QueuedInstallEntity(
             createdAt: Long = System.currentTimeMillis(),
             lastUpdatedAt: Long = System.currentTimeMillis(),
             downloadStartedAt: Long? = null,
-            isDownloadOnly: Boolean = false
+            isDownloadOnly: Boolean = false,
+            isLocalInstall: Boolean = false
         ): QueuedInstallEntity {
             val errors = validate(
                 releaseName = releaseName,
@@ -138,7 +140,8 @@ data class QueuedInstallEntity(
                 createdAt = createdAt,
                 lastUpdatedAt = lastUpdatedAt,
                 downloadStartedAt = downloadStartedAt,
-                isDownloadOnly = isDownloadOnly
+                isDownloadOnly = isDownloadOnly,
+                isLocalInstall = isLocalInstall
             )
         }
 
@@ -156,7 +159,8 @@ data class QueuedInstallEntity(
             createdAt: Long = System.currentTimeMillis(),
             lastUpdatedAt: Long = System.currentTimeMillis(),
             downloadStartedAt: Long? = null,
-            isDownloadOnly: Boolean = false
+            isDownloadOnly: Boolean = false,
+            isLocalInstall: Boolean = false
         ) = QueuedInstallEntity(
             releaseName = releaseName,
             status = status.name,
@@ -167,7 +171,8 @@ data class QueuedInstallEntity(
             createdAt = createdAt,
             lastUpdatedAt = lastUpdatedAt,
             downloadStartedAt = downloadStartedAt,
-            isDownloadOnly = isDownloadOnly
+            isDownloadOnly = isDownloadOnly,
+            isLocalInstall = isLocalInstall
         )
     }
 

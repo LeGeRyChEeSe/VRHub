@@ -1,5 +1,5 @@
 # generated: 2026-01-09
-# updated: 2026-02-13 (Story 4.3 Round 10 code review - status moved to review)
+# updated: 2026-02-14 (Story 1.12 Code review Round 1 - found MEDIUM/LOW issues, status moved to in-progress)
 # project: rookie-on-quest
 # tracking_system: file-system
 # story_location: e:\Unity\rookie-on-quest\_bmad-output\implementation-artifacts
@@ -51,6 +51,7 @@ development_status:
   1-9-installation-history-tracking: done
   1-10-fix-queue-processor-stateflow-race-condition: done
   1-11-fix-staged-apk-cross-contamination: review
+  1-12-fast-track-local-install: review
   epic-1-retrospective: optional
 
   epic-2: backlog

@@ -393,6 +393,69 @@ class MainRepository(
     }
 
     /**
+     * Checks if valid installation files (APK or OBB) already exist for a given release.
+     * @param releaseName The release name to check
+     * @return true if valid local files are found, false otherwise
+     */
+    suspend fun hasLocalInstallFiles(releaseName: String): Boolean = withContext(Dispatchers.IO) {
+        val game = gameDao.getByReleaseName(releaseName)?.toData() ?: return@withContext false
+        val apkFile = findLocalApk(game)
+        
+        if (apkFile != null) {
+            // For now, if we have a valid APK, we consider it a candidate for fast track.
+            // Full OBB validation happens during the installation phase.
+            Log.d(TAG, "hasLocalInstallFiles: Found valid local APK for ${game.releaseName}")
+            return@withContext true
+        }
+        false
+    }
+
+    /**
+     * Locates the candidate APK file for a given release.
+     * @param game The game metadata
+     * @return The candidate APK file if found and valid, null otherwise
+     */
+    fun findLocalApk(game: GameData): File? {
+        return findValidApk(game)
+    }
+
+    /**
+     * Shared logic to find a valid APK in the download directory.
+     * Prioritizes standard naming convention before falling back to directory search.
+     */
+    private fun findValidApk(game: GameData): File? {
+        val safeDirName = game.releaseName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+        val gameDownloadDir = File(downloadsDir, safeDirName)
+        if (!gameDownloadDir.exists()) return null
+
+        val targetVersion = game.versionCode.toLongOrNull() ?: -1L
+        
+        // 1. Try standard naming convention
+        val safeGameName = game.gameName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+        val apkFileName = "${safeGameName}_v${game.versionCode}_${game.packageName}.apk"
+        val cachedApk = File(gameDownloadDir, apkFileName)
+        
+        if (isValidApkFile(
+                apkFile = cachedApk,
+                expectedPackageName = game.packageName,
+                expectedVersionCode = targetVersion,
+                allowNewer = true
+            )) {
+            return cachedApk
+        }
+
+        // 2. Fallback: Search for any valid APK in the directory
+        return gameDownloadDir.listFiles()?.find { 
+            isValidApkFile(
+                apkFile = it,
+                expectedPackageName = game.packageName,
+                expectedVersionCode = targetVersion,
+                allowNewer = true
+            ) 
+        }
+    }
+
+    /**
      * Fetches remote game information including segment sizes, descriptions, and screenshots.
      *
      * SHARED CODE: The following utilities are shared with DownloadWorker via DownloadUtils:
@@ -649,6 +712,7 @@ class MainRepository(
         keepApk: Boolean = false,
         downloadOnly: Boolean = false,
         skipRemoteVerification: Boolean = false,
+        skipStorageCheck: Boolean = false,
         onProgress: (String, Float, Long, Long) -> Unit
     ): File? = withContext(Dispatchers.IO) {
         // 1. Check if already installed and up to date
@@ -711,52 +775,18 @@ class MainRepository(
 
         if (remoteSegments.isEmpty()) throw Exception("No installable files found")
 
-        // PRE-FLIGHT SPACE CHECK
-        val isSevenZ = remoteSegments.keys.any { it.contains(".7z") }
-        val hasUnknownSizes = remoteSegments.values.any { it == -1L }
-        val estimatedRequired = DownloadUtils.calculateRequiredStorage(
-            totalBytes = totalBytes,
-            isSevenZArchive = isSevenZ,
-            keepApkOrDownloadOnly = downloadOnly || keepApk
-        )
-        // Estimate OBB space requirements (Code Review fix)
-        val estimatedObbRequired = if (!downloadOnly) {
-            DownloadUtils.calculateRequiredObbStorage(remoteSegments, game.packageName)
-        } else 0L
-
-        // Estimate APK size from segments (for external storage check)
-        // APK is staged to externalFilesDir before installation via FileProvider
-        val estimatedApkSize = remoteSegments.entries
-            .filter { it.key.endsWith(".apk", ignoreCase = true) }
-            .maxOfOrNull { it.value } ?: 0L
-        // Check internal storage (for temp files) and external storage (for APK staging + OBB + download-only/keep-apk modes)
-        checkAvailableSpace(
-            requiredBytes = estimatedRequired,
-            hasUnknownSizes = hasUnknownSizes,
-            checkExternalStorage = downloadOnly || keepApk || estimatedObbRequired > 0,
-            estimatedApkSize = estimatedApkSize + estimatedObbRequired
-        )
-
-        val hash = CryptoUtils.md5(game.releaseName + "\n")
+        val hash = com.vrpirates.rookieonquest.data.CryptoUtils.md5(game.releaseName + "\n")
         val gameTempDir = File(tempInstallRoot, hash)
         val extractionDir = File(gameTempDir, "extracted")
         val safeDirName = game.releaseName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
         val gameDownloadDir = File(downloadsDir, safeDirName)
 
         // 3. Verify integrity of existing files (temp or downloads)
+        // Move this check EARLIER to inform the space check (Story 1.12 Fast Track)
         var isLocalReady = false
         
-        // Check if standard APK is already in Downloads and valid
-        val safeGameName = game.gameName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
-        val apkFileName = "${safeGameName}_v${game.versionCode}_${game.packageName}.apk"
-        val cachedApk = File(gameDownloadDir, apkFileName)
-
-        // Find any APK in download dir if standard one doesn't match
-        // Use isValidApkFile instead of isApkMatching to eliminate duplication
-        var foundApk: File? = if (isValidApkFile(cachedApk, game.packageName, targetVersion)) cachedApk else null
-        if (foundApk == null && gameDownloadDir.exists()) {
-             foundApk = gameDownloadDir.listFiles()?.find { isValidApkFile(it, game.packageName, targetVersion) }
-        }
+        // Find valid APK using shared logic (Story 1.12 Code Review Fix)
+        var foundApk = findLocalApk(game)
 
         if (foundApk != null) {
             // APK is good, now check OBBs
@@ -783,6 +813,47 @@ class MainRepository(
                 }
                 isLocalReady = true
             }
+        }
+
+        // PRE-FLIGHT SPACE CHECK
+        val isSevenZ = remoteSegments.keys.any { it.contains(".7z") }
+        val hasUnknownSizes = remoteSegments.values.any { it == -1L }
+        
+        // Fast Track Optimization: If files are already present and verified, 
+        // we don't need extraction space (2.5x-3.5x).
+        // We only need space for APK staging and OBB installation.
+        val estimatedRequired = if (isLocalReady) {
+            0L // Files are already where they need to be (temp or Downloads)
+        } else {
+            DownloadUtils.calculateRequiredStorage(
+                totalBytes = totalBytes,
+                isSevenZArchive = isSevenZ,
+                keepApkOrDownloadOnly = downloadOnly || keepApk
+            )
+        }
+
+        // Estimate OBB space requirements (Code Review fix)
+        val estimatedObbRequired = if (!downloadOnly) {
+            DownloadUtils.calculateRequiredObbStorage(remoteSegments, game.packageName)
+        } else 0L
+
+        // Estimate APK size from segments (for external storage check)
+        // APK is staged to externalFilesDir before installation via FileProvider
+        val estimatedApkSize = remoteSegments.entries
+            .filter { it.key.endsWith(".apk", ignoreCase = true) }
+            .maxOfOrNull { it.value } ?: 0L
+            
+        // Check internal storage (for temp files) and external storage (for APK staging + OBB + download-only/keep-apk modes)
+        // Story 1.12 Code Review: Allow bypassing space check for local installs
+        if (!skipStorageCheck) {
+            checkAvailableSpace(
+                requiredBytes = estimatedRequired,
+                hasUnknownSizes = hasUnknownSizes,
+                checkExternalStorage = downloadOnly || keepApk || estimatedObbRequired > 0,
+                estimatedApkSize = estimatedApkSize + estimatedObbRequired
+            )
+        } else {
+            Log.i(TAG, "Skipping storage space check for local/fast-track install")
         }
 
         if (isLocalReady && downloadOnly) {
@@ -1230,6 +1301,9 @@ class MainRepository(
             try {
                 if (!downloadsDir.exists()) downloadsDir.mkdirs()
                 if (!gameDownloadDir.exists()) gameDownloadDir.mkdirs()
+
+                val safeGameName = game.gameName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+                val apkFileName = "${safeGameName}_v${game.versionCode}_${game.packageName}.apk"
 
                 artifacts.finalApk?.let {
                     val targetApk = File(gameDownloadDir, apkFileName)
@@ -2356,14 +2430,16 @@ class MainRepository(
     suspend fun addToQueue(
         releaseName: String,
         status: InstallStatus = InstallStatus.QUEUED,
-        isDownloadOnly: Boolean = false
+        isDownloadOnly: Boolean = false,
+        isLocalInstall: Boolean = false
     ) = withContext(Dispatchers.IO) {
         // Create entity with placeholder position (will be set atomically by DAO)
         val entity = QueuedInstallEntity.createValidated(
             releaseName = releaseName,
             status = status,
             queuePosition = 0, // Placeholder - DAO will assign correct position atomically
-            isDownloadOnly = isDownloadOnly
+            isDownloadOnly = isDownloadOnly,
+            isLocalInstall = isLocalInstall
         )
         // Use atomic insert that reads max position and inserts in single transaction
         db.queuedInstallDao().insertAtNextPosition(entity)
@@ -2389,6 +2465,16 @@ class MainRepository(
         if (status == InstallStatus.DOWNLOADING) {
             db.queuedInstallDao().setDownloadStartTimeIfNull(releaseName, now)
         }
+    }
+
+    /**
+     * Updates the local install flag for a queued task.
+     */
+    suspend fun updateLocalInstallStatus(
+        releaseName: String,
+        isLocal: Boolean
+    ) = withContext(Dispatchers.IO) {
+        db.queuedInstallDao().updateLocalInstallStatus(releaseName, isLocal)
     }
 
     /**
@@ -2472,7 +2558,8 @@ class MainRepository(
             fileSizeBytes = queueEntry.totalBytes ?: 0L,
             status = status,
             errorMessage = errorMessage,
-            createdAt = queueEntry.createdAt
+            createdAt = queueEntry.createdAt,
+            isLocalInstall = queueEntry.isLocalInstall
         )
 
         try {
@@ -2694,7 +2781,8 @@ class MainRepository(
     fun isValidApkFile(
         apkFile: File,
         expectedPackageName: String? = null,
-        expectedVersionCode: Long? = null
+        expectedVersionCode: Long? = null,
+        allowNewer: Boolean = false
     ): Boolean {
         if (!apkFile.exists() || apkFile.length() == 0L) {
             return false
@@ -2712,8 +2800,11 @@ class MainRepository(
             val packageMatch = expectedPackageName == null || packageInfo.packageName == expectedPackageName
             
             // Check version code (handles both legacy and long version codes)
-            val versionMatch = expectedVersionCode == null || 
-                    packageInfo.longVersionCode == expectedVersionCode
+            val versionMatch = when {
+                expectedVersionCode == null -> true
+                allowNewer -> packageInfo.longVersionCode >= expectedVersionCode
+                else -> packageInfo.longVersionCode == expectedVersionCode
+            }
             
             packageMatch && versionMatch
         } catch (e: Exception) {

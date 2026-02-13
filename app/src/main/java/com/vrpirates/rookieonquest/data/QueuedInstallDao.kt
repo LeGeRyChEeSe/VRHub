@@ -80,6 +80,13 @@ interface QueuedInstallDao {
         timestamp: Long
     ): Int
 
+    @Query("UPDATE install_queue SET isLocalInstall = :isLocal, lastUpdatedAt = :timestamp WHERE releaseName = :releaseName")
+    suspend fun updateLocalInstallStatus(
+        releaseName: String,
+        isLocal: Boolean,
+        timestamp: Long = System.currentTimeMillis()
+    ): Int
+
     @Query("DELETE FROM install_queue WHERE releaseName = :releaseName")
     suspend fun deleteByReleaseName(releaseName: String): Int
 
