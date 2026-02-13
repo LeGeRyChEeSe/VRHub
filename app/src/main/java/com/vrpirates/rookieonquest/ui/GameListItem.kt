@@ -281,18 +281,28 @@ fun GameListItem(
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     // Metadata Info
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                    if (isGridItem) {
+                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             InfoItem("Release Name", game.releaseName)
                             if (game.popularity > 0) {
                                 InfoItem("Popularity", "⭐ ${game.popularity}")
                             }
-                        }
-                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                             InfoItem("Last Updated", formatDate(game.lastUpdated))
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                InfoItem("Release Name", game.releaseName)
+                                if (game.popularity > 0) {
+                                    InfoItem("Popularity", "⭐ ${game.popularity}")
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                InfoItem("Last Updated", formatDate(game.lastUpdated))
+                            }
                         }
                     }
                     

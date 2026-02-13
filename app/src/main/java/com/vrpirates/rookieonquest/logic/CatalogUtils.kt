@@ -4,12 +4,15 @@ import android.content.Context
 import android.util.Log
 import com.vrpirates.rookieonquest.data.Constants
 import com.vrpirates.rookieonquest.data.NetworkModule
+import com.vrpirates.rookieonquest.data.DownloadUtils
+import com.vrpirates.rookieonquest.data.await
 import com.vrpirates.rookieonquest.network.VrpService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 
 /**
@@ -86,7 +89,7 @@ object CatalogUtils {
                 .header("User-Agent", Constants.USER_AGENT)
                 .build()
 
-            NetworkModule.okHttpClient.newCall(request).execute().use { response ->
+            NetworkModule.okHttpClient.newCall(request).await().use { response ->
                 if (response.isSuccessful) {
                     response.header("Last-Modified")?.let { metadata["Last-Modified"] = it }
                     response.header("ETag")?.let { metadata["ETag"] = it }
@@ -97,10 +100,65 @@ object CatalogUtils {
                     response.header("X-Checksum-Sha256")?.let { metadata["SHA256"] = it }
                 }
             }
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e(TAG, "Error checking remote catalog metadata", e)
         }
         metadata
+    }
+
+    /**
+     * Shared download utility for meta.7z files with cancellation support.
+     * Replaces duplicated implementations in MainRepository and CatalogUpdateWorker.
+     * 
+     * @param url The URL of the file to download.
+     * @param targetFile The destination file on disk.
+     * @throws IOException if network or I/O operation fails.
+     */
+    suspend fun downloadFile(url: String, targetFile: File) = withContext(Dispatchers.IO) {
+        // Fallback for local testing (Story 4.3 Round 11 Fix)
+        if (url.startsWith("file://")) {
+            try {
+                val filePath = url.substring(7)
+                val sourceFile = File(filePath)
+                if (sourceFile.exists()) {
+                    sourceFile.inputStream().use { input ->
+                        targetFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    return@withContext
+                } else {
+                    throw IOException("Local file not found: $filePath")
+                }
+            } catch (e: Exception) {
+                throw IOException("Failed to copy local file: ${e.message}", e)
+            }
+        }
+
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", Constants.USER_AGENT)
+            .build()
+
+        NetworkModule.okHttpClient.newCall(request).await().use { response ->
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code} when downloading $url")
+            val body = response.body ?: throw IOException("Empty body when downloading $url")
+            
+            body.byteStream().use { input ->
+                FileOutputStream(targetFile).use { output ->
+                    // Use shared utility for cancellable download with progress
+                    // Progress is not reported for these small metadata downloads (usually < 1MB)
+                    DownloadUtils.downloadWithProgress(
+                        inputStream = input,
+                        outputStream = output,
+                        initialDownloaded = 0,
+                        totalBytes = body.contentLength(),
+                        isCancelled = { false },
+                        onProgress = { _, _, _ -> }
+                    )
+                }
+            }
+        }
     }
 
     /**
@@ -127,17 +185,26 @@ object CatalogUtils {
         // Check Last-Modified
         val remoteLastModified = metadata["Last-Modified"]
         val savedLastModified = prefs.getString("${prefix}last_modified", "")
-        if (remoteLastModified != null && remoteLastModified != savedLastModified) return true
+        if (remoteLastModified != null && remoteLastModified != savedLastModified) {
+            Log.d("CatalogUtils", "Update detected via Last-Modified: $remoteLastModified (was $savedLastModified)")
+            return true
+        }
         
         // Check ETag
         val remoteETag = metadata["ETag"]
         val savedETag = prefs.getString("${prefix}etag", "")
-        if (remoteETag != null && remoteETag != savedETag) return true
+        if (remoteETag != null && remoteETag != savedETag) {
+            Log.d("CatalogUtils", "Update detected via ETag: $remoteETag (was $savedETag)")
+            return true
+        }
         
         // Check MD5
         val remoteMD5 = metadata["MD5"]
         val savedMD5 = prefs.getString("${prefix}md5", "")
-        if (remoteMD5 != null && remoteMD5 != savedMD5) return true
+        if (remoteMD5 != null && remoteMD5 != savedMD5) {
+            Log.d("CatalogUtils", "Update detected via MD5: $remoteMD5 (was $savedMD5)")
+            return true
+        }
 
         return false
     }

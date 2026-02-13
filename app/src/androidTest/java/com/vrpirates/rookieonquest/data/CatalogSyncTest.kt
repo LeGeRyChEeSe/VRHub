@@ -144,27 +144,31 @@ class CatalogSyncTest {
             repository.syncCatalog(baseUri)
         }
 
-        // Verify it was synced
+        // Verify it was synced and DB has items
+        val initialCount = gameDao.getCount()
+        assertTrue("Database should have items after first sync", initialCount > 0)
+        
         val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
         val lastModified = prefs.getString("meta_last_modified", null)
         assertNotNull("Metadata should be saved after first sync", lastModified)
 
         // 3. Sync again with SAME file (same timestamp)
-        // We can check if sync was skipped by checking if any DB operations or progress updates happen,
-        // but the easiest is to verify it completes quickly without errors.
-        var progressCalled = false
+        // Functional Verification: If sync is correctly skipped, progress should go from 0.05 to 1.0 immediately.
+        // We track if ANY intermediate progress (download/extract/parse) is reported.
+        val initialCount = gameDao.getCount()
+        assertTrue("Database should have games after first sync", initialCount > 0)
+
+        var intermediateProgressCalled = false
         CatalogUtils.catalogSyncMutex.withLock {
             repository.syncCatalog(baseUri) { progress ->
                 if (progress > 0.05f && progress < 1f) {
-                    progressCalled = true
+                    intermediateProgressCalled = true
                 }
             }
         }
 
-        // In MainRepository, if upToDate is true, it calls onProgress(1f) and returns.
-        // It calls onProgress(0.05f) at the very start.
-        // So progressCalled (for values between 0.05 and 1) should be FALSE if skipped.
-        assertFalse("Sync should be skipped (no intermediate progress calls) when up-to-date", progressCalled)
+        assertFalse("Sync should be skipped (no intermediate progress calls) when up-to-date", intermediateProgressCalled)
+        assertEquals("Database count should remain unchanged when sync is skipped", initialCount, gameDao.getCount())
 
         // Cleanup
         if (metaFile.exists()) metaFile.delete()
@@ -176,7 +180,7 @@ class CatalogSyncTest {
         // 1. Setup initial state (already synced at version 1)
         val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().apply {
-            putString("meta_last_modified", "1000") // Fake old timestamp
+            putString("notified_meta_last_modified", "1000") // Fake old timestamp
             putBoolean("catalog_update_available", false)
             putInt("catalog_update_count", 0)
             apply()
@@ -186,6 +190,7 @@ class CatalogSyncTest {
         val tempDir = File(context.cacheDir, "test_worker")
         if (!tempDir.exists()) tempDir.mkdirs()
         val metaFile = File(tempDir, "meta.7z")
+        // Create 2 new/updated games
         val gameListContent = "Game 1;G1;com.g1;2;1000;50\nGame 2;G2;com.g2;1;2000;60\n"
         
         SevenZOutputFile(metaFile).use { out ->
@@ -195,19 +200,16 @@ class CatalogSyncTest {
             out.closeArchiveEntry()
         }
 
-        // 3. Mock the repository base URI for the worker
-        // Since the worker fetches from PublicConfig, we'd ideally mock that,
-        // but for integration test we'll rely on the worker using the local file URI if we can inject it.
-        // For now, we test the detection logic via CatalogUtils directly as that's what the worker uses.
-        
         val baseUri = "file://${tempDir.absolutePath}/"
-        val metadata = CatalogUtils.getRemoteCatalogMetadata(baseUri)
-        val isUpdate = CatalogUtils.isUpdateAvailable(context, baseUri, metadata)
         
-        assertTrue("Update should be available when remote timestamp is different", isUpdate)
+        // 3. Test detection logic via CatalogUtils directly
+        val metadata = CatalogUtils.getRemoteCatalogMetadata(baseUri)
+        // Use "notified_meta_" prefix as the worker does
+        val isUpdate = CatalogUtils.isUpdateAvailable(context, baseUri, metadata, "notified_meta_")
+        
+        assertTrue("Update should be available when remote timestamp is different from notified one", isUpdate)
 
-        // 4. Test the full worker logic (manually)
-        // We verify that the worker would set the correct preferences
+        // 4. Test the update count calculation
         val count = CatalogUtils.calculateUpdateCount(context, gameListContent)
         assertEquals("Should detect 2 new/updated games", 2, count)
 

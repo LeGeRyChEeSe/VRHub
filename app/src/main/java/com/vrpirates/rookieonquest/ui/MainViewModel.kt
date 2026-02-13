@@ -1388,6 +1388,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissCatalogUpdate() {
+        // Update UI state immediately for responsive feedback
+        _isCatalogUpdateAvailable.value = false
+        _catalogUpdateCount.value = 0
+        
         viewModelScope.launch(Dispatchers.IO) {
             com.vrpirates.rookieonquest.logic.CatalogUtils.catalogSyncMutex.withLock {
                 prefs.edit().apply {
@@ -1395,17 +1399,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     putInt("catalog_update_count", 0)
                     apply()
                 }
-                _isCatalogUpdateAvailable.value = false
-                _catalogUpdateCount.value = 0
             }
         }
     }
 
     fun syncCatalogNow() {
-        dismissCatalogUpdate()
-        viewModelScope.launch {
-            refreshData()
-        }
+        // Hiding the banner immediately provides better UX response.
+        // The background flags will be cleared by repository upon successful sync.
+        _isCatalogUpdateAvailable.value = false
+        refreshData()
     }
 
     private fun scheduleCatalogUpdateWorker() {
@@ -1515,6 +1517,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _catalogSyncProgress.value = 0f
             _error.value = null
             try {
+                // Shared Mutex coordination: Protect the entire synchronization flow to prevent
+                // concurrent database writes or metadata race conditions between the manual
+                // UI-triggered sync and the background CatalogUpdateWorker.
                 com.vrpirates.rookieonquest.logic.CatalogUtils.catalogSyncMutex.withLock {
                     withContext(Dispatchers.IO) {
                         // 1. Sync Catalog first to have the latest games list

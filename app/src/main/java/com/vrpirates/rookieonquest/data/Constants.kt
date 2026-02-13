@@ -10,6 +10,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.io.BufferedInputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Non-retryable download exceptions.
@@ -257,6 +260,27 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
+}
+
+/**
+ * Extension for okhttp3.Call to use with Coroutines.
+ * Allows asynchronous network calls without blocking threads.
+ */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+suspend fun okhttp3.Call.await(): okhttp3.Response = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+    continuation.invokeOnCancellation {
+        cancel()
+    }
+    enqueue(object : okhttp3.Callback {
+        override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+            continuation.resume(response) {
+                // Handle cancellation while response is being processed if needed
+            }
+        }
+        override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+            continuation.resumeWithException(e)
+        }
+    })
 }
 
 /**

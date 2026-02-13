@@ -32,158 +32,139 @@ class CatalogUpdateWorker(
     }
 
             override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-
-                Log.i(TAG, "Checking for catalog updates in background...")
-
-        
-
-                try {
-
-                    val service = NetworkModule.retrofit.create(VrpService::class.java)
-
-                    val config = service.getPublicConfig()
-
-                    val baseUri = config.baseUri
-
-        
-
-                    // Wrap the ENTIRE check and calculation in Mutex to prevent race conditions (Finding 5)
-
-                    // This ensures that the whole "Read -> Download -> Calculate -> Write" flow is atomic
-
-                    // relative to manual syncs in the repository.
-
-                    CatalogUtils.catalogSyncMutex.withLock {
-
-                        // 1. Check if update is available (lightweight check)
-
-                        val remoteMetadata = CatalogUtils.getRemoteCatalogMetadata(baseUri)
-
-                        
-
-                        // Pass remoteMetadata and use "notified_meta_" prefix (Story 4.3 Round 4 Fix)
-
-                        // This prevents the worker from interfering with the repository's sync state detection.
-
-                        if (CatalogUtils.isUpdateAvailable(applicationContext, baseUri, remoteMetadata, "notified_meta_")) {
-
-                            val calculatingMsg = applicationContext.getString(com.vrpirates.rookieonquest.R.string.catalog_update_calculating)
-
-                            Log.i(TAG, "New catalog version detected! $calculatingMsg")
-
-                            
-
-                            // 2. Download and parse new catalog to find actual count of changes
-
-                            // Since we are inside the lock, we are safe from concurrent downloads of the same file
-
-                            val tempFile = CatalogUtils.getCatalogMetaFile(applicationContext)
-
-                            val sanitizedBase = if (baseUri.endsWith("/")) baseUri else "$baseUri/"
-
-                            val metaUrl = "${sanitizedBase}meta.7z"
-
-                            var count = 0
-
-                            
-
-                            try {
-
-                                downloadFile(metaUrl, tempFile)
-
-                                
-
-                                // We need the password to extract the list. Worker can use the one from repository (Story 4.3 Round 17 Fix)
-
-                                val repository = com.vrpirates.rookieonquest.data.MainRepository(applicationContext)
-
-                                repository.fetchConfig() // Ensure config is loaded to get decodedPassword
-
-                                val password = repository.decodedPassword
-
-                                
-
-                                val gameListContent = extractGameList(tempFile, password)
-
-                                count = CatalogUtils.calculateUpdateCount(applicationContext, gameListContent)
-
-                            } catch (e: Exception) {
-
-                                Log.e(TAG, "Failed to download or parse update for count calculation", e)
-
-                            }
-
-                            
-
-                            // 3. Re-verify update is still needed before saving (avoids race if repository just finished sync)
-
-                            if (CatalogUtils.isUpdateAvailable(applicationContext, baseUri, remoteMetadata, "notified_meta_")) {
-
-                                val prefs = applicationContext.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-
-                                prefs.edit()
-
-                                    .putBoolean("catalog_update_available", true)
-
-                                    .putInt("catalog_update_count", count)
-
-                                    .apply()
-
-        
-
-                                // 4. Save NOTIFICATION metadata so we don't notify again until NEXT server update
-
-                                CatalogUtils.saveMetadata(applicationContext, remoteMetadata, "notified_meta_")
-
-                                Log.i(TAG, "Update detected and notified: $count games added/updated.")
-
-                            } else {
-
-                                Log.i(TAG, "Update was already processed by manual sync during worker execution.")
-
-                            }
-
-                        } else {
-
-                            Log.d(TAG, "Catalog is up to date.")
-
-                        }
-
-                    }
-
-        
-
-                    Result.success()
-
-                } catch (e: Exception) {
-
-                    Log.e(TAG, "Error during catalog update check", e)
-
-                    Result.retry()
-
-                }
-
-            }
-
-        
-
-            private suspend fun downloadFile(url: String, targetFile: File) {
-
-        
-        val request = okhttp3.Request.Builder()
-            .url(url)
-            .header("User-Agent", Constants.USER_AGENT)
-            .build()
+        Log.i(TAG, "Checking for catalog updates in background...")
+
+        try {
+            val service = NetworkModule.retrofit.create(VrpService::class.java)
+            val config = service.getPublicConfig()
+            val baseUri = config.baseUri
+
+            // 1. Initial lightweight check (outside lock)
+            val remoteMetadata = CatalogUtils.getRemoteCatalogMetadata(baseUri)
             
-        NetworkModule.okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
-            response.body?.byteStream()?.use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
+            if (!CatalogUtils.isUpdateAvailable(applicationContext, baseUri, remoteMetadata, "notified_meta_")) {
+                Log.d(TAG, "Catalog is up to date.")
+                return@withContext Result.success()
             }
-        }
-    }
+
+            // 2. Download to a PRIVATE temp file (outside lock)
+            // This prevents blocking manual "Sync Now" UI operations during long background downloads.
+            // We only move it to the shared cache location once it's fully downloaded.
+            val privateTempFile = File(applicationContext.cacheDir, "worker_meta_temp.7z")
+            val sanitizedBase = if (baseUri.endsWith("/")) baseUri else "$baseUri/"
+            val metaUrl = "${sanitizedBase}meta.7z"
+            
+            CatalogUtils.downloadFile(metaUrl, privateTempFile)
+            
+                        
+            
+                        // 3. Coordination Phase (inside lock)
+            
+                        // We hold the lock during extraction and state updates to ensure atomicity
+            
+                        // between the background worker and manual repository syncs.
+            
+                        // TRADE-OFF: While this blocks manual syncs during extraction, it is necessary
+            
+                        // to prevent concurrent database writes and race conditions in metadata flags.
+            
+                        // The download (slowest part) was intentionally performed outside this lock.
+            
+                        CatalogUtils.catalogSyncMutex.withLock {
+            
+                            // Re-verify update is STILL needed (avoids race if repository just finished sync while we were downloading)
+            
+                            if (CatalogUtils.isUpdateAvailable(applicationContext, baseUri, remoteMetadata, "notified_meta_")) {
+            
+                                val calculatingMsg = applicationContext.getString(com.vrpirates.rookieonquest.R.string.catalog_update_calculating)
+            
+                                Log.i(TAG, "New catalog version detected! $calculatingMsg")
+            
+            
+            
+                                // Move private file to shared cache location
+            
+                                val sharedCacheFile = CatalogUtils.getCatalogMetaFile(applicationContext)
+            
+                                privateTempFile.renameTo(sharedCacheFile)
+            
+            
+            
+                                // Decode password directly from config (Finding: Avoid inefficient MainRepository instantiation)
+            
+                                val password = try {
+            
+                                    val decoded = android.util.Base64.decode(config.password64, android.util.Base64.DEFAULT)
+            
+                                    String(decoded, Charsets.UTF_8)
+            
+                                } catch (e: Exception) {
+            
+                                    Log.w(TAG, "Failed to decode password64 from config, using raw value")
+            
+                                    config.password64
+            
+                                }
+            
+            
+            
+                                val gameListContent = extractGameList(sharedCacheFile, password)
+            
+                                if (gameListContent.isNotEmpty()) {
+            
+                                    val count = CatalogUtils.calculateUpdateCount(applicationContext, gameListContent)
+            
+            
+            
+                                    val prefs = applicationContext.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+            
+                                    prefs.edit()
+            
+                                        .putBoolean("catalog_update_available", true)
+            
+                                        .putInt("catalog_update_count", count)
+            
+                                        .apply()
+            
+            
+            
+                                    // Save NOTIFICATION metadata so we don't notify again until NEXT server update
+            
+                                    CatalogUtils.saveMetadata(applicationContext, remoteMetadata, "notified_meta_")
+            
+                                    Log.i(TAG, "Update detected and notified: $count games added/updated.")
+            
+                                } else {
+            
+                                    Log.e(TAG, "Failed to extract game list content")
+            
+                                }
+            
+                            } else {
+            
+                                Log.i(TAG, "Update was already processed by manual sync during worker download.")
+            
+                                if (privateTempFile.exists()) privateTempFile.delete()
+            
+                            }
+            
+                            Unit // Ensure the withLock lambda returns Unit to avoid 'if' expression errors
+            
+                        }
+            
+            
+            
+                        Result.success()
+            
+                    } catch (e: Exception) {
+            
+                        Log.e(TAG, "Error during catalog update check", e)
+            
+                        Result.retry()
+            
+                    }
+            
+                }
 
     private fun extractGameList(file: File, password: String? = null): String {
         try {

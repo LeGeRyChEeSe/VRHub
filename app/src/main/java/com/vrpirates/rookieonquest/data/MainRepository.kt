@@ -144,6 +144,14 @@ class MainRepository(
             
                         if (upToDate) {
                             Log.i(TAG, "Catalog is up to date, skipping sync")
+                            
+                            // Ensure banner is dismissed if we're already up to date
+                            prefs.edit().apply {
+                                putBoolean("catalog_update_available", false)
+                                putInt("catalog_update_count", 0)
+                                apply()
+                            }
+                            
                             // Full progress reached immediately if already current
                             onProgress(1f) 
                             return@withContext
@@ -164,7 +172,7 @@ class MainRepository(
                                 Log.i(TAG, "Using recently cached meta file from worker")
                             } else {
                                 Log.d(TAG, "syncCatalog: calling downloadFile...")
-                                downloadFile(metaUrl, tempMetaFile)
+                                CatalogUtils.downloadFile(metaUrl, tempMetaFile)
                                 Log.d(TAG, "syncCatalog: downloadFile finished")
                             }
             
@@ -173,7 +181,7 @@ class MainRepository(
                             onProgress(0.5f) 
                             Log.d(TAG, "Meta file ready, size: ${tempMetaFile.length()} bytes")
             
-                            val passwordsToTry = listOfNotNull(decodedPassword, cachedConfig?.password64, null).distinct()
+                            val passwordsToTry = (listOfNotNull(decodedPassword, cachedConfig?.password64) + listOf<String?>(null)).distinct()
                             var gameListContent = ""
                             var success = false
             
@@ -247,17 +255,21 @@ class MainRepository(
                                     Log.i(TAG, "Catalog sync complete")
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Failed to insert games into database", e)
+                                    onProgress(-1f)
                                     throw e
                                 }
                             } else {
+                                onProgress(-1f)
                                 throw Exception("Catalog extraction failed or content empty")
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "syncCatalog: error during sync: ${e.message}", e)
+                            onProgress(-1f)
                             throw e
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Critical error during catalog sync: ${e.message}", e)
+                        onProgress(-1f)
                         throw e
                     }
                 }
@@ -316,32 +328,6 @@ class MainRepository(
             var bytesRead: Int
             while (sevenZFile.read(buffer).also { bytesRead = it } != -1) {
                 out.write(buffer, 0, bytesRead)
-            }
-        }
-    }
-
-    private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
-        continuation.invokeOnCancellation {
-            cancel()
-        }
-        enqueue(object : Callback {
-            override fun onResponse(call: Call, response: Response) {
-                continuation.resume(response)
-            }
-            override fun onFailure(call: Call, e: IOException) {
-                continuation.resumeWithException(e)
-            }
-        })
-    }
-
-    private suspend fun downloadFile(url: String, targetFile: File) {
-        val request = Request.Builder().url(url).header("User-Agent", Constants.USER_AGENT).build()
-        okHttpClient.newCall(request).await().use { response ->
-            if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
-            response.body?.byteStream()?.use { input ->
-                targetFile.outputStream().use { output -> 
-                    copyToCancellable(input, output)
-                }
             }
         }
     }

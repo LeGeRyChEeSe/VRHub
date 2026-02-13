@@ -15,6 +15,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -33,6 +34,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -478,7 +480,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                             contentPadding = PaddingValues(12.dp),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalItemSpacing = 8.dp,
-                                            modifier = Modifier.weight(1f).fillMaxHeight().animateContentSize()
+                                            modifier = Modifier.weight(1f).fillMaxHeight()
                                         ) {
                                             items(games, key = { it.releaseName }) { game ->
                                                 GameListItem(
@@ -499,7 +501,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                         LazyColumn(
                                             state = listState,
                                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                                            modifier = Modifier.weight(1f).fillMaxHeight().animateContentSize()
+                                            modifier = Modifier.weight(1f).fillMaxHeight()
                                         ) {
                                             items(games, key = { it.releaseName }) { game ->
                                                 GameListItem(
@@ -909,17 +911,20 @@ fun UpdateOverlay(
 fun ResponsiveTitle(text: String, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier = modifier) {
         val maxWidth = maxWidth
+        // Fallback to shorter title if width is extremely constrained (Quest 2/3 narrow profiles)
+        val displayTitle = if (maxWidth < 110.dp) "ROOKIE" else text
+        
         val textMeasurer = rememberTextMeasurer()
         val density = LocalDensity.current
         val style = MaterialTheme.typography.titleSmall.copy(
             fontWeight = FontWeight.Black
         )
 
-        val fontSize = remember(text, maxWidth, density) {
+        val fontSize = remember(displayTitle, maxWidth, density) {
             var currentSize = 11.sp
-            while (currentSize > 6.sp) {
+            while (currentSize > 4.sp) {
                 val result = textMeasurer.measure(
-                    text = text,
+                    text = displayTitle,
                     style = style.copy(
                         fontSize = currentSize,
                         letterSpacing = if (currentSize < 11.sp) (-0.5).sp else 0.sp
@@ -936,7 +941,7 @@ fun ResponsiveTitle(text: String, modifier: Modifier = Modifier) {
         }
 
         Text(
-            text = text,
+            text = displayTitle,
             style = style.copy(
                 fontSize = fontSize,
                 letterSpacing = if (fontSize < 11.sp) (-0.5).sp else 0.sp
@@ -1039,12 +1044,23 @@ fun CustomTopBar(
                 }
 
                 IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        if (permissionsMissing) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .align(Alignment.TopEnd)
+                                    .background(Color(0xFFe74c3c), CircleShape)
+                                    .border(1.dp, Color.Black, CircleShape)
+                            )
+                        }
+                    }
                 }
             }
 
