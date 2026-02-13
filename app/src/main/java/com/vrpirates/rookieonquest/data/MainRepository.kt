@@ -69,7 +69,7 @@ class MainRepository(
     private val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
 
     private var cachedConfig: PublicConfig? = null
-    private var decodedPassword: String? = null
+    internal var decodedPassword: String? = null
     
     val iconsDir = File(context.filesDir, "icons").apply { if (!exists()) mkdirs() }
     val thumbnailsDir = File(context.filesDir, "thumbnails").apply { if (!exists()) mkdirs() }
