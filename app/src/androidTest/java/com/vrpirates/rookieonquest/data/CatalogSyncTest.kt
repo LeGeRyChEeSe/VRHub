@@ -202,7 +202,7 @@ class CatalogSyncTest {
         
         val baseUri = "file://${tempDir.absolutePath}/"
         val metadata = CatalogUtils.getRemoteCatalogMetadata(baseUri)
-        val isUpdate = CatalogUtils.isUpdateAvailable(context, metadata)
+        val isUpdate = CatalogUtils.isUpdateAvailable(context, baseUri, metadata)
         
         assertTrue("Update should be available when remote timestamp is different", isUpdate)
 

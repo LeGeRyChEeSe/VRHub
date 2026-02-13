@@ -158,4 +158,34 @@ object CatalogUtils {
             apply()
         }
     }
+
+    /**
+     * Calculates the number of new or updated games by comparing provided catalog content
+     * with the current local database.
+     *
+     * @param context Android context to access database.
+     * @param gameListContent The raw content of VRP-GameList.txt.
+     * @return Number of games that are either new or have a different versionCode.
+     */
+    suspend fun calculateUpdateCount(context: Context, gameListContent: String): Int = withContext(Dispatchers.IO) {
+        if (gameListContent.isBlank()) return@withContext 0
+        
+        try {
+            val newList = CatalogParser.parse(gameListContent)
+            val db = com.vrpirates.rookieonquest.data.AppDatabase.getDatabase(context)
+            val existingGames = db.gameDao().getAllGamesList().associateBy { it.releaseName }
+            
+            var changedCount = 0
+            for (newGame in newList) {
+                val existing = existingGames[newGame.releaseName]
+                if (existing == null || existing.versionCode != newGame.versionCode) {
+                    changedCount++
+                }
+            }
+            changedCount
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to calculate update count", e)
+            0
+        }
+    }
 }
