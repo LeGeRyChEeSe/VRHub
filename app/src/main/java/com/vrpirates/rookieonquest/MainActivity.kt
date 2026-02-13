@@ -557,6 +557,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 onExportDiagnostics = { viewModel.exportDiagnostics(toFile = false) },
                 onSaveDiagnostics = { viewModel.exportDiagnostics(toFile = true) },
                 onClearCache = { viewModel.clearCache() },
+                missingPermissions = missingPermissions ?: emptyList(),
+                onPermissionClick = { viewModel.openPermissionSettings(it) },
                 onDismiss = { showSettingsDialog = false }
             )
         }
@@ -1550,21 +1552,28 @@ fun SettingsDialog(
     onExportDiagnostics: () -> Unit,
     onSaveDiagnostics: () -> Unit,
     onClearCache: () -> Unit,
+    missingPermissions: List<RequiredPermission>,
+    onPermissionClick: (RequiredPermission) -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("App Settings") },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "Application",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
                 ListItem(
                     headlineContent = { Text("Keep APKs after install") },
                     supportingContent = { Text("Saved to Download/RookieOnQuest") },
                     trailingContent = { Switch(checked = keepApks, onCheckedChange = { onToggleKeepApks() }) },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
-
-                Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
 
                 ListItem(
                     headlineContent = { Text("Clear Download Cache") },
@@ -1579,6 +1588,56 @@ fun SettingsDialog(
                 )
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+
+                Text(
+                    text = "Permissions",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                RequiredPermission.entries.forEach { permission ->
+                    val isMissing = missingPermissions.contains(permission)
+                    val displayName = when (permission) {
+                        RequiredPermission.INSTALL_UNKNOWN_APPS -> "Install Unknown Apps"
+                        RequiredPermission.MANAGE_EXTERNAL_STORAGE -> "All Files Access"
+                        RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS -> "Battery Optimization"
+                    }
+
+                    ListItem(
+                        headlineContent = { Text(displayName) },
+                        supportingContent = { Text(if (isMissing) "Action Required" else "Granted") },
+                        trailingContent = {
+                            if (isMissing) {
+                                Button(
+                                    onClick = { onPermissionClick(permission) },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFe74c3c))
+                                ) {
+                                    Text("GRANT", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Granted",
+                                    tint = Color(0xFF2ecc71),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+
+                Text(
+                    text = "Diagnostics",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
 
                 ListItem(
                     headlineContent = { Text("Export Diagnostics") },
