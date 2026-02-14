@@ -370,7 +370,7 @@ osniff.
 - Sunshine-AIO-web/public/updates/rookie/RookieOnQuest_2.5.0.apk
 - Sunshine-AIO-web/public/updates/rookie/.gitkeep
 - Sunshine-AIO-web/public/_headers
-- Sunshine-AIO-web/tests/check-update.test.js
-- _bmad-output/implementation-artifacts/9-1-netlify-update-gateway-server-side.md
-
+  - Sunshine-AIO-web/tests/check-update.test.js
+  - project-context.md
+  - _bmad-output/implementation-artifacts/9-1-netlify-update-gateway-server-side.md
 
