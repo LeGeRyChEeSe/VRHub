@@ -65,7 +65,7 @@ android {
         }
 
         versionName = when {
-            versionNameProperty == null -> "2.5.0-rc.1" // Default when not provided
+            versionNameProperty == null -> "2.5.0" // Default when not provided
             versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$")) -> versionNameProperty
             else -> throw GradleException(
                 "Invalid versionName property: '$versionNameProperty'. " +

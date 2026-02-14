@@ -25,7 +25,8 @@ enum class InstallStatus {
     PENDING_INSTALL,  // APK staged and installer launched, waiting for user to complete
     PAUSED,
     COMPLETED,
-    FAILED;
+    FAILED,
+    LOCAL_VERIFYING;
 
     companion object {
         private const val TAG = "InstallStatus"

@@ -155,8 +155,8 @@ class CatalogSyncTest {
         // 3. Sync again with SAME file (same timestamp)
         // Functional Verification: If sync is correctly skipped, progress should go from 0.05 to 1.0 immediately.
         // We track if ANY intermediate progress (download/extract/parse) is reported.
-        val initialCount = gameDao.getCount()
-        assertTrue("Database should have games after first sync", initialCount > 0)
+        val currentCount = gameDao.getCount()
+        assertTrue("Database should have games after first sync", currentCount > 0)
 
         var intermediateProgressCalled = false
         CatalogUtils.catalogSyncMutex.withLock {

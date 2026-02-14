@@ -41,5 +41,6 @@ data class InstallHistoryEntity(
      * during the archiving process to preserve the actual task lifecycle history.
      * Failing to do so will result in incorrect duration calculations and lost history.
      */
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val isLocalInstall: Boolean = false
 )

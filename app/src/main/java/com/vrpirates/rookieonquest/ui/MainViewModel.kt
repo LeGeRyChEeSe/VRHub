@@ -133,7 +133,7 @@ enum class InstallStatus {
 }
 
 enum class InstallTaskStatus {
-    QUEUED, DOWNLOADING, EXTRACTING, INSTALLING, PENDING_INSTALL, PAUSED, BLOCKED_BY_PERMISSIONS, COMPLETED, FAILED
+    QUEUED, DOWNLOADING, EXTRACTING, INSTALLING, PENDING_INSTALL, PAUSED, BLOCKED_BY_PERMISSIONS, COMPLETED, FAILED, LOCAL_VERIFYING
 }
 
 fun InstallTaskStatus.isProcessing(): Boolean =
@@ -141,7 +141,8 @@ fun InstallTaskStatus.isProcessing(): Boolean =
     this == InstallTaskStatus.DOWNLOADING ||
     this == InstallTaskStatus.EXTRACTING ||
     this == InstallTaskStatus.INSTALLING ||
-    this == InstallTaskStatus.PENDING_INSTALL
+    this == InstallTaskStatus.PENDING_INSTALL ||
+    this == InstallTaskStatus.LOCAL_VERIFYING
 
 /**
  * Maps a game name's first character to its alphabet group character.
@@ -191,6 +192,7 @@ data class InstallTaskState(
     val isDownloadOnly: Boolean = false,
     val totalBytes: Long = 0L,
     val downloadedBytes: Long? = null,
+    val isLocalInstall: Boolean = false,
     val error: String? = null
 )
 
@@ -222,6 +224,7 @@ fun com.vrpirates.rookieonquest.data.InstallStatus.toTaskStatus(): InstallTaskSt
         com.vrpirates.rookieonquest.data.InstallStatus.PAUSED -> InstallTaskStatus.PAUSED
         com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED -> InstallTaskStatus.COMPLETED
         com.vrpirates.rookieonquest.data.InstallStatus.FAILED -> InstallTaskStatus.FAILED
+        com.vrpirates.rookieonquest.data.InstallStatus.LOCAL_VERIFYING -> InstallTaskStatus.LOCAL_VERIFYING
     }
 }
 
@@ -246,6 +249,7 @@ fun InstallTaskStatus.toDataStatus(): com.vrpirates.rookieonquest.data.InstallSt
         InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> com.vrpirates.rookieonquest.data.InstallStatus.PAUSED
         InstallTaskStatus.COMPLETED -> com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED
         InstallTaskStatus.FAILED -> com.vrpirates.rookieonquest.data.InstallStatus.FAILED
+        InstallTaskStatus.LOCAL_VERIFYING -> com.vrpirates.rookieonquest.data.InstallStatus.LOCAL_VERIFYING
     }
 }
 
@@ -289,6 +293,7 @@ fun com.vrpirates.rookieonquest.data.QueuedInstallEntity.toInstallTaskState(
         InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> context.getString(R.string.status_blocked_permissions)
         InstallTaskStatus.COMPLETED -> context.getString(R.string.status_completed)
         InstallTaskStatus.FAILED -> context.getString(R.string.status_failed)
+        InstallTaskStatus.LOCAL_VERIFYING -> context.getString(R.string.status_local_verifying)
     }
 
     // Format size strings
@@ -307,6 +312,7 @@ fun com.vrpirates.rookieonquest.data.QueuedInstallEntity.toInstallTaskState(
         isDownloadOnly = isDownloadOnly,
         totalBytes = totalBytes ?: 0L,
         downloadedBytes = downloadedBytes,
+        isLocalInstall = isLocalInstall,
         error = null // Error state is transient, not persisted
     )
 }
@@ -2245,6 +2251,122 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // FAST TRACK FLOW (Story 1.12): Auto-detect local files and skip to installation
+        // Check if valid local files exist before starting WorkManager
+        // This skips the download and extraction phases entirely.
+        // Fallback to standard flow if discovery fails due to permissions (AC: 7)
+        val hasLocal = try {
+            repository.hasLocalInstallFiles(task.releaseName)
+        } catch (e: Exception) {
+            Log.w(TAG, "Fast Track check failed for ${task.releaseName}, falling back to standard flow", e)
+            false
+        }
+        if (hasLocal) {
+            Log.i(TAG, "Fast Track: Local files found for ${task.releaseName}")
+            updateTaskStatus(task.releaseName, InstallTaskStatus.LOCAL_VERIFYING)
+
+            // Mark as local install in database for history tracking (Story 1.12)
+            repository.updateLocalInstallStatus(task.releaseName, true)
+
+            // Create task-specific completion signal
+            val completionSignal = CompletableDeferred<Unit>()
+            taskCompletionSignals[task.releaseName] = completionSignal
+
+            try {
+                // Ensure temp directory exists and create extraction marker (Story 1.12)
+                // This leverages existing installation logic and enables zombie recovery
+                withContext(Dispatchers.IO) {
+                    val tempInstallRoot = File(context.filesDir, "install_temp")
+                    val hash = com.vrpirates.rookieonquest.data.CryptoUtils.md5(task.releaseName + "\n")
+                    val gameTempDir = File(tempInstallRoot, hash)
+                    if (!gameTempDir.exists()) gameTempDir.mkdirs()
+                    File(gameTempDir, "extraction_done.marker").createNewFile()
+                }
+
+                // Call installation phase directly using skipRemoteVerification
+                // This will use the existing files in the download directory
+                currentTaskJob = viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        val apkFile = repository.installGame(
+                            game = game,
+                            keepApk = _keepApks.value,
+                            downloadOnly = task.isDownloadOnly,
+                            skipRemoteVerification = true,
+                            skipStorageCheck = true
+                        ) { message, progress, current, total ->
+                            updateTaskProgress(task.releaseName, progress, current, total)
+                            
+                            // Update status based on message if needed
+                            val status = when {
+                                message.contains("Installing", ignoreCase = true) -> InstallTaskStatus.INSTALLING
+                                message.contains("OBB", ignoreCase = true) -> InstallTaskStatus.INSTALLING
+                                message.contains("Launching", ignoreCase = true) -> InstallTaskStatus.INSTALLING
+                                else -> InstallTaskStatus.LOCAL_VERIFYING
+                            }
+                            
+                            val currentTask = installQueue.value.find { it.releaseName == task.releaseName }
+                            if (currentTask?.status != status) {
+                                updateTaskStatus(task.releaseName, status)
+                            }
+                        }
+
+                        if (task.isDownloadOnly) {
+                            updateTaskStatus(task.releaseName, InstallTaskStatus.COMPLETED)
+                            delay(1000)
+                            repository.archiveTask(task.releaseName, com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)
+                            withContext(Dispatchers.Main) {
+                                updateOverlayAfterTaskComplete(task.releaseName)
+                                refreshDownloadedReleases()
+                            }
+                        } else {
+                            if (apkFile != null && apkFile.exists()) {
+                                withContext(Dispatchers.Main) {
+                                    _events.emit(MainEvent.InstallApk(apkFile))
+                                }
+                            }
+                            updateTaskStatus(task.releaseName, InstallTaskStatus.PENDING_INSTALL)
+                            withContext(Dispatchers.Main) {
+                                updateOverlayAfterTaskComplete(task.releaseName)
+                                refreshInstalledPackages()
+                            }
+                        }
+                    } catch (e: CancellationException) {
+                        updateTaskStatus(task.releaseName, InstallTaskStatus.PAUSED)
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Fast Track failed for ${task.releaseName}", e)
+                        updateTaskStatus(task.releaseName, InstallTaskStatus.FAILED)
+                        withContext(Dispatchers.Main) {
+                            _events.emit(MainEvent.ShowMessage("Fast Track failed: ${e.message}"))
+                        }
+                    } finally {
+                        if (activeReleaseName == task.releaseName) {
+                            activeReleaseName = null
+                        }
+                        completionSignal.complete(Unit)
+                    }
+                }
+                
+                // Wait for the fast track installation to complete
+                completionSignal.await()
+                return
+            } finally {
+                taskCompletionSignals.remove(task.releaseName)
+            }
+        }
+
+        // AC: 7 (Story 1.12) - Show message if fallback occurred but files were potentially present
+        withContext(Dispatchers.IO) {
+            val safeDirName = task.releaseName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+            val gameDir = File(repository.downloadsDir, safeDirName)
+            if (gameDir.exists() && gameDir.isDirectory && gameDir.list()?.isNotEmpty() == true) {
+                withContext(Dispatchers.Main) {
+                    _events.emit(MainEvent.ShowMessage("Local files invalid or incomplete. Falling back to download."))
+                }
+            }
+        }
+
+        // 2. NORMAL FLOW / RESUMPTION FLOW
         // Moved signal creation after early returns to prevent signal leakage.
         // Create task-specific completion signal - will be completed when extraction/installation finishes
         // This ensures the queue processor waits for the FULL pipeline before starting next task

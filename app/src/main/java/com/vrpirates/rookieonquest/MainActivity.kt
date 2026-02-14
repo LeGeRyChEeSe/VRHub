@@ -1345,6 +1345,22 @@ fun InstallationOverlay(
                 textAlign = TextAlign.Center
             )
 
+            if (activeTask.isLocalInstall) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = "FAST TRACK",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(48.dp))
 
             if (progress != null) {
@@ -1397,6 +1413,7 @@ fun InstallationOverlay(
                 InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> stringResource(R.string.status_blocked_permissions)
                 InstallTaskStatus.COMPLETED -> stringResource(R.string.status_completed)
                 InstallTaskStatus.FAILED -> stringResource(R.string.status_failed)
+                InstallTaskStatus.LOCAL_VERIFYING -> stringResource(R.string.status_local_verifying)
             }
             Text(
                 text = statusMessage,
@@ -1824,14 +1841,33 @@ fun QueueManagerOverlay(
                                     Spacer(modifier = Modifier.width(12.dp))
 
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = task.gameName,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = task.gameName,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            if (task.isLocalInstall) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
+                                                ) {
+                                                    Text(
+                                                        text = "FAST TRACK",
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.secondary,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 8.sp
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Text(
                                             text = if (isFailed && task.error != null) task.error else (task.message ?: task.status.name),
                                             style = MaterialTheme.typography.bodySmall,
