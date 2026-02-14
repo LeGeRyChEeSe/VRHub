@@ -2251,10 +2251,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // 1. FAST TRACK CHECK (AC: 1, 2, 3 - Story 1.12)
+        // FAST TRACK FLOW (Story 1.12): Auto-detect local files and skip to installation
         // Check if valid local files exist before starting WorkManager
         // This skips the download and extraction phases entirely.
-        val hasLocal = repository.hasLocalInstallFiles(task.releaseName)
+        // Fallback to standard flow if discovery fails due to permissions (AC: 7)
+        val hasLocal = try {
+            repository.hasLocalInstallFiles(task.releaseName)
+        } catch (e: Exception) {
+            Log.w(TAG, "Fast Track check failed for ${task.releaseName}, falling back to standard flow", e)
+            false
+        }
         if (hasLocal) {
             Log.i(TAG, "Fast Track: Local files found for ${task.releaseName}")
             updateTaskStatus(task.releaseName, InstallTaskStatus.LOCAL_VERIFYING)
@@ -2346,6 +2352,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return
             } finally {
                 taskCompletionSignals.remove(task.releaseName)
+            }
+        }
+
+        // AC: 7 (Story 1.12) - Show message if fallback occurred but files were potentially present
+        withContext(Dispatchers.IO) {
+            val safeDirName = task.releaseName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+            val gameDir = File(repository.downloadsDir, safeDirName)
+            if (gameDir.exists() && gameDir.isDirectory && gameDir.list()?.isNotEmpty() == true) {
+                withContext(Dispatchers.Main) {
+                    _events.emit(MainEvent.ShowMessage("Local files invalid or incomplete. Falling back to download."))
+                }
             }
         }
 

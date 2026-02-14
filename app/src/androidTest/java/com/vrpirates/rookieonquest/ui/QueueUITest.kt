@@ -346,6 +346,40 @@ class QueueUITest {
         composeTestRule.onNodeWithText("Network error").assertIsDisplayed()
     }
 
+    // ========== Story 1.12: Fast Track Badge (AC6) ==========
+
+    @Test
+    fun fastTrackBadge_visibleWhenIsLocalInstallIsTrue() {
+        val queue = listOf(
+            InstallTaskState(
+                releaseName = "game1",
+                gameName = "Fast Track Game",
+                packageName = "com.test.local",
+                status = InstallTaskStatus.LOCAL_VERIFYING,
+                progress = 0f,
+                isLocalInstall = true
+            )
+        )
+
+        composeTestRule.setContent {
+            RookieOnQuestTheme {
+                QueueManagerOverlay(
+                    queue = queue,
+                    viewedReleaseName = null,
+                    onTaskClick = {},
+                    onCancel = {},
+                    onPause = {},
+                    onResume = {},
+                    onPromote = {},
+                    onClose = {}
+                )
+            }
+        }
+
+        // "FAST TRACK" badge should be visible
+        composeTestRule.onNodeWithText("FAST TRACK").assertIsDisplayed()
+    }
+
     // ========== Empty State ==========
 
     @Test

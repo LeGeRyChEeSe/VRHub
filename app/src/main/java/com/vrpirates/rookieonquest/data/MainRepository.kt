@@ -59,7 +59,11 @@ class MainRepository(
     private val context: Context,
     val db: AppDatabase = AppDatabase.getDatabase(context)
 ) {
-    private val TAG = "MainRepository"
+    companion object {
+        const val EXTRACTION_DONE_MARKER = "extraction_done.marker"
+        private const val TAG = "MainRepository"
+    }
+
     private val gameDao = db.gameDao()
 
     // Use shared network instances from NetworkModule (singleton)
@@ -393,20 +397,31 @@ class MainRepository(
     }
 
     /**
-     * Checks if valid installation files (APK or OBB) already exist for a given release.
+     * Checks if valid installation files (APK or OBB folder) already exist for a given release.
+     * This serves as a discovery pre-check for the Fast Track flow (Story 1.12).
      * @param releaseName The release name to check
-     * @return true if valid local files are found, false otherwise
+     * @return true if candidate local files are found, false otherwise
      */
     suspend fun hasLocalInstallFiles(releaseName: String): Boolean = withContext(Dispatchers.IO) {
         val game = gameDao.getByReleaseName(releaseName)?.toData() ?: return@withContext false
-        val apkFile = findLocalApk(game)
         
+        // 1. Check for valid APK (AC: 1)
+        val apkFile = findLocalApk(game)
         if (apkFile != null) {
-            // For now, if we have a valid APK, we consider it a candidate for fast track.
-            // Full OBB validation happens during the installation phase.
             Log.d(TAG, "hasLocalInstallFiles: Found valid local APK for ${game.releaseName}")
             return@withContext true
         }
+
+        // 2. Check for OBB folder (AC: 1)
+        // Note: Full validation happens during installation phase in installGame()
+        val safeDirName = game.releaseName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
+        val gameDownloadDir = File(downloadsDir, safeDirName)
+        val localObbDir = File(gameDownloadDir, game.packageName)
+        if (localObbDir.exists() && localObbDir.isDirectory && (localObbDir.list()?.isNotEmpty() ?: false)) {
+            Log.d(TAG, "hasLocalInstallFiles: Found local OBB folder for ${game.releaseName}")
+            return@withContext true
+        }
+
         false
     }
 
@@ -745,7 +760,7 @@ class MainRepository(
             if (gameTempDir.exists()) {
                 gameTempDir.walkTopDown().filter { it.isFile }.forEach { file ->
                     val relativePath = file.relativeTo(gameTempDir).path
-                    if (relativePath != "extraction_done.marker" && !relativePath.startsWith("extracted")) {
+                    if (relativePath != EXTRACTION_DONE_MARKER && !relativePath.startsWith("extracted")) {
                         localSegments[relativePath] = file.length()
                     }
                 }
@@ -1020,7 +1035,7 @@ class MainRepository(
 
         // 4. Processing / Extraction
         if (!extractionDir.exists()) extractionDir.mkdirs()
-        val extractionMarker = File(gameTempDir, "extraction_done.marker")
+        val extractionMarker = File(gameTempDir, EXTRACTION_DONE_MARKER)
         
         // Skip extraction if already decompressed in Downloads
         val skipExtraction = isLocalReady && !extractionMarker.exists() && foundApk != null
@@ -1542,7 +1557,10 @@ class MainRepository(
         val apkSize = finalApk.length()
         val skipStaging = externalApk.exists() &&
                           externalApk.length() == apkSize &&
-                          isValidApkFile(externalApk, game.packageName)
+                          isValidApkFile(
+                              apkFile = externalApk,
+                              expectedPackageName = game.packageName
+                          )
 
         if (skipStaging) {
             Log.i(TAG, "APK already staged with correct size and valid, skipping redundant staging")
@@ -1568,7 +1586,10 @@ class MainRepository(
                     }
                 }
 
-                if (!isValidApkFile(externalApk, game.packageName)) {
+                if (!isValidApkFile(
+                        apkFile = externalApk,
+                        expectedPackageName = game.packageName
+                    )) {
                     externalApk.delete()
                     throw IllegalStateException("Staged APK is invalid or package name mismatch: ${externalApk.name}")
                 }
@@ -1768,7 +1789,7 @@ class MainRepository(
         val hash = CryptoUtils.md5(game.releaseName + "\n")
         val gameTempDir = File(tempInstallRoot, hash)
         val extractionDir = File(gameTempDir, "extracted")
-        val extractionMarker = File(gameTempDir, "extraction_done.marker")
+        val extractionMarker = File(gameTempDir, EXTRACTION_DONE_MARKER)
 
         // Verify extraction is actually complete
         if (!extractionMarker.exists() || !extractionDir.exists()) {
