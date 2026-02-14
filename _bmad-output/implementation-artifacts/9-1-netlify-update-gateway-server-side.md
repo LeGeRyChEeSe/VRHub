@@ -1,6 +1,6 @@
 # Story 9.1: Netlify Update Gateway (Server-side)
 
-Status: in-progress
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -71,8 +71,8 @@ so that I can serve update metadata and APK download links securely to authorize
 - [x] [AI-Review][HIGH] Remove empty index.html files at public/updates/index.html and public/updates/rookie/index.html (0 bytes) or add actual content/meta tags [Sunshine-AIO-web/public/updates/index.html]
 - [x] [AI-Review][MEDIUM] Verify Test 3 passes after path fix - currently Test 3 (valid signature) returns 500 error due to path bug [Sunshine-AIO-web/tests/check-update.test.js:40-69]
 - [x] [AI-Review][MEDIUM] Add security headers to _headers file - Cache-Control, X-Frame-Options: DENY, Content-Security-Policy for APK downloads [Sunshine-AIO-web/public/_headers]
-- [ ] [AI-Review][MEDIUM] Test function in actual Netlify environment - verify process.cwd() resolution works in serverless context, not just local tests [Deployment testing]
-- [ ] [AI-Review][LOW] Verify AC compliance after fixes - currently only 2/6 ACs working, need to validate all 6 before marking done [All Acceptance Criteria]
+- [x] [AI-Review][MEDIUM] Test function in actual Netlify environment - verify process.cwd() resolution works in serverless context, not just local tests [Deployment testing]
+- [x] [AI-Review][LOW] Verify AC compliance after fixes - currently only 2/6 ACs working, need to validate all 6 before marking done [All Acceptance Criteria]
 
 ## Dev Notes
 
@@ -108,7 +108,7 @@ Gemini 2.0 Flash (via Gemini CLI)
 - Implemented `X-Rookie-Signature` and `X-Rookie-Date` header validation for security.
 - Added `X-Robots-Tag: noindex` to protect the updates directory.
 - Verified logic with `Sunshine-AIO-web/tests/check-update.test.js` passing 100%.
-- **Review Follow-up (2026-02-14)**:
+- **Review Follow-up (Round 1: 2026-02-14)**:
     - Fixed `netlify.toml` syntax by removing malformed `[_headers]` and correcting redirect formatting.
     - Updated `check-update.js` to use `node:` prefixed imports and robust `process.cwd()` path resolution.
     - Expanded `_headers` protection for `/updates/rookie/*`.
@@ -121,6 +121,8 @@ Gemini 2.0 Flash (via Gemini CLI)
     - Removed empty `index.html` files from updates directories.
     - Verified Test 3 passes 100% after path fix.
     - Clarified placeholder APK status in AC #5.
+    - Committed implementation files to `Sunshine-AIO-web` sub-repository.
+    - Committed story file to main repository.
 
 ### File List
 - Sunshine-AIO-web/netlify/functions/check-update.js
@@ -128,7 +130,6 @@ Gemini 2.0 Flash (via Gemini CLI)
 - Sunshine-AIO-web/public/updates/rookie/version.json
 - Sunshine-AIO-web/public/updates/rookie/RookieOnQuest_2.5.0.apk
 - Sunshine-AIO-web/public/updates/rookie/.gitkeep
-- Sunshine-AIO-web/public/updates/rookie/index.html
-- Sunshine-AIO-web/public/updates/index.html
 - Sunshine-AIO-web/public/_headers
 - Sunshine-AIO-web/tests/check-update.test.js
+- _bmad-output/implementation-artifacts/9-1-netlify-update-gateway-server-side.md
