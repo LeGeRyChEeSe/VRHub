@@ -20,8 +20,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import com.vrpirates.rookieonquest.data.MainRepository
-import com.vrpirates.rookieonquest.network.GitHubRelease
-import com.vrpirates.rookieonquest.network.GitHubService
+import com.vrpirates.rookieonquest.network.UpdateInfo
+import com.vrpirates.rookieonquest.network.UpdateService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -51,7 +51,7 @@ sealed class MainEvent {
     object RequestInstallPermission : MainEvent()
     object RequestStoragePermission : MainEvent()
     object RequestIgnoreBatteryOptimizations : MainEvent()
-    data class ShowUpdatePopup(val release: GitHubRelease) : MainEvent()
+    data class ShowUpdatePopup(val updateInfo: UpdateInfo) : MainEvent()
     data class ShowMessage(val message: String) : MainEvent()
     data class CopyLogs(val logs: String) : MainEvent()
 
@@ -764,11 +764,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var refreshJob: Job? = null
     private var sizeFetchJob: Job? = null
 
-    private val githubService = Retrofit.Builder()
-        .baseUrl("https://api.github.com/")
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-        .create(GitHubService::class.java)
+    private val updateService = NetworkModule.updateService
 
     // Use shared OkHttpClient from NetworkModule (singleton)
     private val okHttpClient = NetworkModule.okHttpClient
@@ -1375,24 +1371,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun checkForAppUpdates(): Boolean {
-        return try {
-            val latest = githubService.getLatestRelease()
-            val currentVersion = BuildConfig.VERSION_NAME
+        var currentDelay = 1000L
+        val maxRetries = 3
 
-            val latestClean = latest.tagName.lowercase().removePrefix("v")
-            val currentClean = currentVersion.lowercase().removePrefix("v")
+        repeat(maxRetries) { attempt ->
+            try {
+                val date = java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now())
+                val secret = com.vrpirates.rookieonquest.data.Constants.ROOKIE_UPDATE_SECRET
+                val signature = com.vrpirates.rookieonquest.data.CryptoUtils.hmacSha256(date, secret)
+                
+                val latest = updateService.checkUpdate(signature, date)
+                val currentVersion = BuildConfig.VERSION_NAME
 
-            if (isVersionNewer(latestClean, currentClean)) {
-                _isUpdateDialogShowing.value = true
-                _events.emit(MainEvent.ShowUpdatePopup(latest))
-                true
-            } else {
-                false
+                val latestClean = latest.version.lowercase().removePrefix("v")
+                val currentClean = currentVersion.lowercase().removePrefix("v")
+
+                return if (isVersionNewer(latestClean, currentClean)) {
+                    _isUpdateDialogShowing.value = true
+                    _events.emit(MainEvent.ShowUpdatePopup(latest))
+                    true
+                } else {
+                    false
+                }
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 403) {
+                    Log.w(TAG, "Update check forbidden (403): Possible clock skew.")
+                    _error.value = "Update check failed: Your Quest's system clock may be out of sync. To fix this, go to Settings -> System -> Date & Time and toggle 'Set time automatically' off and on again."
+                    return false
+                } else if (attempt < maxRetries - 1) {
+                    Log.w(TAG, "Update check failed (${e.code()}), retrying in ${currentDelay}ms...")
+                    kotlinx.coroutines.delay(currentDelay)
+                    currentDelay *= 2
+                } else {
+                    Log.w(TAG, "Update check failed (${e.code()}) after $maxRetries attempts.")
+                    _error.value = "Update check failed: The update server is currently unreachable. Please check your internet connection and try again later."
+                    return false
+                }
+            } catch (e: java.io.IOException) {
+                if (attempt < maxRetries - 1) {
+                    Log.w(TAG, "Update check network error, retrying in ${currentDelay}ms...")
+                    kotlinx.coroutines.delay(currentDelay)
+                    currentDelay *= 2
+                } else {
+                    Log.w(TAG, "Update check failed after $maxRetries attempts: ${e.message}")
+                    _error.value = "Update check failed: Network error. Please try again later."
+                    return false
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Unexpected error checking for updates: ${e.message}")
+                return false
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to check for updates: ${e.message}")
-            false
         }
+        return false
     }
 
     private fun isVersionNewer(latest: String, current: String): Boolean {
@@ -1409,39 +1439,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return false
     }
 
-    fun downloadAndInstallUpdate(release: GitHubRelease) {
+    fun downloadAndInstallUpdate(updateInfo: UpdateInfo) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 _isUpdateDownloading.value = true
                 _isUpdateDialogShowing.value = false
 
-                val apkAsset = release.assets.find { it.name.endsWith(".apk", true) }
-                    ?: throw Exception("No APK found in release assets")
-
                 val context = getApplication<Application>()
                 val targetFile = File(context.getExternalFilesDir(null), "rookie_update.apk")
+                
+                // Use specialized timeouts for update downloads (larger files)
+                val updateClient = okHttpClient.newBuilder()
+                    .connectTimeout(com.vrpirates.rookieonquest.data.Constants.UPDATE_CONNECT_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(com.vrpirates.rookieonquest.data.Constants.UPDATE_READ_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
 
-                val request = Request.Builder().url(apkAsset.downloadUrl).build()
-                okHttpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
-                    val totalSize = response.body?.contentLength() ?: -1L
-                    var downloaded = 0L
+                val initialDownloaded = if (targetFile.exists()) targetFile.length() else 0L
+                val requestBuilder = Request.Builder().url(updateInfo.downloadUrl)
+                
+                // Add Range header for resumable downloads if partial file exists
+                if (initialDownloaded > 0) {
+                    requestBuilder.addHeader("Range", "bytes=$initialDownloaded-")
+                }
+                
+                val request = requestBuilder.build()
+                updateClient.newCall(request).execute().use { response ->
+                    val isResume = response.code == 206
+                    
+                    if (!response.isSuccessful && response.code != 416) {
+                        throw Exception("HTTP ${response.code}")
+                    }
 
-                    response.body?.byteStream()?.use { input ->
-                        targetFile.outputStream().use { output ->
-                            val buffer = ByteArray(8192 * 8)
-                            var bytesRead: Int
-                            while (input.read(buffer).also { bytesRead = it } != -1) {
-                                output.write(buffer, 0, bytesRead)
-                                downloaded += bytesRead
-                                if (totalSize > 0) {
-                                    _updateProgress.value = "Downloading update: ${(downloaded * 100 / totalSize)}%"
-                                } else {
-                                    _updateProgress.value = "Downloading update..."
+                    if (response.code == 416) {
+                        // Range Not Satisfiable: file might already be complete or server-side changed
+                        Log.i(TAG, "Update download: 416 Range Not Satisfiable. Verifying existing file.")
+                    } else {
+                        val body = response.body ?: throw Exception("Empty response body")
+                        val contentLength = body.contentLength()
+                        val totalBytes = if (isResume) contentLength + initialDownloaded else contentLength
+                        
+                        // Open in append mode if resuming, otherwise overwrite
+                        java.io.FileOutputStream(targetFile, isResume).use { output ->
+                            com.vrpirates.rookieonquest.data.DownloadUtils.downloadWithProgress(
+                                inputStream = body.byteStream(),
+                                outputStream = output,
+                                initialDownloaded = if (isResume) initialDownloaded else 0L,
+                                totalBytes = totalBytes,
+                                isCancelled = { !(_isUpdateDownloading.value) },
+                                onProgress = { _, _, progress ->
+                                    _updateProgress.value = "Downloading update: ${(progress * 100).toInt()}%"
                                 }
-                            }
+                            )
                         }
                     }
+                }
+
+                _updateProgress.value = "Verifying integrity: 0%"
+                val actualChecksum = com.vrpirates.rookieonquest.data.CryptoUtils.sha256(targetFile) { progress ->
+                    _updateProgress.value = "Verifying integrity: ${(progress * 100).toInt()}%"
+                }
+                
+                if (updateInfo.checksum.isEmpty() || !actualChecksum.equals(updateInfo.checksum, ignoreCase = true)) {
+                    targetFile.delete()
+                    throw Exception("Integrity check failed: Checksum mismatch or missing. The file may be corrupted.")
                 }
 
                 _updateProgress.value = "Launching installer..."

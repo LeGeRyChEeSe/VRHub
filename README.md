@@ -102,6 +102,15 @@ This project uses GitHub Actions for PR validation. You can run the validation l
 
 For more details on the build pipeline, see the **[Infrastructure Architecture](docs/architecture-infra.md)** documentation.
 
+### Version Management
+This project follows **[Semantic Versioning (SemVer)](https://semver.org/)**.
+
+When building from the command line, you can specify the version using Gradle properties:
+- `versionCode`: A positive integer (e.g., `-PversionCode=15`)
+- `versionName`: A SemVer compatible string (e.g., `-PversionName=2.5.0` or `-PversionName=2.5.0-rc.1`)
+
+The `versionName` must match the format `X.Y.Z` with optional pre-release suffixes (e.g., `-rc`, `-beta`) or build metadata.
+
 ---
 
 ## Contributing
