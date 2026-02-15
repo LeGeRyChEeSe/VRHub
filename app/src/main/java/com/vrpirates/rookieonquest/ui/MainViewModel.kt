@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -91,7 +92,8 @@ enum class FilterStatus {
     INSTALLED,
     DOWNLOADED,
     UPDATE_AVAILABLE,
-    NEW
+    NEW,
+    LOCAL_INSTALLS
 }
 
 enum class SortMode {
@@ -133,16 +135,22 @@ enum class InstallStatus {
 }
 
 enum class InstallTaskStatus {
-    QUEUED, DOWNLOADING, EXTRACTING, INSTALLING, PENDING_INSTALL, PAUSED, BLOCKED_BY_PERMISSIONS, COMPLETED, FAILED, LOCAL_VERIFYING
+    QUEUED, DOWNLOADING, EXTRACTING, INSTALLING, PENDING_INSTALL, PAUSED, BLOCKED_BY_PERMISSIONS, COMPLETED, FAILED, LOCAL_VERIFYING, SHELVED
 }
 
-fun InstallTaskStatus.isProcessing(): Boolean =
-    this == InstallTaskStatus.QUEUED ||
-    this == InstallTaskStatus.DOWNLOADING ||
-    this == InstallTaskStatus.EXTRACTING ||
-    this == InstallTaskStatus.INSTALLING ||
-    this == InstallTaskStatus.PENDING_INSTALL ||
-    this == InstallTaskStatus.LOCAL_VERIFYING
+fun InstallTaskStatus.isProcessing(): Boolean = when (this) {
+    InstallTaskStatus.DOWNLOADING,
+    InstallTaskStatus.EXTRACTING,
+    InstallTaskStatus.INSTALLING,
+    InstallTaskStatus.LOCAL_VERIFYING -> true
+    InstallTaskStatus.QUEUED,
+    InstallTaskStatus.PENDING_INSTALL,
+    InstallTaskStatus.PAUSED,
+    InstallTaskStatus.BLOCKED_BY_PERMISSIONS,
+    InstallTaskStatus.COMPLETED,
+    InstallTaskStatus.FAILED,
+    InstallTaskStatus.SHELVED -> false
+}
 
 /**
  * Maps a game name's first character to its alphabet group character.
@@ -225,6 +233,7 @@ fun com.vrpirates.rookieonquest.data.InstallStatus.toTaskStatus(): InstallTaskSt
         com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED -> InstallTaskStatus.COMPLETED
         com.vrpirates.rookieonquest.data.InstallStatus.FAILED -> InstallTaskStatus.FAILED
         com.vrpirates.rookieonquest.data.InstallStatus.LOCAL_VERIFYING -> InstallTaskStatus.LOCAL_VERIFYING
+        com.vrpirates.rookieonquest.data.InstallStatus.SHELVED -> InstallTaskStatus.SHELVED
     }
 }
 
@@ -250,6 +259,7 @@ fun InstallTaskStatus.toDataStatus(): com.vrpirates.rookieonquest.data.InstallSt
         InstallTaskStatus.COMPLETED -> com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED
         InstallTaskStatus.FAILED -> com.vrpirates.rookieonquest.data.InstallStatus.FAILED
         InstallTaskStatus.LOCAL_VERIFYING -> com.vrpirates.rookieonquest.data.InstallStatus.LOCAL_VERIFYING
+        InstallTaskStatus.SHELVED -> com.vrpirates.rookieonquest.data.InstallStatus.SHELVED
     }
 }
 
@@ -294,6 +304,14 @@ fun com.vrpirates.rookieonquest.data.QueuedInstallEntity.toInstallTaskState(
         InstallTaskStatus.COMPLETED -> context.getString(R.string.status_completed)
         InstallTaskStatus.FAILED -> context.getString(R.string.status_failed)
         InstallTaskStatus.LOCAL_VERIFYING -> context.getString(R.string.status_local_verifying)
+        InstallTaskStatus.SHELVED -> context.getString(R.string.status_shelved)
+    }
+
+    // Force 100% progress for tasks waiting for installation (Story 1.13 UI Fix)
+    // Extraction ends at 92%, but for user clarity, SHELVED/PENDING_INSTALL should show 100%
+    val finalProgress = when (finalStatus) {
+        InstallTaskStatus.SHELVED, InstallTaskStatus.PENDING_INSTALL -> 1.0f
+        else -> progress
     }
 
     // Format size strings
@@ -305,7 +323,7 @@ fun com.vrpirates.rookieonquest.data.QueuedInstallEntity.toInstallTaskState(
         gameName = gameData?.gameName ?: releaseName,
         packageName = gameData?.packageName ?: "",
         status = finalStatus,
-        progress = progress,
+        progress = finalProgress,
         message = message,
         currentSize = currentSize,
         totalSize = totalSizeStr,
@@ -785,8 +803,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         var updateCount = 0
         var downloadedCount = 0
         var newCount = 0
+        var localInstallCount = 0
 
         val lastSync = prefs.getLong("last_catalog_sync_time", 0L)
+        val queue = installQueue.value
 
         list.forEach { game ->
             val installedVersion = installed[game.packageName]
@@ -810,6 +830,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (game.lastUpdated > lastSync && lastSync != 0L) {
                 newCount++
             }
+
+            val task = queue.find { it.releaseName == game.releaseName }
+            if (task?.status == InstallTaskStatus.SHELVED || task?.status == InstallTaskStatus.PENDING_INSTALL) {
+                localInstallCount++
+            }
         }
 
         counts[FilterStatus.FAVORITES] = favoriteCount
@@ -817,6 +842,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         counts[FilterStatus.DOWNLOADED] = downloadedCount
         counts[FilterStatus.UPDATE_AVAILABLE] = updateCount
         counts[FilterStatus.NEW] = newCount
+        counts[FilterStatus.LOCAL_INSTALLS] = localInstallCount
         counts
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -861,6 +887,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 FilterStatus.DOWNLOADED -> isDownloaded
                 FilterStatus.UPDATE_AVAILABLE -> status == InstallStatus.UPDATE_AVAILABLE
                 FilterStatus.NEW -> game.lastUpdated > lastSync && lastSync != 0L
+                FilterStatus.LOCAL_INSTALLS -> {
+                    val task = queue.find { it.releaseName == game.releaseName }
+                    task?.status == InstallTaskStatus.SHELVED || task?.status == InstallTaskStatus.PENDING_INSTALL
+                }
                 FilterStatus.ALL -> true
             }
 
@@ -1131,6 +1161,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // Handle PENDING_INSTALL tasks (waiting for user, but app was killed)
+        // Move them to SHELVED so they appear in Local Installs tab and don't block the UI queue
+        val pendingInstalls = activeQueue.filter { it.status == InstallTaskStatus.PENDING_INSTALL }
+        if (pendingInstalls.isNotEmpty()) {
+            Log.i(TAG, "Found ${pendingInstalls.size} task(s) in PENDING_INSTALL - shelving them")
+            for (task in pendingInstalls) {
+                repository.updateQueueStatus(task.releaseName, com.vrpirates.rookieonquest.data.InstallStatus.SHELVED)
+            }
+        }
+
+        // Discover orphaned staged APKs (Story 1.13 Review Fix)
+        // These are APKs in externalFilesDir that are not in our queue.
+        // They are added as SHELVED so they appear in Local Installs.
+        discoverOrphanedStagedApks()
+
         // Now handle downloading/queued tasks
         val inProgressTasks = activeQueue.filter {
             it.status == InstallTaskStatus.DOWNLOADING || it.status == InstallTaskStatus.QUEUED
@@ -1165,6 +1210,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // Start queue processor to pick up any QUEUED tasks (including reset zombies)
         startQueueProcessor()
+    }
+
+    /**
+     * Scans the staged APKs directory for orphaned APKs and adds them to the queue as SHELVED.
+     * This ensures that games ready for installation but missing from the queue (e.g., after DB clear)
+     * are discovered and displayed in the "Ready to Install" view.
+     *
+     * Orphaned APKs are identified by matching the filename (packageName.apk) against the catalog.
+     * If a match is found and the APK is valid, it is added to the queue with SHELVED status.
+     *
+     * This method is called during app initialization (resumeActiveDownloadObservations).
+     *
+     * **Usage Example:**
+     * ```kotlin
+     * // Manually trigger discovery of orphaned APKs (e.g., after manual file transfer)
+     * viewModelScope.launch {
+     *     discoverOrphanedStagedApks()
+     * }
+     * ```
+     */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal suspend fun discoverOrphanedStagedApks() {
+        withContext(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>()
+                val dir = context.getExternalFilesDir(null) ?: return@withContext
+                val apkFiles = dir.listFiles { file -> file.extension == "apk" } ?: return@withContext
+
+                Log.d(TAG, "Scanning for orphaned staged APKs in ${dir.absolutePath}")
+
+                for (file in apkFiles) {
+                    val packageName = file.nameWithoutExtension
+                    
+                    // Find game in catalog to get its releaseName
+                    val game = repository.getGameByPackageName(packageName)
+                    if (game != null) {
+                        // CRITICAL: Refresh queue snapshot inside the loop to prevent race condition (Story 1.13 Review Fix)
+                        // This ensures we don't add duplicate entries if multiple orphaned APKs for same release exist
+                        // or if the queue changes during discovery.
+                        val currentQueue = repository.getAllQueuedInstalls().first()
+                        val existing = currentQueue.find { it.releaseName == game.releaseName }
+                        
+                        if (existing == null) {
+                            // Not in queue - check if it's a valid APK for this game (verifying integrity)
+                            val expectedVersion = game.versionCode.toLongOrNull()
+                            if (repository.isValidApkFile(file, packageName, expectedVersion)) {
+                                Log.i(TAG, "Discovered orphaned staged APK for ${game.gameName} ($packageName), adding to queue as SHELVED")
+                                repository.addToQueue(
+                                    releaseName = game.releaseName,
+                                    status = com.vrpirates.rookieonquest.data.InstallStatus.SHELVED,
+                                    isDownloadOnly = false
+                                )
+                            } else {
+                                // Add debug logging for invalid orphaned APKs (Story 1.13 Review Fix)
+                                Log.d(TAG, "Skipping orphaned APK $packageName: integrity check failed (invalid APK or version mismatch)")
+                            }
+                        } else {
+                            Log.d(TAG, "Skipping orphaned APK $packageName: already in queue with status ${existing.status}")
+                        }
+                    } else {
+                        Log.d(TAG, "Skipping orphaned APK $packageName: package not found in catalog")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to discover orphaned staged APKs", e)
+            }
+        }
     }
 
     /**
@@ -2049,18 +2161,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _events.emit(MainEvent.ShowMessage("Retrying ${game.gameName}..."))
                     }
                 }
-                // PENDING_INSTALL tasks - user wants to retry installation
-                // This happens when download completed but installation failed (e.g., permission denied)
-                existingTask.status == InstallTaskStatus.PENDING_INSTALL -> {
+                // PENDING_INSTALL or SHELVED tasks - user wants to retry/complete installation
+                // This happens when download completed but installation failed or was postponed
+                existingTask.status == InstallTaskStatus.PENDING_INSTALL || existingTask.status == InstallTaskStatus.SHELVED -> {
                     // Promote to front and resume installation phase
                     promoteTask(releaseName)
                     viewModelScope.launch {
-                        _events.emit(MainEvent.ShowMessage("Retrying installation for ${game.gameName}..."))
+                        _events.emit(MainEvent.ShowMessage("Resuming installation for ${game.gameName}..."))
                     }
                 }
-                // PAUSED tasks at front: Resume
-                existingTask.status == InstallTaskStatus.PAUSED && isFirst -> {
-                    resumeInstall(releaseName)
+                // PAUSED tasks: Promote and Resume
+                existingTask.status == InstallTaskStatus.PAUSED -> {
+                    promoteTask(releaseName)
+                }
+                // QUEUED tasks: If not first, promote it to prioritize
+                existingTask.status == InstallTaskStatus.QUEUED && !isFirst -> {
+                    promoteTask(releaseName)
+                    viewModelScope.launch {
+                        _events.emit(MainEvent.ShowMessage("Prioritizing ${game.gameName}..."))
+                    }
+                }
+                // Actively processing task: just show the overlay
+                existingTask.status.isProcessing() -> {
+                    _viewedReleaseName.value = releaseName
+                    _showInstallOverlay.value = true
                 }
                 // All other cases: Already in queue
                 else -> {
@@ -2414,6 +2538,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     refreshInstalledPackages()
                 }
 
+                if (activeReleaseName == task.releaseName) {
+                    activeReleaseName = null
+                }
                 taskCompletionSignals[task.releaseName]?.complete(Unit)
                 return
             }
@@ -2421,10 +2548,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (isExtractionComplete) {
                 // Zombie Recovery - skip download/extraction, go directly to installation
                 Log.i(TAG, "Zombie Recovery: Extraction complete for ${task.releaseName}, starting installation at 94%")
-                runInstallationPhase(task, game)
-                // Wait for installation to complete before returning
-                taskCompletionSignals[task.releaseName]?.await()
-                return
+                try {
+                    runInstallationPhase(task, game)
+                    // Wait for installation to complete before returning
+                    taskCompletionSignals[task.releaseName]?.await()
+                    return
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    Log.w(TAG, "Zombie Recovery failed for ${task.releaseName} (${e.message}) - falling back to full download")
+                    // If installation from extracted failed, fall back to standard download flow
+                    // Continue to WorkManager enqueuing below
+                }
             }
             Log.i(TAG, "Enqueueing WorkManager download for: ${task.releaseName}")
 
@@ -2473,6 +2607,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 throw e
             }
         } finally {
+            // CRITICAL: Always clear active task state if it's still this task
+            if (activeReleaseName == task.releaseName) {
+                activeReleaseName = null
+            }
             // CRITICAL: Always remove the signal from the map to prevent memory leaks
             // and ensure the queue processor can continue even if an unexpected exception occurred
             // The signal may have already been completed and removed by observeDownloadWork or runInstallationPhase
@@ -2516,6 +2654,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             ) ?: "Download failed"
                             Log.e(TAG, "Work FAILED: $releaseName - $errorMessage")
                             handleDownloadFailure(releaseName, gameName, errorMessage)
+
+                            // CRITICAL: Clear activeReleaseName BEFORE signaling completion (Story 1.13 Review Fix)
+                            if (activeReleaseName == releaseName) {
+                                activeReleaseName = null
+                            }
+
                             // Signal completion so queue processor can continue to next task
                             taskCompletionSignals[releaseName]?.complete(Unit)
                             taskCompletionSignals.remove(releaseName)
@@ -2685,10 +2829,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             _events.emit(MainEvent.ShowMessage("Failed to save download: ${e.message}"))
                         }
                     } finally {
+                        // CRITICAL: Clear activeReleaseName BEFORE signaling completion (Story 1.13 Review Fix)
+                        // This prevents a race condition where the queue processor might see the old
+                        // activeReleaseName when starting the next task.
                         if (activeReleaseName == releaseName) {
                             activeReleaseName = null
                         }
-                        // CRITICAL: Signal task completion to allow queue processor to continue
                         signalTaskComplete()
                     }
                 }
@@ -2786,11 +2932,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _events.emit(MainEvent.ShowMessage("Installation failed: ${e.message}"))
                     }
                 } finally {
+                    // CRITICAL: Signal task completion to allow queue processor to continue
+                    signalTaskComplete()
                     if (activeReleaseName == releaseName) {
                         activeReleaseName = null
                     }
-                    // CRITICAL: Signal task completion to allow queue processor to continue
-                    signalTaskComplete()
                 }
             }
         } else {
@@ -2935,12 +3081,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resumeInstall(releaseName: String) {
-        // Only allow resume if it's the first in queue
+        // If it's the first in queue, just start it
         val isFirst = installQueue.value.firstOrNull()?.releaseName == releaseName
         if (isFirst) {
             _viewedReleaseName.value = releaseName
             updateTaskStatus(releaseName, InstallTaskStatus.QUEUED)
             startQueueProcessor()
+        } else {
+            // If not first, promote it to front which will also set status to QUEUED and start processor
+            promoteTask(releaseName)
         }
     }
 
@@ -2965,6 +3114,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(Dispatchers.IO) {
             repository.cleanupInstall(releaseName)
+            // Also clean up staged APK if we have the package name
+            installQueue.value.find { it.releaseName == releaseName }?.packageName?.let { pkg ->
+                repository.deleteStagedApk(pkg)
+            }
+            
             // Remove from Room DB
             repository.removeFromQueue(releaseName)
             progressThrottleMap.remove(releaseName) // Clean up throttling state
@@ -2990,7 +3144,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val currentQueue = installQueue.value
         val task = currentQueue.find { it.releaseName == releaseName } ?: return
 
-        if (task.status == InstallTaskStatus.QUEUED || task.status == InstallTaskStatus.PAUSED || task.status == InstallTaskStatus.FAILED) {
+        if (task.status == InstallTaskStatus.QUEUED || task.status == InstallTaskStatus.PAUSED || 
+            task.status == InstallTaskStatus.FAILED || task.status == InstallTaskStatus.SHELVED ||
+            task.status == InstallTaskStatus.PENDING_INSTALL) {
             // Pause current processing task if any
             val previousActive = activeReleaseName
             if (previousActive != null && previousActive != releaseName) {
@@ -3023,6 +3179,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             queueProcessorJob?.cancel()
             queueProcessorJob = null
             startQueueProcessor()
+        }
+    }
+
+    /**
+     * Moves a task to SHELVED status.
+     * Shelved tasks are ready to install but out of the active queue.
+     * They are displayed in the "Ready to Install" filter.
+     *
+     * @param releaseName The unique release name of the game to shelve
+     */
+    fun shelveTask(releaseName: String) {
+        viewModelScope.launch {
+            Log.i(TAG, "Shelving task: $releaseName")
+            repository.updateQueueStatus(releaseName, com.vrpirates.rookieonquest.data.InstallStatus.SHELVED)
+            withContext(Dispatchers.Main) {
+                updateOverlayAfterTaskComplete(releaseName)
+            }
         }
     }
 
@@ -3148,7 +3321,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
 
                         val wasVerified = checkInstallationStatusSilent(game.packageName, game.version, task.releaseName)
-                        if (wasVerified) verifiedCount++ else pendingCount++
+                        if (wasVerified) {
+                            verifiedCount++
+                        } else {
+                            // Story 1.13: Move to SHELVED if installation not complete
+                            // CRITICAL: Validate staged APK before shelving (Story 1.13 Review Fix)
+                            // If the APK is corrupted or missing, mark as FAILED to prevent stuck tasks.
+                            val expectedVersion = game.version.toLongOrNull()
+                            val stagedApk = repository.getValidStagedApk(game.packageName, expectedVersion)
+                            
+                            if (stagedApk != null) {
+                                Log.d(TAG, "Installation not complete for ${task.releaseName} - shelving valid APK")
+                                repository.updateQueueStatus(task.releaseName, com.vrpirates.rookieonquest.data.InstallStatus.SHELVED)
+                                pendingCount++
+                            } else {
+                                Log.e(TAG, "Installation not complete and staged APK invalid/missing for ${task.releaseName} - marking as FAILED")
+                                repository.updateQueueStatus(task.releaseName, com.vrpirates.rookieonquest.data.InstallStatus.FAILED)
+                                repository.cleanupInstall(task.releaseName)
+                                repository.archiveTask(task.releaseName, com.vrpirates.rookieonquest.data.InstallStatus.FAILED, "Staged APK corrupted or missing")
+                                failedCount++
+                                failedGames.add(task.gameName)
+                            }
+                        }
                     } else {
                         Log.w(TAG, "Game not found in catalog for pending installation: ${task.releaseName}")
                         // Game removed from catalog? Track as failure and archive
@@ -3272,8 +3466,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Mark task as COMPLETED before cleanup
                 updateTaskStatus(releaseName, InstallTaskStatus.COMPLETED)
 
-                // Clean up temp files after successful verification
+                // Clean up temp files and staged APK after successful verification
                 repository.cleanupInstall(releaseName)
+                repository.deleteStagedApk(packageName)
 
                 // Archive completed task to history
                 repository.archiveTask(releaseName, com.vrpirates.rookieonquest.data.InstallStatus.COMPLETED)

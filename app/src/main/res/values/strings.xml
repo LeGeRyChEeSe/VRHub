@@ -11,6 +11,7 @@
     <string name="status_completed">Completed</string>
     <string name="status_failed">Failed</string>
     <string name="status_local_verifying">Fast Track: Verifying local files...</string>
+    <string name="status_shelved">Ready to Install (Local)</string>
     <string name="status_waiting_permissions">Waiting for permissions...</string>
 
     <!-- Story 1.8: Permission Request Strings -->
@@ -68,6 +69,8 @@
     <string name="game_btn_download">DOWNLOAD</string>
     <string name="game_btn_uninstall">UNINSTALL</string>
     <string name="game_btn_delete_download">DELETE DOWNLOAD</string>
+    <string name="game_btn_complete_install">COMPLETE INSTALL</string>
+    <string name="filter_local_installs">Ready to Install</string>
 
     <!-- Story 4.3: App Update Strings -->
     <string name="update_available_title">Update Available</string>

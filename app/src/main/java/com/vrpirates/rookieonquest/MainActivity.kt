@@ -338,12 +338,31 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                             Spacer(Modifier.height(24.dp))
                             NavigationDrawerItem(
                                 label = { Text("Catalog", fontWeight = FontWeight.Bold) },
-                                selected = currentScreen == "catalog",
+                                selected = currentScreen == "catalog" && selectedFilter != FilterStatus.LOCAL_INSTALLS,
                                 onClick = {
                                     currentScreen = "catalog"
+                                    viewModel.setFilter(FilterStatus.ALL)
                                     coroutineScope.launch { drawerState.close() }
                                 },
                                 icon = { Icon(Icons.Default.Apps, null) },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                    selectedIconColor = MaterialTheme.colorScheme.secondary,
+                                    selectedTextColor = MaterialTheme.colorScheme.secondary,
+                                    unselectedIconColor = Color.Gray,
+                                    unselectedTextColor = Color.Gray
+                                ),
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                            NavigationDrawerItem(
+                                label = { Text(stringResource(R.string.filter_local_installs), fontWeight = FontWeight.Bold) },
+                                selected = currentScreen == "catalog" && selectedFilter == FilterStatus.LOCAL_INSTALLS,
+                                onClick = {
+                                    currentScreen = "catalog"
+                                    viewModel.setFilter(FilterStatus.LOCAL_INSTALLS)
+                                    coroutineScope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.DownloadDone, null) },
                                 colors = NavigationDrawerItemDefaults.colors(
                                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                                     selectedIconColor = MaterialTheme.colorScheme.secondary,
@@ -416,7 +435,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                         it.status != InstallTaskStatus.COMPLETED &&
                                         it.status != InstallTaskStatus.FAILED &&
                                         it.status != InstallTaskStatus.PAUSED &&
-                                        it.status != InstallTaskStatus.BLOCKED_BY_PERMISSIONS
+                                        it.status != InstallTaskStatus.BLOCKED_BY_PERMISSIONS &&
+                                        it.status != InstallTaskStatus.SHELVED
                                     } || isUpdateDownloading,
                                     permissionsMissing = !missingPermissions.isNullOrEmpty()
                                 )
@@ -1187,6 +1207,28 @@ fun CustomTopBar(
                 }
                 item {
                     FilterChip(
+                        selected = selectedFilter == FilterStatus.LOCAL_INSTALLS,
+                        onClick = { onFilterChange(FilterStatus.LOCAL_INSTALLS) },
+                        label = { Text("${stringResource(R.string.filter_local_installs)} (${filterCounts[FilterStatus.LOCAL_INSTALLS] ?: 0})") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                            selectedLabelColor = Color.Black,
+                            labelColor = Color.Gray,
+                            containerColor = Color.White.copy(alpha = 0.05f)
+                        ),
+                        border = null,
+                        leadingIcon = {
+                             Icon(
+                                Icons.Default.DownloadDone,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (selectedFilter == FilterStatus.LOCAL_INSTALLS) Color.Black else MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    )
+                }
+                item {
+                    FilterChip(
                         selected = selectedFilter == FilterStatus.UPDATE_AVAILABLE,
                         onClick = { onFilterChange(FilterStatus.UPDATE_AVAILABLE) },
                         label = { Text("Updates (${filterCounts[FilterStatus.UPDATE_AVAILABLE] ?: 0})") },
@@ -1372,6 +1414,7 @@ fun InstallationOverlay(
                         color = when (activeTask.status) {
                             InstallTaskStatus.PAUSED -> Color.Gray
                             InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> MaterialTheme.colorScheme.error
+                            InstallTaskStatus.SHELVED, InstallTaskStatus.PENDING_INSTALL -> Color(0xFF2ecc71)
                             else -> MaterialTheme.colorScheme.secondary
                         },
                         trackColor = Color.White.copy(alpha = 0.1f)
@@ -1414,6 +1457,7 @@ fun InstallationOverlay(
                 InstallTaskStatus.COMPLETED -> stringResource(R.string.status_completed)
                 InstallTaskStatus.FAILED -> stringResource(R.string.status_failed)
                 InstallTaskStatus.LOCAL_VERIFYING -> stringResource(R.string.status_local_verifying)
+                InstallTaskStatus.SHELVED -> stringResource(R.string.status_shelved)
             }
             Text(
                 text = statusMessage,
@@ -1878,26 +1922,36 @@ fun QueueManagerOverlay(
                                     }
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        // Promote button - only show if not first and not actively processing
-                                        if (position > 1 && !isProcessing) {
-                                            IconButton(onClick = { onPromote(task.releaseName) }) {
-                                                Icon(Icons.Default.VerticalAlignTop, contentDescription = "Prioritize", tint = MaterialTheme.colorScheme.secondary)
-                                            }
-                                        }
-
-                                        // Pause/Resume/Retry button
+                                        // Action button (Prioritize/Resume/Pause)
                                         if (isProcessing) {
                                             IconButton(onClick = { onPause(task.releaseName) }) {
                                                 Icon(Icons.Default.Pause, contentDescription = "Pause", tint = Color.White)
                                             }
-                                        } else if (isFailed) {
-                                            // Distinct Retry icon for failed state
-                                            IconButton(onClick = { onResume(task.releaseName) }) {
-                                                Icon(Icons.Default.Refresh, contentDescription = "Retry", tint = Color(0xFFF39C12))
+                                        } else {
+                                            // Task is not processing: could be QUEUED, PAUSED, FAILED, SHELVED, or PENDING_INSTALL
+                                            val actionIcon = when {
+                                                task.status == InstallTaskStatus.FAILED -> Icons.Default.Refresh
+                                                task.status == InstallTaskStatus.SHELVED || task.status == InstallTaskStatus.PENDING_INSTALL -> Icons.Default.DownloadDone
+                                                task.status == InstallTaskStatus.PAUSED -> Icons.Default.PlayArrow
+                                                else -> Icons.Default.VerticalAlignTop // QUEUED
                                             }
-                                        } else if (isPaused) {
-                                            IconButton(onClick = { onResume(task.releaseName) }) {
-                                                Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = Color(0xFF2ecc71))
+                                            
+                                            val actionTint = when {
+                                                task.status == InstallTaskStatus.FAILED -> Color(0xFFF39C12)
+                                                task.status == InstallTaskStatus.SHELVED || task.status == InstallTaskStatus.PENDING_INSTALL -> Color(0xFF2ecc71)
+                                                task.status == InstallTaskStatus.PAUSED -> Color(0xFF2ecc71)
+                                                else -> MaterialTheme.colorScheme.secondary // QUEUED
+                                            }
+
+                                            IconButton(onClick = { 
+                                                if (task.status == InstallTaskStatus.QUEUED) onPromote(task.releaseName) 
+                                                else onResume(task.releaseName) 
+                                            }) {
+                                                Icon(
+                                                    imageVector = actionIcon, 
+                                                    contentDescription = "Start", 
+                                                    tint = actionTint
+                                                )
                                             }
                                         }
 
@@ -1917,12 +1971,22 @@ fun QueueManagerOverlay(
                                         trackColor = Color.White.copy(alpha = 0.1f)
                                     )
                                     if (task.currentSize != null) {
-                                        Text(
-                                            text = "${task.currentSize} / ${task.totalSize}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color.Gray,
-                                            modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
-                                        )
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            if (task.status == InstallTaskStatus.SHELVED || task.status == InstallTaskStatus.PENDING_INSTALL) {
+                                                Text(
+                                                    text = "100%",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF2ecc71),
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Text(
+                                                text = "${task.currentSize} / ${task.totalSize}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.Gray,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

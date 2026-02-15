@@ -26,7 +26,20 @@ enum class InstallStatus {
     PAUSED,
     COMPLETED,
     FAILED,
-    LOCAL_VERIFYING;
+    LOCAL_VERIFYING,
+    /**
+     * SHELVED status (Story 1.13) represents a task that is ready for installation
+     * (extraction complete, APK staged) but has been moved out of the active queue.
+     *
+     * Lifecycle:
+     * 1. A task reaches PENDING_INSTALL after successful extraction.
+     * 2. If the app is killed or the user closes the dialog, it is moved to SHELVED
+     *    during resumeActiveDownloadObservations() or manual shelving.
+     * 3. SHELVED tasks appear in the "Local Installs" tab.
+     * 4. When promoted (clicked "Install" in Local), it returns to QUEUED for processing.
+     * 5. The QueueProcessor fast-tracks it by detecting the staged APK and launching the installer.
+     */
+    SHELVED;
 
     companion object {
         private const val TAG = "InstallStatus"

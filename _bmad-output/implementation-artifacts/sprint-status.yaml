@@ -51,7 +51,7 @@ development_status:
   1-10-fix-queue-processor-stateflow-race-condition: done
   1-11-fix-staged-apk-cross-contamination: review
   1-12-fast-track-local-install: done
-  1-13-shelving-ready-to-install-games: backlog
+  1-13-shelving-ready-to-install-games: review
   epic-1-retrospective: optional
 #
   epic-2: backlog

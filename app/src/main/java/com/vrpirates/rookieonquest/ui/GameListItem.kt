@@ -67,11 +67,14 @@ fun GameListItem(
     )
     
     val isPaused = game.queueStatus == InstallTaskStatus.PAUSED
-    val isProcessing = game.queueStatus?.isProcessing() == true || game.queueStatus == InstallTaskStatus.QUEUED
+    val isShelved = game.queueStatus == InstallTaskStatus.SHELVED || game.queueStatus == InstallTaskStatus.PENDING_INSTALL
+    val isProcessing = game.queueStatus?.isProcessing() == true 
+    val isQueued = game.queueStatus == InstallTaskStatus.QUEUED
     val canResume = isPaused && game.isFirstInQueue
 
     val buttonColor = when {
         canResume -> Color(0xFF2ecc71)
+        isShelved -> Color(0xFF2ecc71) // Green for ready to install
         game.installStatus == InstallStatus.INSTALLED -> Color(0xFF3498db)
         game.installStatus == InstallStatus.UPDATE_AVAILABLE -> Color(0xFF2ecc71)
         else -> MaterialTheme.colorScheme.secondary
@@ -79,6 +82,8 @@ fun GameListItem(
     
     val buttonText = when {
         canResume -> context.getString(R.string.game_btn_resume)
+        isShelved -> context.getString(R.string.game_btn_complete_install)
+        isQueued -> context.getString(R.string.game_btn_in_queue)
         isProcessing -> context.getString(R.string.game_btn_in_queue)
         isPaused -> context.getString(R.string.game_btn_paused)
         game.installStatus == InstallStatus.UPDATE_AVAILABLE -> context.getString(R.string.game_btn_update)
@@ -86,7 +91,9 @@ fun GameListItem(
         else -> context.getString(R.string.game_btn_install)
     }
     
-    val isEnabled = (game.installStatus != InstallStatus.INSTALLED || canResume) && !isProcessing && (game.queueStatus == null || canResume)
+    val isEnabled = (game.installStatus != InstallStatus.INSTALLED || canResume || isShelved || isQueued) && 
+                    (!isProcessing || isShelved) && 
+                    (game.queueStatus == null || canResume || isShelved || isQueued)
 
     Card(
         modifier = modifier

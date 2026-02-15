@@ -98,6 +98,13 @@ class MainRepository(
         gameDao.updateFavorite(releaseName, isFavorite)
     }
 
+    /**
+     * Finds a game in the catalog by its package name.
+     */
+    suspend fun getGameByPackageName(packageName: String): GameData? {
+        return gameDao.getByPackageName(packageName)?.toData()
+    }
+
     suspend fun fetchConfig(): PublicConfig = withContext(Dispatchers.IO) {
         try {
             val config = service.getPublicConfig()
@@ -739,6 +746,17 @@ class MainRepository(
             onProgress("Already installed (v$installedVersion)", 1f, 0, 0)
             delay(1500)
             return@withContext null
+        }
+
+        // 1.5. Check for existing staged APK (Story 1.13 Review Fix)
+        // This optimization skips download and extraction for SHELVED tasks or resumed installs
+        if (!downloadOnly) {
+            val stagedApk = getValidStagedApk(game.packageName, targetVersion)
+            if (stagedApk != null) {
+                Log.i(TAG, "Found valid staged APK for ${game.packageName}, skipping download and extraction")
+                onProgress("Found staged APK, skipping download", 1f, 0, 0)
+                return@withContext stagedApk
+            }
         }
 
         // 2. Fetch remote file info (skip HEAD requests if coming from WorkManager handoff)
@@ -2045,6 +2063,27 @@ class MainRepository(
             if (!gameTempDir.exists()) return
             gameTempDir.deleteRecursively()
         }
+
+    /**
+     * Deletes the staged APK for a specific package.
+     * Used after successful installation or when cancelling.
+     *
+     * @param packageName The package name of the game
+     * @return true if the file was deleted, false otherwise
+     */
+    fun deleteStagedApk(packageName: String): Boolean {
+        // Validation to prevent path traversal (Story 1.13 Review Fix)
+        if (packageName.isBlank() || packageName.contains("/") || packageName.contains("\\") || packageName.contains("..")) {
+            Log.w(TAG, "deleteStagedApk: Invalid package name '$packageName'")
+            return false
+        }
+        
+        val file = getStagedApkFile(packageName)
+        return if (file?.exists() == true) {
+            Log.d(TAG, "Deleting staged APK for $packageName")
+            file.delete()
+        } else false
+    }
     suspend fun deleteDownloadedGame(releaseName: String) = withContext(Dispatchers.IO) {
         // Cancel any active WorkManager tasks before deleting files
         cancelDownloadWork(releaseName)
@@ -2746,6 +2785,10 @@ class MainRepository(
      */
     fun getStagedApkFileName(packageName: String): String {
         require(packageName.isNotBlank()) { "Package name cannot be empty or blank" }
+        // Validation to prevent path traversal (Story 1.13 Review Fix)
+        if (packageName.contains("/") || packageName.contains("\\") || packageName.contains("..")) {
+            throw IllegalArgumentException("Invalid characters in package name: $packageName")
+        }
         return "$packageName.apk"
     }
 
@@ -2757,7 +2800,12 @@ class MainRepository(
      */
     fun getStagedApkFile(packageName: String): File? {
         val dir = context.getExternalFilesDir(null) ?: return null
-        return File(dir, getStagedApkFileName(packageName))
+        return try {
+            File(dir, getStagedApkFileName(packageName))
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Invalid package name for staged APK file: $packageName", e)
+            null
+        }
     }
 
         /**
