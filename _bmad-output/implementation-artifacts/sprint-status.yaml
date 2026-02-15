@@ -49,10 +49,10 @@ development_status:
   1-8-permission-flow-for-installation: done
   1-9-installation-history-tracking: done
   1-10-fix-queue-processor-stateflow-race-condition: done
-  1-11-fix-staged-apk-cross-contamination: review
+  1-11-fix-staged-apk-cross-contamination: done
   1-12-fast-track-local-install: done
-  1-13-shelving-ready-to-install-games: review
-  epic-1-retrospective: optional
+  1-13-shelving-ready-to-install-games: done
+  epic-1-retrospective: done
 #
   epic-2: backlog
   2-1-stickman-animation-state-machine-foundation: backlog
