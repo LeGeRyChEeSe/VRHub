@@ -271,7 +271,7 @@ jobs:
 
 
       - name: Build release APK
-        timeout-minutes: 5
+        timeout-minutes: 15
         shell: bash
         env:
           # Use validated environment variables (set by Validate version inputs step)
