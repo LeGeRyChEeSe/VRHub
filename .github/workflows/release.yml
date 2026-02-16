@@ -761,7 +761,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
 
           # Add changes
-          git add public/updates/rookie/
+          git add public/updates/rookie/ netlify.toml
 
           # Check if there are changes to commit
           if git diff --cached --quiet; then
