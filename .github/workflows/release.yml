@@ -290,6 +290,10 @@ jobs:
             echo "Building with versionCode $BUILD_VERSION_CODE"
             BUILD_ARGS+=("-PversionCode=$BUILD_VERSION_CODE")
           fi
+          if [ -n "$ROOKIE_UPDATE_SECRET" ]; then
+            echo "Building with ROOKIE_UPDATE_SECRET"
+            BUILD_ARGS+=("-PROOKIE_UPDATE_SECRET=$ROOKIE_UPDATE_SECRET")
+          fi
           if [ ${#BUILD_ARGS[@]} -eq 0 ]; then
             echo "Building with default version from build.gradle.kts"
           fi
