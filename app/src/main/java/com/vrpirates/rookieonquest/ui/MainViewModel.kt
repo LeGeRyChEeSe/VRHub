@@ -1394,9 +1394,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     false
                 }
             } catch (e: retrofit2.HttpException) {
+                // HTTP 5xx (server errors like 500, 503) are handled via retry logic below.
+                // After max retries, a generic "unreachable" message is shown to the user.
                 if (e.code() == 403) {
                     Log.w(TAG, "Update check forbidden (403): Possible clock skew.")
-                    _error.value = "Update check failed: Your Quest's system clock may be out of sync. To fix this, go to Settings -> System -> Date & Time and toggle 'Set time automatically' off and on again."
+                    _error.value = "Update check failed: Your Quest's system clock may be out of sync. This happens if the device was off for a long time. Please go to Settings -> System -> Date & Time and toggle 'Set time automatically' off and on again."
                     return false
                 } else if (attempt < maxRetries - 1) {
                     Log.w(TAG, "Update check failed (${e.code()}), retrying in ${currentDelay}ms...")
@@ -1426,8 +1428,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun isVersionNewer(latest: String, current: String): Boolean {
-        val latestParts = latest.split('.').mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
-        val currentParts = current.split('.').mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
+        // Simple SemVer-like comparison
+        val latestBase = latest.split('-')[0]
+        val currentBase = current.split('-')[0]
+        
+        val latestParts = latestBase.split('.').mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
+        val currentParts = currentBase.split('.').mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
 
         val maxLength = maxOf(latestParts.size, currentParts.size)
         for (i in 0 until maxLength) {
@@ -1436,6 +1442,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (latestPart > currentPart) return true
             if (latestPart < currentPart) return false
         }
+        
+        // If version bases are identical, a version with a pre-release tag (hyphen)
+        // is considered OLDER than a version without one.
+        val latestHasPre = latest.contains('-')
+        val currentHasPre = current.contains('-')
+        
+        if (!latestHasPre && currentHasPre) return true // 2.5.0 is newer than 2.5.0-rc
+        if (latestHasPre && !currentHasPre) return false // 2.5.0-rc is older than 2.5.0
+        
+        // If both have pre-release tags, compare them alphabetically (limited but better than nothing)
+        if (latestHasPre && currentHasPre) {
+            val latestPre = latest.substringAfter('-')
+            val currentPre = current.substringAfter('-')
+            return latestPre > currentPre
+        }
+
         return false
     }
 
@@ -1477,7 +1499,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val body = response.body ?: throw Exception("Empty response body")
                         val contentLength = body.contentLength()
                         val totalBytes = if (isResume) contentLength + initialDownloaded else contentLength
-                        
+
+                        // Check available disk space before downloading
+                        if (totalBytes > 0) {
+                            val downloadDir = targetFile.parentFile
+                            if (downloadDir != null) {
+                                val stat = android.os.StatFs(downloadDir.path)
+                                val availableBytes = stat.availableBlocksLong * stat.blockSizeLong
+                                // Require totalBytes + 50MB buffer for safety
+                                val requiredBytes = totalBytes + (50 * 1024 * 1024)
+                                if (availableBytes < requiredBytes) {
+                                    val availableMb = availableBytes / (1024 * 1024)
+                                    val requiredMb = requiredBytes / (1024 * 1024)
+                                    throw Exception("Insufficient storage: ${availableMb}MB available, ${requiredMb}MB required for update")
+                                }
+                            }
+                        }
+
                         // Open in append mode if resuming, otherwise overwrite
                         java.io.FileOutputStream(targetFile, isResume).use { output ->
                             com.vrpirates.rookieonquest.data.DownloadUtils.downloadWithProgress(
@@ -1499,7 +1537,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _updateProgress.value = "Verifying integrity: ${(progress * 100).toInt()}%"
                 }
                 
-                if (updateInfo.checksum.isEmpty() || !actualChecksum.equals(updateInfo.checksum, ignoreCase = true)) {
+                if (updateInfo.checksum.isNullOrEmpty() || !actualChecksum.equals(updateInfo.checksum, ignoreCase = true)) {
                     targetFile.delete()
                     throw Exception("Integrity check failed: Checksum mismatch or missing. The file may be corrupted.")
                 }

@@ -1329,7 +1329,7 @@ Following the repository's transition to private status, the standard GitHub rel
 **Acceptance Criteria:**
 - [ ] Refactor \GitHubService.kt\ to \UpdateService.kt\ pointing to \sunshine-aio.com\.
 - [ ] Implement request signing logic in the app to authenticate with the gateway.
-- [ ] Implement decryption logic if the APK or metadata is served encrypted.
+- [ ] Implement SHA-256 checksum verification for downloaded APKs.
 - [ ] Maintain graceful fallback if the update server is unreachable.
 
 ### Story 9.3: Transition Build & Legacy Support

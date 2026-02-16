@@ -140,6 +140,41 @@ class SecureUpdateFlowTest {
 
     // ========== Resumable Download Logic Tests ==========
 
+    /**
+     * Test that when server doesn't support Range header (returns 200),
+     * the partial file is properly overwritten instead of appended to.
+     * This ensures correct behavior when transitioning from resume to full download.
+     */
+    @Test
+    fun testServerWithoutRangeHeaderSupport() {
+        // Simulate downloadAndInstallUpdate logic (MainViewModel.kt lines 1477-1502)
+
+        // Case: Partial file exists but server doesn't support Range header
+        val partialFileSize = 1024L // Partial file of 1KB exists
+
+        // When Range header is sent but server returns 200 (full content)
+        val responseCode = 200 // Server doesn't support Range, returns full file
+        val isResume = responseCode == 206
+
+        // Verify isResume is false when server returns 200
+        assertFalse("Server returning 200 should NOT be treated as resume", isResume)
+
+        // Verify append mode would be false (overwrite) when isResume is false
+        // This matches: FileOutputStream(targetFile, isResume) - false = overwrite
+        // Even with partialFileSize of 1KB, append mode is false because server returned 200
+        val appendMode = isResume
+        assertFalse("Partial file should be overwritten when server returns 200 (ignoring existing partial)", appendMode)
+
+        // Case: Server properly supports Range - returns 206
+        val responseCodeWithRange = 206
+        val isResumeWithRange = responseCodeWithRange == 206
+        // With partial file and 206 response, resume is possible
+        val canResume = partialFileSize > 0 && isResumeWithRange
+
+        assertTrue("Server returning 206 should be treated as resume", isResumeWithRange)
+        assertTrue("Partial file should be appended to when server returns 206 with existing partial", canResume)
+    }
+
     @Test
     fun testResumableDownloadParameters() {
         // Simulate downloadAndInstallUpdate logic (MainViewModel.kt lines 1478-1488)

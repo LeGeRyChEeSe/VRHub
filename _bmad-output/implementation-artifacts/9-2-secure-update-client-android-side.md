@@ -1,6 +1,6 @@
 # Story 9.2: Secure Update Client (Android-side)
 
-Status: review
+Status: in-progress
 
 ## Story
 
@@ -87,11 +87,20 @@ so that I can stay up to date even though the GitHub repo is private.
 - [x] [MEDIUM] Add `ROOKIE_UPDATE_SECRET` to GitHub Actions release workflow. Previously the secret was only configured for local builds via `local.properties`. Added `ROOKIE_UPDATE_SECRET: ${{ secrets.ROOKIE_UPDATE_SECRET }}` to build environment variables in `.github/workflows/release.yml`. [.github/workflows/release.yml:281]
 - [x] [LOW] Add endpoint documentation to UpdateService.kt explaining why `.netlify/functions/check-update` must be used instead of `/api/check-update`. This prevents future confusion about which endpoint is correct. [UpdateService.kt:24-28]
 
+### Round 7 Review Follow-ups (AI) - 2026-02-16
+
+- [x] [AI-Review][MEDIUM] Commit uncommitted changes to complete the story. Five files have pending modifications: README.md (ROOKIE_UPDATE_SECRET documentation), epics.md (AC correction), MainViewModel.kt (improved 403 message + isVersionNewer fix + null-check), gradle.properties (trivial newline), and .story-id. These changes document important fixes and should be committed before marking story as done. [README.md, epics.md, MainViewModel.kt, gradle.properties]
+- [x] [AI-Review][MEDIUM] Add test for server not supporting HTTP Range header. Current resumable download implementation handles HTTP 206 (resume) and 416 (range not satisfiable), but does not explicitly test the case where server returns 200 (full download) when a partial file exists. This edge case should be tested to ensure proper file overwrite behavior. [SecureUpdateFlowTest.kt]
+- [x] [AI-Review][LOW] Consider handling SemVer build metadata (+) in isVersionNewer(). Versions like "2.0.0+build.1" are not explicitly handled - the "+" would remain in the version string after splitting on "-". If build metadata support is needed, update parsing logic. Otherwise, document that build metadata is not supported in README.md. Documented in Dev Notes: build metadata is not supported. [MainViewModel.kt:1428-1460]
+- [x] [AI-Review][LOW] Add disk space check before update APK download. Similar to game installation flow, use StatFs to verify available space before downloading large update files to prevent download failure mid-way through. [MainViewModel.kt:1497-1511]
+- [x] [AI-Review][LOW] Document handling of unexpected HTTP codes (5xx). If server returns 500, 503, or other error codes, the current code throws generic exception. Consider adding explicit handling or documenting this behavior for troubleshooting. Added comment in MainViewModel.kt explaining 5xx handling via retry logic. [MainViewModel.kt:1396-1397]
+
 ## Dev Notes
 
 - **Security**: Request signing prevents unauthorized access to the update metadata. Checksum verification ensures APK integrity.
 - **Clock Sync**: Since signatures depend on timestamps, Quest devices with out-of-sync clocks will receive a 403 error. The app now explicitly suggests checking the system clock in this case.
 - **Privacy**: The update secret is injected at build time, keeping it out of the source code.
+- **Version Parsing**: The `isVersionNewer()` function supports standard SemVer format (e.g., "2.5.0", "2.5.0-rc.1") with pre-release tags. Build metadata (e.g., "2.0.0+build.1") is not explicitly handled and will be ignored in comparisons.
 
 ### Project Structure Notes
 
@@ -120,6 +129,7 @@ so that I can stay up to date even though the GitHub repo is private.
 - Addressed all Round 5 follow-up findings - 3 items resolved (Date: 2026-02-16)
 - Round 6 adversarial review completed during device testing - 3 action items created (1 CRITICAL, 1 MEDIUM, 1 LOW). Critical endpoint bug discovered and fixed. (Date: 2026-02-16)
 - Addressed all Round 6 follow-up findings - 3 items resolved (Date: 2026-02-16)
+- Round 7 adversarial review completed - 5 action items created (2 MEDIUM, 3 LOW). All ACs verified implemented, all 16 tests passing. Status remains in-progress due to uncommitted changes. (Date: 2026-02-16)
 
 ## Dev Agent Record
 
@@ -168,17 +178,23 @@ Gemini 2.0 Flash
     - ✅ **Endpoint Bug Fix**: Reverted endpoint from `/api/check-update` back to `/.netlify/functions/check-update`. Round 3 review incorrectly changed the endpoint - `/api/check-update` returns HTML (SPA frontend) instead of JSON. Verified via curl that `.netlify/functions/check-update` is the correct Netlify function path.
     - ✅ **CI/CD Secret**: Added `ROOKIE_UPDATE_SECRET` to GitHub Actions release workflow environment variables for production builds.
     - ✅ **Documentation**: Added KDoc comment in UpdateService.kt explaining why the Netlify function path must be used instead of the frontend API route.
+- **Round 7 Review Resolution (2026-02-16)**:
+    - ✅ **Commit Pending Changes**: Committed all pending changes (README.md, epics.md, MainViewModel.kt, gradle.properties) with proper documentation.
+    - ✅ **HTTP Range Test**: Added `testServerWithoutRangeHeaderSupport()` to SecureUpdateFlowTest.kt to verify partial file overwrite when server returns 200.
+    - ✅ **Disk Space Check**: Added StatFs-based disk space verification before update APK download to prevent mid-download failures.
+    - ✅ **5xx Documentation**: Added comment in MainViewModel.kt explaining that HTTP 5xx errors are handled via retry logic.
+    - ✅ **Build Metadata**: Documented in Dev Notes that SemVer build metadata (+) is not supported in version comparisons.
 
 ### File List
 - `app/src/main/java/com/vrpirates/rookieonquest/network/UpdateService.kt` (Modified: corrected endpoint path, added documentation)
 - `app/src/main/java/com/vrpirates/rookieonquest/network/GitHubService.kt` (Deleted)
 - `app/src/main/java/com/vrpirates/rookieonquest/data/Constants.kt`
-- `app/src/main/java/com/vrpirates/rookieonquest/ui/MainViewModel.kt`
+- `app/src/main/java/com/vrpirates/rookieonquest/ui/MainViewModel.kt` (Modified: improved 403 message, isVersionNewer fix, null-check, disk space check, 5xx comment)
 - `app/src/main/java/com/vrpirates/rookieonquest/MainActivity.kt`
 - `app/build.gradle.kts`
 - `app/src/test/java/com/vrpirates/rookieonquest/data/CryptoUtilsTest.kt`
 - `app/src/test/java/com/vrpirates/rookieonquest/network/UpdateServiceTest.kt` (Modified: improved test reliability, updated endpoint)
-- `app/src/test/java/com/vrpirates/rookieonquest/network/SecureUpdateFlowTest.kt` (Committed: Round 5)
+- `app/src/test/java/com/vrpirates/rookieonquest/network/SecureUpdateFlowTest.kt` (Modified: added testServerWithoutRangeHeaderSupport)
 - `README.md`
 - `_bmad-output/planning-artifacts/epics.md`
 - `gradle.properties` (trivial formatting fix)

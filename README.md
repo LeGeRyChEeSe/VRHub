@@ -111,6 +111,15 @@ When building from the command line, you can specify the version using Gradle pr
 
 The `versionName` must match the format `X.Y.Z` with optional pre-release suffixes (e.g., `-rc`, `-beta`) or build metadata.
 
+### Secure Update Authentication
+To enable application update checks, a secret key is required for request signing.
+- **Environment Variable:** `ROOKIE_UPDATE_SECRET`
+- **Local Development:** You can provide this in your `local.properties` file or as a Gradle property:
+  ```properties
+  ROOKIE_UPDATE_SECRET=your_secret_here
+  ```
+- **Release Builds:** For security, release builds will fail if this secret is not provided via the environment variable or `keystore.properties`.
+
 ---
 
 ## Contributing
