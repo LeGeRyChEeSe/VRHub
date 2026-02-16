@@ -1,5 +1,7 @@
 package com.vrpirates.rookieonquest.data
 
+import com.vrpirates.rookieonquest.network.VrpService
+import com.vrpirates.rookieonquest.network.UpdateService
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
@@ -58,6 +60,17 @@ object Constants {
     const val VRP_API_BASE_URL = "https://vrpirates.wiki/"
 
     /**
+     * Base URL for secure update gateway
+     */
+    const val SECURE_UPDATE_BASE_URL = "https://www.sunshine-aio.com/"
+
+    /**
+     * Secret key for secure update signature (HMAC-SHA256).
+     * Injected at build time via build.gradle.kts.
+     */
+    val ROOKIE_UPDATE_SECRET = com.vrpirates.rookieonquest.BuildConfig.ROOKIE_UPDATE_SECRET
+
+    /**
      * HTTP connection timeout in seconds
      */
     const val HTTP_CONNECT_TIMEOUT_SECONDS = 30L
@@ -66,6 +79,21 @@ object Constants {
      * HTTP read timeout in seconds
      */
     const val HTTP_READ_TIMEOUT_SECONDS = 30L
+
+    /**
+     * HTTP connection timeout for app updates in seconds
+     */
+    const val UPDATE_CONNECT_TIMEOUT_SECONDS = 60L
+
+    /**
+     * HTTP read timeout for app updates in seconds
+     */
+    const val UPDATE_READ_TIMEOUT_SECONDS = 300L
+
+    /**
+     * Maximum retry attempts for update check requests
+     */
+    const val UPDATE_MAX_RETRIES = 3
 
     /**
      * Throttle interval for progress updates to Room DB (in milliseconds).
@@ -260,6 +288,27 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
+
+    /**
+     * Dedicated Retrofit instance for secure update gateway.
+     */
+    val secureUpdateRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(Constants.SECURE_UPDATE_BASE_URL)
+            .client(okHttpClient.newBuilder()
+                .connectTimeout(Constants.UPDATE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(Constants.UPDATE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    /**
+     * Service for secure application updates.
+     */
+    val updateService: UpdateService by lazy {
+        secureUpdateRetrofit.create(UpdateService::class.java)
+    }
 }
 
 /**
@@ -296,6 +345,48 @@ object CryptoUtils {
      */
     fun md5(input: String): String {
         val bytes = MessageDigest.getInstance("MD5").digest(input.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Computes SHA-256 hash of a file with optional progress reporting.
+     * Used for verifying update APK integrity.
+     *
+     * @param file The file to hash
+     * @param onProgress Optional callback for progress updates (0.0 to 1.0)
+     * @return Lowercase hexadecimal SHA-256 hash string
+     */
+    fun sha256(file: java.io.File, onProgress: ((Float) -> Unit)? = null): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(8192)
+        val totalSize = file.length()
+        var readSoFar = 0L
+        java.io.FileInputStream(file).use { input ->
+            var bytesRead: Int
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                digest.update(buffer, 0, bytesRead)
+                readSoFar += bytesRead
+                if (totalSize > 0) {
+                    onProgress?.invoke(readSoFar.toFloat() / totalSize)
+                }
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Computes HMAC-SHA256 hash of a string using a secret key.
+     * Used for secure update gateway authentication.
+     *
+     * @param input The string to sign (typically a timestamp)
+     * @param secret The secret key
+     * @return Lowercase hexadecimal HMAC-SHA256 signature
+     */
+    fun hmacSha256(input: String, secret: String): String {
+        val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+        val secretKey = javax.crypto.spec.SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256")
+        mac.init(secretKey)
+        val bytes = mac.doFinal(input.toByteArray(Charsets.UTF_8))
         return bytes.joinToString("") { "%02x".format(it) }
     }
 }

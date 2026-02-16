@@ -43,6 +43,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
@@ -123,7 +124,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
-    var showUpdateDialogState by remember { mutableStateOf<com.vrpirates.rookieonquest.network.GitHubRelease?>(null) }
+    var showUpdateDialogState by remember { mutableStateOf<com.vrpirates.rookieonquest.network.UpdateInfo?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var gameToDelete by remember { mutableStateOf<GameItemState?>(null) }
     var taskToCancel by remember { mutableStateOf<String?>(null) }
@@ -187,7 +188,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     showPermissionDialog = RequiredPermission.IGNORE_BATTERY_OPTIMIZATIONS
                 }
                 is MainEvent.ShowUpdatePopup -> {
-                    showUpdateDialogState = event.release
+                    showUpdateDialogState = event.updateInfo
                 }
                 is MainEvent.ShowMessage -> {
                     snackbarHostState.showSnackbar(event.message)
@@ -304,7 +305,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             showUpdateDialogState != null -> {
                 BackHandler(enabled = true) { /* Block back button during update dialog */ }
                 UpdateOverlay(
-                    release = showUpdateDialogState!!,
+                    updateInfo = showUpdateDialogState!!,
                     onDismiss = {
                         showUpdateDialogState = null
                         viewModel.onUpdateDialogDismissed()
@@ -404,6 +405,15 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     unselectedTextColor = Color.Gray
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Version ${BuildConfig.VERSION_NAME}",
+                                modifier = Modifier
+                                    .padding(horizontal = 28.dp)
+                                    .alpha(0.5f),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White
                             )
                             Spacer(Modifier.height(12.dp))
                         }
@@ -887,7 +897,7 @@ fun PermissionOverlay(
 
 @Composable
 fun UpdateOverlay(
-    release: com.vrpirates.rookieonquest.network.GitHubRelease,
+    updateInfo: com.vrpirates.rookieonquest.network.UpdateInfo,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -912,7 +922,7 @@ fun UpdateOverlay(
                     Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF3498db), modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Version ${release.tagName}",
+                        text = "Version ${updateInfo.version}",
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
@@ -920,7 +930,7 @@ fun UpdateOverlay(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = parseMarkdown(release.body),
+                    text = parseMarkdown(updateInfo.changelog),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.LightGray
                 )

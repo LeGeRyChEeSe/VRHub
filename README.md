@@ -102,6 +102,30 @@ This project uses GitHub Actions for PR validation. You can run the validation l
 
 For more details on the build pipeline, see the **[Infrastructure Architecture](docs/architecture-infra.md)** documentation.
 
+### Version Management
+This project follows **[Semantic Versioning (SemVer)](https://semver.org/)**.
+
+When building from the command line, you can specify the version using Gradle properties:
+- `versionCode`: A positive integer (e.g., `-PversionCode=15`)
+- `versionName`: A SemVer compatible string (e.g., `-PversionName=2.5.0` or `-PversionName=2.5.0-rc.1`)
+
+The `versionName` must match the format `X.Y.Z` with optional pre-release suffixes or build metadata:
+- Basic: `2.5.0`
+- Pre-release: `2.5.0-rc`, `2.5.0-beta.1`, `2.5.0-alpha`
+- Build metadata: `2.5.0+build.1`
+- Combined: `2.5.0-rc.1+build.1`
+
+The regex pattern used is: `^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$`
+
+### Secure Update Authentication
+To enable application update checks, a secret key is required for request signing.
+- **Environment Variable:** `ROOKIE_UPDATE_SECRET`
+- **Local Development:** You can provide this in your `local.properties` file or as a Gradle property:
+  ```properties
+  ROOKIE_UPDATE_SECRET=your_secret_here
+  ```
+- **Release Builds:** For security, release builds will fail if this secret is not provided via the environment variable or `keystore.properties`.
+
 ---
 
 ## Contributing

@@ -25,7 +25,7 @@ android {
         // Fallback values are maintained for local building.
         //
         // DRY PRINCIPLE NOTE:
-        // The values 10 (versionCode) and "2.5.0-rc.1" (versionName) are the SINGLE SOURCE OF TRUTH.
+        // The values 10 (versionCode) and "2.5.0" (versionName) are the SINGLE SOURCE OF TRUTH.
         // The GHA workflow (release.yml) extracts these values from this file rather than
         // hardcoding them, ensuring consistency.
         //
@@ -69,10 +69,33 @@ android {
             versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$")) -> versionNameProperty
             else -> throw GradleException(
                 "Invalid versionName property: '$versionNameProperty'. " +
-                "versionName must match semver format: X.Y.Z, X.Y.Z-rc.N, or X.Y.Z+build. " +
-                "Example: -PversionName=2.5.0"
+                "versionName must follow SemVer (X.Y.Z) and can include suffixes like -rc. " +
+                "Example: -PversionName=2.5.0-rc"
             )
         }
+
+        // Secure Update Secret: Required for release builds, optional (empty) for debug
+        // Sources: 1. Gradle Property (-PROOKIE_UPDATE_SECRET), 2. local.properties, 3. Empty fallback
+        val localProperties = Properties().apply {
+            val localFile = rootProject.file("local.properties")
+            if (localFile.exists()) {
+                localFile.inputStream().use { load(it) }
+            }
+        }
+        
+        val updateSecret = project.findProperty("ROOKIE_UPDATE_SECRET")?.toString() 
+            ?: localProperties.getProperty("ROOKIE_UPDATE_SECRET") 
+            ?: ""
+            
+        val isRelease = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+
+        if (isRelease && updateSecret.isEmpty()) {
+            throw GradleException("ROOKIE_UPDATE_SECRET project property is required for release builds. Please provide it via -PROOKIE_UPDATE_SECRET=your_secret")
+        } else if (!isRelease && updateSecret.isEmpty()) {
+            logger.warn("[update] WARNING: ROOKIE_UPDATE_SECRET is empty. Update checks will fail with 403 Forbidden when connecting to secure gateway.")
+        }
+
+        buildConfigField("String", "ROOKIE_UPDATE_SECRET", "\"$updateSecret\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -288,6 +311,7 @@ dependencies {
     androidTestImplementation(platform("androidx.compose:compose-bom:2023.10.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     // MockWebServer for HTTP testing
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
