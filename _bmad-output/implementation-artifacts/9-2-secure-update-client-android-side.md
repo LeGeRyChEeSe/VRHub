@@ -1,6 +1,6 @@
 # Story 9.2: Secure Update Client (Android-side)
 
-Status: review
+Status: done
 
 ## Story
 
