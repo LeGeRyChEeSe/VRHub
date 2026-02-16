@@ -33,6 +33,9 @@
 name: Release Build
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
@@ -107,6 +110,15 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_VERSION_CODE: ${{ inputs.versionCode }}
         run: |
+          # Extract version from tag if triggered by tag push
+          if [ -n "$GITHUB_REF" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+            if [ -z "$INPUT_VERSION" ]; then
+              echo "INPUT_VERSION=$TAG_VERSION" >> $GITHUB_ENV
+              echo "ℹ️ Using version from tag: $TAG_VERSION"
+            fi
+          fi
+
           # 30s Fail-fast implementation for AC3
           # Using timeout command to ensure enforcement within 30s
           timeout 30s bash -c '
@@ -503,7 +515,11 @@ jobs:
           # Build configuration
           echo "#### Build Configuration" >> $GITHUB_STEP_SUMMARY
           if [ -n "$BUILD_VERSION" ]; then
-            echo "- **Version:** $BUILD_VERSION *(custom input)*" >> $GITHUB_STEP_SUMMARY
+            if [ -n "$GITHUB_REF" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              echo "- **Version:** $BUILD_VERSION *(from tag)*" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Version:** $BUILD_VERSION *(custom input)*" >> $GITHUB_STEP_SUMMARY
+            fi
           else
             # ================================================================================
             # DYNAMIC VERSION EXTRACTION
@@ -622,6 +638,127 @@ jobs:
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-netlify:
+    name: Deploy to Netlify
+    runs-on: ubuntu-latest
+    needs: build
+    if: success()
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4.6.0
+        with:
+          name: release-apk
+          path: ./apk
+
+      - name: Calculate SHA-256 checksum
+        id: checksum
+        shell: bash
+        run: |
+          cd apk
+          CHECKSUM=$(sha256sum RookieOnQuest-v*.apk | awk '{print $1}')
+          echo "CHECKSUM=$CHECKSUM" >> $GITHUB_OUTPUT
+          echo "APK_FILE=$(ls RookieOnQuest-v*.apk)" >> $GITHUB_OUTPUT
+          echo "APK Size: $(du -h RookieOnQuest-v*.apk | cut -f1)"
+          echo "SHA-256: $CHECKSUM"
+
+      - name: Clone Sunshine-AIO-web
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: LeGeRyChEeSe/Sunshine-AIO-web
+          path: Sunshine-AIO-web
+          token: ${{ secrets.GH_PAT_SUNSHINE_AIO }}
+          fetch-depth: 1
+
+      - name: Setup deployment environment
+        shell: bash
+        env:
+          VERSION: ${{ env.BUILD_VERSION }}
+          CHECKSUM: ${{ steps.checksum.outputs.CHECKSUM }}
+          APK_FILE: ${{ steps.checksum.outputs.APK_FILE }}
+        run: |
+          echo "Setting up deployment environment..."
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "CHECKSUM=$CHECKSUM" >> $GITHUB_ENV
+          echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
+
+          # Create version.json
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          mkdir -p Sunshine-AIO-web/public/updates/rookie
+
+          cat > Sunshine-AIO-web/public/updates/rookie/version.json << EOF
+          {
+              "version": "$VERSION",
+              "changelog": "Release $VERSION - See GitHub release for details",
+              "downloadUrl": "/updates/rookie/$APK_FILE",
+              "checksum": "$CHECKSUM",
+              "timestamp": "$TIMESTAMP"
+          }
+          EOF
+
+          echo "version.json created:"
+          cat Sunshine-AIO-web/public/updates/rookie/version.json
+
+      - name: Copy APK to Sunshine-AIO-web
+        shell: bash
+        env:
+          VERSION: ${{ env.BUILD_VERSION }}
+        run: |
+          # Copy APK with version in filename
+          cp "apk/RookieOnQuest-v${VERSION}.apk" "Sunshine-AIO-web/public/updates/rookie/RookieOnQuest_${VERSION}.apk"
+          echo "APK copied to Sunshine-AIO-web"
+          ls -la Sunshine-AIO-web/public/updates/rookie/
+
+      - name: Commit and Push to Sunshine-AIO-web
+        shell: bash
+        env:
+          VERSION: ${{ env.BUILD_VERSION }}
+          GH_PAT: ${{ secrets.GH_PAT_SUNSHINE_AIO }}
+        run: |
+          cd Sunshine-AIO-web
+
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          # Add changes
+          git add public/updates/rookie/
+
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          # Commit
+          git commit -m "Deploy RookieOnQuest v$VERSION
+
+          - Add APK RookieOnQuest_$VERSION.apk
+          - Update version.json with new version and checksum
+          - Auto-generated by GitHub Actions release workflow"
+
+          # Push
+          echo "Pushing to Sunshine-AIO-web..."
+          git push https://x-access-token:$GH_PAT@github.com/LeGeRyChEeSe/Sunshine-AIO-web main
+
+      - name: Report deployment status
+        shell: bash
+        env:
+          VERSION: ${{ env.BUILD_VERSION }}
+        run: |
+          echo "### Netlify Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** Deployed to Sunshine-AIO-web" >> $GITHUB_STEP_SUMMARY
+          echo "- **Auto-deploy:** Netlify will auto-deploy on push" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ APK deployed to Netlify update gateway!" >> $GITHUB_STEP_SUMMARY
 
       - name: Enforce Performance Target (NFR-B1)
         if: always()
