@@ -481,7 +481,7 @@ jobs:
           fi
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4.6.0
+        uses: actions/upload-artifact@v4
         with:
           name: release-apk
           # Precise glob to capture only release APKs with our naming convention
@@ -651,7 +651,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Download APK artifact
-        uses: actions/download-artifact@v4.6.0
+        uses: actions/download-artifact@v4
         with:
           name: release-apk
           path: ./apk
