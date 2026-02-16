@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ✨ New Features
 - **Release Candidate Support:** Added support for pre-release versioning and automated RC release creation.
 
+## [2.4.1] - 2026-02-16
+
+### ✨ New Features
+- **Secure Update Client:** Added HMAC-SHA256 signed update checks to the secure update gateway server.
+
 ## [2.5.0] - 2026-02-01
 
 ### ✨ New Features
