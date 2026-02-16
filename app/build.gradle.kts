@@ -18,14 +18,14 @@ android {
 
         // VERSION CONFIGURATION - Source of Truth for Default Values
         // ================================================================================
-        // versionCode can be overridden by Gradle property: -PversionCode="10"
-        // versionName can be overridden by Gradle property: -PversionName="2.5.0"
+        // versionCode can be overridden by Gradle property: -PversionCode="5"
+        // versionName can be overridden by Gradle property: -PversionName="2.4.1"
         //
         // Implemented in Story 8.5: Centralized version management with CI extraction and RC support.
         // Fallback values are maintained for local building.
         //
         // DRY PRINCIPLE NOTE:
-        // The values 10 (versionCode) and "2.5.0-rc.1" (versionName) are the SINGLE SOURCE OF TRUTH.
+        // The values 5 (versionCode) and "2.4.1" (versionName) are the SINGLE SOURCE OF TRUTH.
         // The GHA workflow (release.yml) extracts these values from this file rather than
         // hardcoding them, ensuring consistency.
         //
@@ -45,7 +45,7 @@ android {
         // NOTE: This validation mirrors the CI validation in release.yml for consistency.
         // The only difference is regression warning is CI-only (GHA has access to git history).
         versionCode = when {
-            versionCodeProperty == null -> 10 // Default when not provided
+            versionCodeProperty == null -> 5 // Default when not provided
             versionCodeProperty.toIntOrNull() == null -> throw GradleException(
                 "Invalid versionCode property: '$versionCodeProperty'. " +
                 "versionCode must be a valid integer >= 1. " +
@@ -65,7 +65,7 @@ android {
         }
 
         versionName = when {
-            versionNameProperty == null -> "2.5.0" // Default when not provided
+            versionNameProperty == null -> "2.4.1" // Default when not provided
             versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$")) -> versionNameProperty
             else -> throw GradleException(
                 "Invalid versionName property: '$versionNameProperty'. " +

@@ -614,6 +614,7 @@ jobs:
           name: Rookie On Quest v${{ env.BUILD_VERSION }}${{ env.RELEASE_TITLE_SUFFIX }}
           body_path: release_notes.md
           prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          draft: true
           files: app/build/outputs/apk/release/RookieOnQuest-v${{ env.BUILD_VERSION }}.apk
           generate_release_notes: false
         env:
