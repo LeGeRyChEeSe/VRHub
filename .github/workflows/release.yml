@@ -57,6 +57,8 @@ jobs:
   build:
     name: Build Release APK
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ env.BUILD_VERSION }}
     # NFR-B1: CI/CD workflow must complete release build within 10 minutes (soft target).
     # Hard timeout set to 15 minutes to provide sufficient headroom for infrastructure
     # variations while performance monitoring ensures the 10-minute SLA is respected.
@@ -685,7 +687,7 @@ jobs:
       - name: Setup deployment environment
         shell: bash
         env:
-          VERSION: ${{ env.BUILD_VERSION }}
+          VERSION: ${{ needs.build.outputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.CHECKSUM }}
           APK_FILE: ${{ steps.checksum.outputs.APK_FILE }}
         run: |
@@ -715,7 +717,7 @@ jobs:
       - name: Copy APK to Sunshine-AIO-web
         shell: bash
         env:
-          VERSION: ${{ env.BUILD_VERSION }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           # Copy APK with version in filename
           cp "apk/RookieOnQuest-v${VERSION}.apk" "Sunshine-AIO-web/public/updates/rookie/RookieOnQuest_${VERSION}.apk"
@@ -725,7 +727,7 @@ jobs:
       - name: Commit and Push to Sunshine-AIO-web
         shell: bash
         env:
-          VERSION: ${{ env.BUILD_VERSION }}
+          VERSION: ${{ needs.build.outputs.version }}
           GH_PAT: ${{ secrets.GH_PAT_SUNSHINE_AIO }}
         run: |
           cd Sunshine-AIO-web
@@ -757,7 +759,7 @@ jobs:
       - name: Report deployment status
         shell: bash
         env:
-          VERSION: ${{ env.BUILD_VERSION }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           echo "### Netlify Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
