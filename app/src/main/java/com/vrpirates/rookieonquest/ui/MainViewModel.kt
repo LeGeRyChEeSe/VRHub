@@ -1397,10 +1397,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Distinguish between server errors (5xx) and client errors (4xx)
                 val isServerError = e.code() >= 500 && e.code() < 600
                 val isClientError = e.code() >= 400 && e.code() < 500 && e.code() != 403
+                // 404 is permanent - endpoint not found should not be retried
+                val isNotFoundError = e.code() == 404
+                // 408 = Request Timeout - should not retry
+                val isTimeoutError = e.code() == 408
+                // 429 = Too Many Requests - should not retry, will resolve with time
+                val isRateLimitError = e.code() == 429
 
                 if (e.code() == 403) {
                     Log.w(TAG, "Update check forbidden (403): Possible clock skew.")
                     _error.value = "Update check failed: Your Quest's system clock may be out of sync. This happens if the device was off for a long time. Please go to Settings -> System -> Date & Time and toggle 'Set time automatically' off and on again."
+                    return false
+                } else if (isNotFoundError) {
+                    // 404 is permanent - don't retry
+                    Log.w(TAG, "Update check endpoint not found (404).")
+                    _error.value = "Update check failed: Update service not found. Please update the app manually."
+                    return false
+                } else if (isTimeoutError) {
+                    // 408 is retryable but with longer delay - handled in final error
+                    Log.w(TAG, "Update check timeout (408).")
+                    _error.value = "Update check failed: The request timed out. Please try again later."
+                    return false
+                } else if (isRateLimitError) {
+                    // 429 is retryable but will resolve with time
+                    Log.w(TAG, "Update check rate limited (429).")
+                    _error.value = "Update check failed: Too many requests. Please wait a few minutes before trying again."
                     return false
                 } else if (isClientError && attempt < maxRetries - 1) {
                     Log.w(TAG, "Update check failed client error (${e.code()}), retrying in ${currentDelay}ms...")
@@ -1515,7 +1536,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             when {
                 latestIsNumeric && currentIsNumeric -> {
                     // Both numeric - compare numerically
-                    val result = latestId.toIntOrNull()!! compareTo currentId.toIntOrNull()!!
+                    // Use safe null handling to prevent NPE on large numbers that overflow Int
+                    val latestNum = latestId.toLongOrNull() ?: Long.MAX_VALUE
+                    val currentNum = currentId.toLongOrNull() ?: Long.MAX_VALUE
+                    val result = latestNum compareTo currentNum
                     if (result != 0) return result
                 }
                 latestIsNumeric && !currentIsNumeric -> {
@@ -1784,6 +1808,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     priorityUpdateChannel.receive()
                 }
+            }
+        }
+    }
+
+    /**
+     * Manually trigger an update check from UI
+     */
+    fun checkForUpdatesManually() {
+        viewModelScope.launch {
+            try {
+                _isUpdateCheckInProgress.value = true
+                val updateAvailable = checkForAppUpdates()
+                if (!updateAvailable) {
+                    _events.emit(MainEvent.ShowMessage("You are on the latest version"))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Manual update check failed", e)
+                _events.emit(MainEvent.ShowMessage("Update check failed: ${e.message}"))
+            } finally {
+                _isUpdateCheckInProgress.value = false
             }
         }
     }

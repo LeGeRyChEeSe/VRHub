@@ -66,16 +66,19 @@ android {
 
         versionName = when {
             versionNameProperty == null -> "2.4.1-bridge" // Default when not provided
-            versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$")) -> versionNameProperty
+            versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?(\\+[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?$")) -> versionNameProperty
             else -> throw GradleException(
                 "Invalid versionName property: '$versionNameProperty'. " +
-                "versionName must follow SemVer (X.Y.Z) and can include suffixes like -rc. " +
-                "Example: -PversionName=2.5.0-rc"
+                "versionName must follow SemVer (X.Y.Z) and can include suffixes like -rc or -beta.1. " +
+                "Do not use: double hyphens (--), leading/trailing hyphens, or lone dots. " +
+                "Example: -PversionName=2.4.1-bridge"
             )
         }
 
-        // Secure Update Secret: Required for release builds, optional (empty) for debug
-        // Sources: 1. Gradle Property (-PROOKIE_UPDATE_SECRET), 2. local.properties, 3. Empty fallback
+        // Secure Update Secret: Required for release builds
+        // LOCAL DEV: Add to local.properties -> ROOKIE_UPDATE_SECRET=your_secret
+        // CI/CD: Set as GitHub repository secret (ROOKIE_UPDATE_SECRET)
+        // Sources: 1. Gradle Property (-PROOKIE_UPDATE_SECRET), 2. local.properties
         val localProperties = Properties().apply {
             val localFile = rootProject.file("local.properties")
             if (localFile.exists()) {

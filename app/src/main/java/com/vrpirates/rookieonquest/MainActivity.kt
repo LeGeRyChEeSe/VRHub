@@ -393,6 +393,20 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                             Spacer(Modifier.weight(1f))
                             Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.05f))
                             NavigationDrawerItem(
+                                label = { Text("Check for Updates", fontWeight = FontWeight.Bold) },
+                                selected = false,
+                                onClick = {
+                                    viewModel.checkForUpdatesManually()
+                                    coroutineScope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.Update, null) },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    unselectedIconColor = Color.Gray,
+                                    unselectedTextColor = Color.Gray
+                                ),
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                            NavigationDrawerItem(
                                 label = { Text("Settings", fontWeight = FontWeight.Bold) },
                                 selected = false,
                                 onClick = {

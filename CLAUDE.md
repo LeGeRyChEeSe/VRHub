@@ -42,6 +42,22 @@ adb install -r app/build/outputs/apk/release/RookieOnQuest-vX.X.X.apk
 make install
 ```
 
+### Secrets Configuration
+**ROOKIE_UPDATE_SECRET** - Required for release builds to authenticate with the secure update gateway (sunshine-aio.com):
+
+- **Local Development**: Add to `local.properties`:
+  ```
+  ROOKIE_UPDATE_SECRET=your_secret_here
+  ```
+
+- **CI/CD**: Set as GitHub repository secret (`ROOKIE_UPDATE_SECRET`)
+
+- **Build Command**:
+  ```bash
+  # With Gradle property
+  gradlew.bat assembleRelease -PROOKIE_UPDATE_SECRET=your_secret
+  ```
+
 ### Release Workflow
 ```bash
 # Full release process (Windows):
