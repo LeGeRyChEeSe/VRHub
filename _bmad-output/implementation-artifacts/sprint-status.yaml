@@ -114,6 +114,6 @@ development_status:
 #
   epic-9: in-progress
   9-1-netlify-update-gateway-server-side: done
-  9-2-secure-update-client-android-side: done
+  9-2-secure-update-client-android-side: review
   9-3-transition-build-and-legacy-support: backlog
   epic-9-retrospective: optional

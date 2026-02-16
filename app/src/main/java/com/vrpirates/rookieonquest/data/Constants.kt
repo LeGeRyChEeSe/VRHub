@@ -290,7 +290,10 @@ object NetworkModule {
     val secureUpdateRetrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl(Constants.SECURE_UPDATE_BASE_URL)
-            .client(okHttpClient)
+            .client(okHttpClient.newBuilder()
+                .connectTimeout(Constants.UPDATE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(Constants.UPDATE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build())
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
@@ -343,6 +346,10 @@ object CryptoUtils {
     /**
      * Computes SHA-256 hash of a file with optional progress reporting.
      * Used for verifying update APK integrity.
+     *
+     * @param file The file to hash
+     * @param onProgress Optional callback for progress updates (0.0 to 1.0)
+     * @return Lowercase hexadecimal SHA-256 hash string
      */
     fun sha256(file: java.io.File, onProgress: ((Float) -> Unit)? = null): String {
         val digest = MessageDigest.getInstance("SHA-256")

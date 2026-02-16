@@ -140,16 +140,15 @@ class UpdateServiceTest {
         runBlocking {
             // Shutdown server to trigger IOException
             mockWebServer.shutdown()
-            
+
             try {
                 service.checkUpdate("sig", "date")
                 org.junit.Assert.fail("Expected IOException")
             } catch (e: java.io.IOException) {
-                // Success
-            } finally {
-                // Re-initialize for tearDown or subsequent tests if any
-                mockWebServer = MockWebServer()
+                // Success - test passed
             }
+            // Note: No need to re-initialize mockWebServer here.
+            // The @Before setup() method creates a fresh instance for each test automatically.
         }
     }
 }
