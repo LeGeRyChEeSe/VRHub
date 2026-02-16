@@ -31,7 +31,7 @@ GIT_MSG ?= Release v$(VERSION)
 help:
 	@echo RookieOnQuest Makefile
 	@echo -----------------------
-	@echo make init STORY=id [AGENT=name] - Initialize a new worktree for a story
+	@echo make init id [agent]   - Initialize a new worktree for a story
 	@echo make set-version V=x.x.x - Update version and changelog
 	@echo make build          - Generate debug APK
 	@echo make release        - Generate release APK
@@ -45,14 +45,23 @@ help:
 	@echo -----------------------
 	@echo make clean          - Clean project
 
+# Parse positional arguments: make init 1.0 gemini
+_POS_ARGS := $(filter-out init%,$(MAKECMDGOALS))
+_STORY_POS := $(word 1,$(_POS_ARGS))
+_AGENT_POS := $(word 2,$(_POS_ARGS))
+
+# Use named args if provided, otherwise fall back to positional
+STORY := $(or $(STORY),$(_STORY_POS))
+AGENT := $(or $(AGENT),$(_AGENT_POS))
+
 init: init-worktree
 
 init-worktree:
 ifeq ($(OS),Windows_NT)
-	@if "$(STORY)"=="" (echo [ERROR] STORY is required. Example: make init STORY=1-8 AGENT=dev & exit /b 1)
+	@if "$(STORY)"=="" (echo [ERROR] STORY is required. Example: make init 1.8 dev & exit /b 1)
 	@$(INIT_SCRIPT) $(STORY) $(AGENT)
 else
-	@if [ -z "$(STORY)" ]; then echo "[ERROR] STORY is required. Example: make init STORY=1-8 AGENT=dev"; exit 1; fi
+	@if [ -z "$(STORY)" ]; then echo "[ERROR] STORY is required. Example: make init 1.8 dev"; exit 1; fi
 	@chmod +x $(INIT_SCRIPT)
 	@$(INIT_SCRIPT) $(STORY) $(AGENT)
 endif
