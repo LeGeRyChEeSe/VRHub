@@ -118,8 +118,8 @@ jobs:
             GRADLE_VERSION_CODE=$(./scripts/extract-release-info.sh version-code)
 
             # Validate extracted values (Defense in depth)
-            # AC1/AC8: Supports standard SemVer (X.Y.Z) and pre-releases (X.Y.Z-rc.N, alpha.N, beta.N)
-            if [[ ! "$GRADLE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$ ]]; then
+            # AC1/AC8: Supports standard SemVer (X.Y.Z), pre-releases (X.Y.Z-rc, X.Y.Z-rc.1, X.Y.Z-beta), and build metadata (X.Y.Z+build.1)
+            if [[ ! "$GRADLE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$ ]]; then
               echo "::error::Extracted version from build.gradle.kts is invalid: $GRADLE_VERSION"
               exit 1
             fi
