@@ -278,6 +278,7 @@ jobs:
           # This prevents command injection as inputs have been validated and stored in GITHUB_ENV
           BUILD_VERSION: ${{ env.BUILD_VERSION }}
           BUILD_VERSION_CODE: ${{ env.BUILD_VERSION_CODE }}
+          ROOKIE_UPDATE_SECRET: ${{ secrets.ROOKIE_UPDATE_SECRET }}
         run: |
           BUILD_ARGS=()
 

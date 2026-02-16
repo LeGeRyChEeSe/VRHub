@@ -25,6 +25,11 @@ data class UpdateInfo(
  *
  * Requests to this service must be authenticated using HMAC-SHA256 request signing.
  * The signature is computed using the ROOKIE_UPDATE_SECRET and the current UTC timestamp.
+ *
+ * ENDPOINT NOTE:
+ * The correct endpoint path is `.netlify/functions/check-update` which routes to the Netlify serverless function.
+ * The path `/api/check-update` is a frontend route that returns HTML, not JSON.
+ * This was verified via curl testing during development - see Story 9.2 Round 5 review follow-ups.
  */
 interface UpdateService {
     /**

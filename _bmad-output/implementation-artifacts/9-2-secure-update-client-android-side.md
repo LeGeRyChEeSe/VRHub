@@ -81,6 +81,12 @@ so that I can stay up to date even though the GitHub repo is private.
 - [x] [AI-Review][LOW] Improve UpdateServiceTest.kt `checkUpdate_handlesNetworkFailure()` test reliability. The test creates a new MockWebServer instance in the finally block (line 151) but never calls `start()`. This may interfere with `@After tearDown()`. Consider using a separate test class or different failure simulation approach. [UpdateServiceTest.kt:139-154]
 - [x] [AI-Review][LOW] Add KDoc documentation to CryptoUtils object in Constants.kt. Other objects like DownloadUtils have KDoc documentation (line 403), but CryptoUtils (line 333) does not. Inconsistent documentation style. [Constants.kt:333-383]
 
+### Round 6 Review Follow-ups (AI) - 2026-02-16
+
+- [x] [CRITICAL] Revert endpoint path from `/api/check-update` to `/.netlify/functions/check-update`. **Round 3 review incorrectly changed the endpoint to `/api/check-update` which returns HTML instead of JSON.** Verified via curl testing that `/.netlify/functions/check-update` is the correct Netlify function path that returns JSON. The `/api/check-update` path is a frontend route serving the Single Page Application (HTML). [UpdateService.kt:40, UpdateServiceTest.kt:58]
+- [x] [MEDIUM] Add `ROOKIE_UPDATE_SECRET` to GitHub Actions release workflow. Previously the secret was only configured for local builds via `local.properties`. Added `ROOKIE_UPDATE_SECRET: ${{ secrets.ROOKIE_UPDATE_SECRET }}` to build environment variables in `.github/workflows/release.yml`. [.github/workflows/release.yml:281]
+- [x] [LOW] Add endpoint documentation to UpdateService.kt explaining why `.netlify/functions/check-update` must be used instead of `/api/check-update`. This prevents future confusion about which endpoint is correct. [UpdateService.kt:24-28]
+
 ## Dev Notes
 
 - **Security**: Request signing prevents unauthorized access to the update metadata. Checksum verification ensures APK integrity.
@@ -112,6 +118,8 @@ so that I can stay up to date even though the GitHub repo is private.
 - Addressed all Round 3 and Round 4 follow-up findings (Date: 2026-02-16)
 - Round 5 adversarial review completed - 3 action items created (1 MEDIUM, 2 LOW). All ACs verified implemented. Status remains in-progress due to uncommitted test file. (Date: 2026-02-16)
 - Addressed all Round 5 follow-up findings - 3 items resolved (Date: 2026-02-16)
+- Round 6 adversarial review completed during device testing - 3 action items created (1 CRITICAL, 1 MEDIUM, 1 LOW). Critical endpoint bug discovered and fixed. (Date: 2026-02-16)
+- Addressed all Round 6 follow-up findings - 3 items resolved (Date: 2026-02-16)
 
 ## Dev Agent Record
 
@@ -156,17 +164,22 @@ Gemini 2.0 Flash
     - ✅ **Test Commit**: Committed `SecureUpdateFlowTest.kt` to git (commit 41b385d).
     - ✅ **Test Reliability**: Fixed MockWebServer issue in `UpdateServiceTest.kt` by removing unnecessary finally block recreation.
     - ✅ **Documentation**: Added @param and @return tags to `CryptoUtils.sha256()` for consistent documentation style.
+- **Round 6 Review Resolution (2026-02-16)**:
+    - ✅ **Endpoint Bug Fix**: Reverted endpoint from `/api/check-update` back to `/.netlify/functions/check-update`. Round 3 review incorrectly changed the endpoint - `/api/check-update` returns HTML (SPA frontend) instead of JSON. Verified via curl that `.netlify/functions/check-update` is the correct Netlify function path.
+    - ✅ **CI/CD Secret**: Added `ROOKIE_UPDATE_SECRET` to GitHub Actions release workflow environment variables for production builds.
+    - ✅ **Documentation**: Added KDoc comment in UpdateService.kt explaining why the Netlify function path must be used instead of the frontend API route.
 
 ### File List
-- `app/src/main/java/com/vrpirates/rookieonquest/network/UpdateService.kt`
+- `app/src/main/java/com/vrpirates/rookieonquest/network/UpdateService.kt` (Modified: corrected endpoint path, added documentation)
 - `app/src/main/java/com/vrpirates/rookieonquest/network/GitHubService.kt` (Deleted)
 - `app/src/main/java/com/vrpirates/rookieonquest/data/Constants.kt`
 - `app/src/main/java/com/vrpirates/rookieonquest/ui/MainViewModel.kt`
 - `app/src/main/java/com/vrpirates/rookieonquest/MainActivity.kt`
 - `app/build.gradle.kts`
 - `app/src/test/java/com/vrpirates/rookieonquest/data/CryptoUtilsTest.kt`
-- `app/src/test/java/com/vrpirates/rookieonquest/network/UpdateServiceTest.kt` (Modified: improved test reliability)
+- `app/src/test/java/com/vrpirates/rookieonquest/network/UpdateServiceTest.kt` (Modified: improved test reliability, updated endpoint)
 - `app/src/test/java/com/vrpirates/rookieonquest/network/SecureUpdateFlowTest.kt` (Committed: Round 5)
 - `README.md`
 - `_bmad-output/planning-artifacts/epics.md`
 - `gradle.properties` (trivial formatting fix)
+- `.github/workflows/release.yml` (Modified: added ROOKIE_UPDATE_SECRET environment variable)
