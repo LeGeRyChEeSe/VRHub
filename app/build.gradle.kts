@@ -25,7 +25,7 @@ android {
         // Fallback values are maintained for local building.
         //
         // DRY PRINCIPLE NOTE:
-        // The values 10 (versionCode) and "2.5.0" (versionName) are the SINGLE SOURCE OF TRUTH.
+        // The values 11 (versionCode) and "2.4.1-bridge" (versionName) are the SINGLE SOURCE OF TRUTH.
         // The GHA workflow (release.yml) extracts these values from this file rather than
         // hardcoding them, ensuring consistency.
         //
@@ -45,7 +45,7 @@ android {
         // NOTE: This validation mirrors the CI validation in release.yml for consistency.
         // The only difference is regression warning is CI-only (GHA has access to git history).
         versionCode = when {
-            versionCodeProperty == null -> 10 // Default when not provided
+            versionCodeProperty == null -> 11 // Default when not provided
             versionCodeProperty.toIntOrNull() == null -> throw GradleException(
                 "Invalid versionCode property: '$versionCodeProperty'. " +
                 "versionCode must be a valid integer >= 1. " +
@@ -65,7 +65,7 @@ android {
         }
 
         versionName = when {
-            versionNameProperty == null -> "2.5.0" // Default when not provided
+            versionNameProperty == null -> "2.4.1-bridge" // Default when not provided
             versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$")) -> versionNameProperty
             else -> throw GradleException(
                 "Invalid versionName property: '$versionNameProperty'. " +
