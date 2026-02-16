@@ -91,6 +91,11 @@ object Constants {
     const val UPDATE_READ_TIMEOUT_SECONDS = 300L
 
     /**
+     * Maximum retry attempts for update check requests
+     */
+    const val UPDATE_MAX_RETRIES = 3
+
+    /**
      * Throttle interval for progress updates to Room DB (in milliseconds).
      * Progress updates happen every 64KB (~hundreds/second), so we limit DB writes
      * to prevent excessive I/O. Completion (progress >= 1.0) always updates immediately.
@@ -373,7 +378,7 @@ object CryptoUtils {
      * Computes HMAC-SHA256 hash of a string using a secret key.
      * Used for secure update gateway authentication.
      *
-     * @param input The string to sign (timestamp)
+     * @param input The string to sign (typically a timestamp)
      * @param secret The secret key
      * @return Lowercase hexadecimal HMAC-SHA256 signature
      */

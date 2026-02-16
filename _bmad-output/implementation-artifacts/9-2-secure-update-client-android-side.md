@@ -95,6 +95,17 @@ so that I can stay up to date even though the GitHub repo is private.
 - [x] [AI-Review][LOW] Add disk space check before update APK download. Similar to game installation flow, use StatFs to verify available space before downloading large update files to prevent download failure mid-way through. [MainViewModel.kt:1497-1511]
 - [x] [AI-Review][LOW] Document handling of unexpected HTTP codes (5xx). If server returns 500, 503, or other error codes, the current code throws generic exception. Consider adding explicit handling or documenting this behavior for troubleshooting. Added comment in MainViewModel.kt explaining 5xx handling via retry logic. [MainViewModel.kt:1396-1397]
 
+### Round 8 Review Follow-ups (AI) - 2026-02-16
+
+- [x] [AI-Review][LOW] Document exact version name format accepted by regex in README.md. The regex in build.gradle.kts accepts "2.5.0-rc.1" but not "2.5.0-rc" (without trailing number). Developers need clear guidance on which pre-release formats are supported. [build.gradle.kts:69, README.md]
+- [x] [AI-Review][LOW] Clarify SemVer compliance in isVersionNewer() KDoc. The implementation compares pre-release tags alphabetically, not according to official SemVer spec (which has complex rules for numeric vs alphanumeric identifiers). Update comment to be more precise about limitations. [MainViewModel.kt:1454-1458]
+- [x] [AI-Review][LOW] Improve empty secret warning message. Change "Update checks will fail" to be more specific: "Update checks will fail with 403 Forbidden when connecting to secure gateway". This helps developers understand the exact failure mode. [build.gradle.kts:95]
+- [x] [AI-Review][LOW] Document rationale for 50MB disk space buffer. The hardcoded value in downloadAndInstallUpdate() should have a comment explaining why this specific buffer size was chosen (empirical testing? filesystem overhead?). [MainViewModel.kt:1510]
+- [x] [AI-Review][LOW] Extract maxRetries to Constants. The hardcoded value of 3 in checkForAppUpdates() should be a named constant for easier configuration and maintainability. [MainViewModel.kt:1375]
+- [x] [AI-Review][LOW] Consider early null-check for UpdateInfo.checksum. While current implementation is correct (checksum only used at line 1540 with null-check), consider validating immediately after API response for defensive programming. [UpdateService.kt:18, MainViewModel.kt:1383]
+- [x] [AI-Review][LOW] Distinguish between transient and permanent network failures. The retry logic treats all IOExceptions equally, but some errors (like "connection refused") are likely permanent and don't warrant retry attempts. [MainViewModel.kt:1412-1421]
+- [x] [AI-Review][LOW] Fix KDoc @param description in CryptoUtils.hmacSha256(). The comment says "(timestamp)" but parameter is named "input". Either rename parameter to "timestamp" or update description to match parameter name for consistency. [Constants.kt:376-378]
+
 ## Dev Notes
 
 - **Security**: Request signing prevents unauthorized access to the update metadata. Checksum verification ensures APK integrity.
@@ -130,6 +141,7 @@ so that I can stay up to date even though the GitHub repo is private.
 - Round 6 adversarial review completed during device testing - 3 action items created (1 CRITICAL, 1 MEDIUM, 1 LOW). Critical endpoint bug discovered and fixed. (Date: 2026-02-16)
 - Addressed all Round 6 follow-up findings - 3 items resolved (Date: 2026-02-16)
 - Round 7 adversarial review completed - 5 action items created (2 MEDIUM, 3 LOW). All ACs verified implemented, all 16 tests passing. Status remains in-progress due to uncommitted changes. (Date: 2026-02-16)
+- Round 8 adversarial review completed - 8 action items created (8 LOW). All items resolved. (Date: 2026-02-16)
 
 ## Dev Agent Record
 
@@ -184,18 +196,27 @@ Gemini 2.0 Flash
     - ✅ **Disk Space Check**: Added StatFs-based disk space verification before update APK download to prevent mid-download failures.
     - ✅ **5xx Documentation**: Added comment in MainViewModel.kt explaining that HTTP 5xx errors are handled via retry logic.
     - ✅ **Build Metadata**: Documented in Dev Notes that SemVer build metadata (+) is not supported in version comparisons.
+- **Round 8 Review Resolution (2026-02-16)**:
+    - ✅ **Version Format Docs**: Documented exact regex format in README.md with examples for basic, pre-release, build metadata, and combined formats.
+    - ✅ **SemVer KDoc**: Added comprehensive KDoc to isVersionNewer() explaining pre-release alphabetical comparison limitation and build metadata ignoring.
+    - ✅ **Secret Warning**: Improved warning message to specify "Update checks will fail with 403 Forbidden when connecting to secure gateway".
+    - ✅ **50MB Buffer**: Added comment explaining buffer accounts for filesystem overhead, potential partial writes, and extraction temp files.
+    - ✅ **maxRetries Constant**: Extracted hardcoded value 3 to Constants.UPDATE_MAX_RETRIES for better maintainability.
+    - ✅ **Checksum Validation**: Added KDoc note to UpdateInfo explaining checksum is validated with null/empty check in MainViewModel before use.
+    - ✅ **Transient Errors**: Added logic to distinguish transient (timeout, reset, unreachable) from permanent (connection refused) network errors, skipping retries for permanent failures.
+    - ✅ **KDoc Fix**: Fixed @param description in CryptoUtils.hmacSha256() to match parameter name.
 
 ### File List
-- `app/src/main/java/com/vrpirates/rookieonquest/network/UpdateService.kt` (Modified: corrected endpoint path, added documentation)
+- `app/src/main/java/com/vrpirates/rookieonquest/network/UpdateService.kt` (Modified: corrected endpoint path, added documentation, checksum validation note)
 - `app/src/main/java/com/vrpirates/rookieonquest/network/GitHubService.kt` (Deleted)
-- `app/src/main/java/com/vrpirates/rookieonquest/data/Constants.kt`
-- `app/src/main/java/com/vrpirates/rookieonquest/ui/MainViewModel.kt` (Modified: improved 403 message, isVersionNewer fix, null-check, disk space check, 5xx comment)
+- `app/src/main/java/com/vrpirates/rookieonquest/data/Constants.kt` (Modified: added UPDATE_MAX_RETRIES, fixed KDoc)
+- `app/src/main/java/com/vrpirates/rookieonquest/ui/MainViewModel.kt` (Modified: improved 403 message, isVersionNewer fix, null-check, disk space check, 5xx comment, transient error handling, maxRetries constant)
 - `app/src/main/java/com/vrpirates/rookieonquest/MainActivity.kt`
-- `app/build.gradle.kts`
+- `app/build.gradle.kts` (Modified: improved secret warning message)
 - `app/src/test/java/com/vrpirates/rookieonquest/data/CryptoUtilsTest.kt`
 - `app/src/test/java/com/vrpirates/rookieonquest/network/UpdateServiceTest.kt` (Modified: improved test reliability, updated endpoint)
 - `app/src/test/java/com/vrpirates/rookieonquest/network/SecureUpdateFlowTest.kt` (Modified: added testServerWithoutRangeHeaderSupport)
-- `README.md`
+- `README.md` (Modified: added version format documentation)
 - `_bmad-output/planning-artifacts/epics.md`
 - `gradle.properties` (trivial formatting fix)
 - `.github/workflows/release.yml` (Modified: added ROOKIE_UPDATE_SECRET environment variable)

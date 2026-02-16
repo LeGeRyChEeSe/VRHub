@@ -6,17 +6,19 @@ import retrofit2.http.Header
 
 /**
  * Model representing application update information returned by the secure gateway.
+ *
+ * @property version Semantic version string (e.g., "2.1.2")
+ * @property changelog Markdown formatted list of changes in this version
+ * @property downloadUrl Direct HTTPS URL to download the update APK
+ * @property checksum SHA-256 hex-encoded checksum of the update APK for integrity verification.
+ *                    Note: Validated in MainViewModel before use with null/empty check.
+ * @property timestamp ISO-8601 UTC timestamp of the release
  */
 data class UpdateInfo(
-    /** Semantic version string (e.g., "2.1.2") */
     @SerializedName("version") val version: String,
-    /** Markdown formatted list of changes in this version */
     @SerializedName("changelog") val changelog: String,
-    /** Direct HTTPS URL to download the update APK */
     @SerializedName("downloadUrl") val downloadUrl: String,
-    /** SHA-256 hex-encoded checksum of the update APK for integrity verification */
     @SerializedName("checksum") val checksum: String,
-    /** ISO-8601 UTC timestamp of the release */
     @SerializedName("timestamp") val timestamp: String
 )
 

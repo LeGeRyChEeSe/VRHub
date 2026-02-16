@@ -109,7 +109,13 @@ When building from the command line, you can specify the version using Gradle pr
 - `versionCode`: A positive integer (e.g., `-PversionCode=15`)
 - `versionName`: A SemVer compatible string (e.g., `-PversionName=2.5.0` or `-PversionName=2.5.0-rc.1`)
 
-The `versionName` must match the format `X.Y.Z` with optional pre-release suffixes (e.g., `-rc`, `-beta`) or build metadata.
+The `versionName` must match the format `X.Y.Z` with optional pre-release suffixes or build metadata:
+- Basic: `2.5.0`
+- Pre-release: `2.5.0-rc`, `2.5.0-beta.1`, `2.5.0-alpha`
+- Build metadata: `2.5.0+build.1`
+- Combined: `2.5.0-rc.1+build.1`
+
+The regex pattern used is: `^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$`
 
 ### Secure Update Authentication
 To enable application update checks, a secret key is required for request signing.

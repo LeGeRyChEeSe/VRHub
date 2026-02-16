@@ -1372,7 +1372,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun checkForAppUpdates(): Boolean {
         var currentDelay = 1000L
-        val maxRetries = 3
+        val maxRetries = com.vrpirates.rookieonquest.data.Constants.UPDATE_MAX_RETRIES
 
         repeat(maxRetries) { attempt ->
             try {
@@ -1410,13 +1410,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     return false
                 }
             } catch (e: java.io.IOException) {
-                if (attempt < maxRetries - 1) {
-                    Log.w(TAG, "Update check network error, retrying in ${currentDelay}ms...")
+                // Distinguish between transient and permanent network failures
+                // Permanent failures (connection refused, unknown host) don't warrant retries
+                val isTransientError = e.message?.let { msg ->
+                    // Transient errors that may succeed on retry
+                    msg.contains("timeout", ignoreCase = true) ||
+                    msg.contains("reset", ignoreCase = true) ||
+                    msg.contains("unreachable", ignoreCase = true) ||
+                    msg.contains("temporarily", ignoreCase = true)
+                } ?: false
+
+                if (isTransientError && attempt < maxRetries - 1) {
+                    Log.w(TAG, "Update check transient network error (${e.message}), retrying in ${currentDelay}ms...")
                     kotlinx.coroutines.delay(currentDelay)
                     currentDelay *= 2
                 } else {
+                    // Permanent error (e.g., connection refused) or retries exhausted
                     Log.w(TAG, "Update check failed after $maxRetries attempts: ${e.message}")
-                    _error.value = "Update check failed: Network error. Please try again later."
+                    _error.value = "Update check failed: Network error. Please check your internet connection and try again."
                     return false
                 }
             } catch (e: Exception) {
@@ -1427,6 +1438,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return false
     }
 
+    /**
+     * Compares two version strings to determine if the latest version is newer.
+     *
+     * This implements a simplified SemVer-like comparison with the following limitations:
+     * - Pre-release tags (e.g., -rc, -beta) are compared alphabetically, not according to
+     *   official SemVer precedence rules (which have complex rules for numeric vs alphanumeric identifiers)
+     * - Build metadata (e.g., +build.1) is ignored in comparisons
+     *
+     * @param latest The latest version string (e.g., "2.5.0", "2.5.0-rc.1")
+     * @param current The current version string to compare against
+     * @return true if latest is newer than current
+     */
     private fun isVersionNewer(latest: String, current: String): Boolean {
         // Simple SemVer-like comparison
         val latestBase = latest.split('-')[0]
@@ -1507,6 +1530,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 val stat = android.os.StatFs(downloadDir.path)
                                 val availableBytes = stat.availableBlocksLong * stat.blockSizeLong
                                 // Require totalBytes + 50MB buffer for safety
+                                // Buffer accounts for: filesystem overhead, potential partial writes,
+                                // and ensures space for extraction temp files during APK install
                                 val requiredBytes = totalBytes + (50 * 1024 * 1024)
                                 if (availableBytes < requiredBytes) {
                                     val availableMb = availableBytes / (1024 * 1024)

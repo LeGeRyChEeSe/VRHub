@@ -92,7 +92,7 @@ android {
         if (isRelease && updateSecret.isEmpty()) {
             throw GradleException("ROOKIE_UPDATE_SECRET project property is required for release builds. Please provide it via -PROOKIE_UPDATE_SECRET=your_secret")
         } else if (!isRelease && updateSecret.isEmpty()) {
-            logger.warn("[update] WARNING: ROOKIE_UPDATE_SECRET is empty. Update checks will fail.")
+            logger.warn("[update] WARNING: ROOKIE_UPDATE_SECRET is empty. Update checks will fail with 403 Forbidden when connecting to secure gateway.")
         }
 
         buildConfigField("String", "ROOKIE_UPDATE_SECRET", "\"$updateSecret\"")
