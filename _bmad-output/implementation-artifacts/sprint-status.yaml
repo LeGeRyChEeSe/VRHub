@@ -54,8 +54,8 @@ development_status:
   1-13-shelving-ready-to-install-games: done
   epic-1-retrospective: done
 #
-  epic-2: backlog
-  2-1-stickman-animation-state-machine-foundation: backlog
+  epic-2: in-progress
+  2-1-stickman-animation-state-machine-foundation: done
   2-2-phase-specific-animation-implementations: backlog
   2-3-global-progress-indicator-integration: backlog
   2-4-contextual-message-system-for-download-install-modes: backlog
