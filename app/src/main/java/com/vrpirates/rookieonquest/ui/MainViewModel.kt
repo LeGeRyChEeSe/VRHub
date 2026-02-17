@@ -44,6 +44,7 @@ import androidx.work.WorkInfo
 import com.vrpirates.rookieonquest.data.NetworkModule
 import com.vrpirates.rookieonquest.worker.DownloadWorker
 import com.vrpirates.rookieonquest.R
+import com.vrpirates.rookieonquest.ui.animation.AnimationState
 
 sealed class MainEvent {
     data class Uninstall(val packageName: String) : MainEvent()
@@ -497,6 +498,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Exposes the animation state derived from installQueue for UI stickman animations.
+     * This StateFlow emits animation states that can be observed by the UI layer.
+     */
+    val animationState: StateFlow<AnimationState> = installQueue
+        .map { queue ->
+            // Find the first active task in the queue
+            val activeTask = queue.firstOrNull { task ->
+                task.status == InstallTaskStatus.DOWNLOADING ||
+                task.status == InstallTaskStatus.EXTRACTING ||
+                task.status == InstallTaskStatus.INSTALLING ||
+                task.status == InstallTaskStatus.PAUSED ||
+                task.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS
+            }
+
+            when {
+                // No active tasks - distinguish between empty queue and completed tasks
+                activeTask == null -> {
+                    if (queue.isEmpty()) {
+                        AnimationState.Idle(AnimationState.IdleReason.NO_ACTIVE_TASK)
+                    } else {
+                        // Queue has tasks but none are active - check if all completed
+                        val hasCompletedTasks = queue.any { it.status == InstallTaskStatus.COMPLETED }
+                        if (hasCompletedTasks) {
+                            AnimationState.Idle(AnimationState.IdleReason.ALL_TASKS_COMPLETED)
+                        } else {
+                            AnimationState.Idle(AnimationState.IdleReason.NO_ACTIVE_TASK)
+                        }
+                    }
+                }
+
+                // Map InstallTaskStatus to AnimationState
+                // PAUSED - user-initiated pause
+                activeTask.status == InstallTaskStatus.PAUSED -> {
+                    AnimationState.Paused(AnimationState.PausedReason.USER_REQUESTED)
+                }
+
+                // BLOCKED_BY_PERMISSIONS - treat as error/paused state
+                activeTask.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> {
+                    AnimationState.Paused(AnimationState.PausedReason.ERROR)
+                }
+
+                activeTask.status == InstallTaskStatus.DOWNLOADING -> {
+                    AnimationState.Downloading(activeTask.progress)
+                }
+
+                activeTask.status == InstallTaskStatus.EXTRACTING -> {
+                    AnimationState.Extracting(activeTask.progress)
+                }
+
+                activeTask.status == InstallTaskStatus.INSTALLING -> {
+                    AnimationState.Installing(activeTask.progress)
+                }
+
+                // Terminal or non-active states - return to idle
+                // QUEUED, PENDING_INSTALL, COMPLETED, FAILED, LOCAL_VERIFYING, SHELVED
+                else -> AnimationState.Idle(AnimationState.IdleReason.NO_ACTIVE_TASK)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AnimationState.Idle())
 
     private val _showInstallOverlay = MutableStateFlow(false)
     val showInstallOverlay: StateFlow<Boolean> = _showInstallOverlay
