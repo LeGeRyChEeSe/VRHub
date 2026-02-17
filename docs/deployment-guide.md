@@ -112,6 +112,195 @@ Visit [Releases Page](https://github.com/LeGeRyChEeSe/rookie-on-quest/releases) 
 
 ---
 
+## Netlify Update Gateway Deployment
+
+**Story:** 9.4 - Automated APK Deployment to Netlify
+
+Since the repository moved to private status, APK distribution migrated to a custom Netlify-hosted gateway (Sunshine-AIO-web) for secure updates.
+
+### Deployment Flow
+
+The release workflow now automatically deploys to both GitHub Releases AND Netlify:
+
+```
+GitHub Actions Release Workflow
+    │
+    ├── Build Release APK
+    ├── Create GitHub Release ← Standard distribution
+    │
+    └── Deploy to Netlify (NEW in Story 9.4)
+          │
+          ├── Download APK artifact
+          ├── Calculate SHA-256 checksum
+          ├── Clone Sunshine-AIO-web
+          ├── Copy APK to public/updates/rookie/
+          ├── Update version.json
+          └── Push → Netlify Auto-Deploy
+```
+
+### Netlify Gateway Structure
+
+**Repository:** `LeGeRyChEeSe/Sunshine-AIO-web`
+
+| Path | Description |
+|------|-------------|
+| `public/updates/rookie/RookieOnQuest_{version}.apk` | APK file |
+| `public/updates/rookie/version.json` | Version metadata |
+
+### version.json Format
+
+```json
+{
+    "version": "2.5.0",
+    "changelog": "Release 2.5.0 - See GitHub release for details",
+    "downloadUrl": "/updates/rookie/RookieOnQuest_2.5.0.apk",
+    "checksum": "sha256-hash-of-apk",
+    "timestamp": "2026-02-16T12:00:00Z"
+}
+```
+
+### Required GitHub Secrets
+
+| Secret Name | Description | Required For |
+|-------------|-------------|--------------|
+| `GH_PAT_SUNSHINE_AIO` | Personal Access Token with `repo` scope for Sunshine-AIO-web | Netlify deployment |
+| `ROOKIE_UPDATE_SECRET` | HMAC signing key for update requests | Release builds |
+
+### Creating GH_PAT_SUNSHINE_AIO Secret
+
+To enable automatic deployment to Sunshine-AIO-web, create a Personal Access Token (PAT):
+
+1. **Go to GitHub Settings:**
+   - Visit https://github.com/settings/tokens
+   - Click "Generate new token (classic)"
+
+2. **Configure Token:**
+   - **Note:** `RookieOnQuest Netlify Deployment`
+   - **Expiration:** Select appropriate expiration (recommend 90 days or 1 year)
+   - **Scopes:** Select `repo` (full control of private repositories)
+
+3. **Copy the Token:**
+   - Copy the generated token immediately (it won't be shown again)
+
+4. **Add to Repository Secrets:**
+   - Go to: https://github.com/LeGeRyChEeSe/rookie-on-quest/settings/secrets/actions
+   - Click "New repository secret"
+   - Name: `GH_PAT_SUNSHINE_AIO`
+   - Value: Paste your token
+   - Click "Add secret"
+
+**Note:** The token needs write access to the Sunshine-AIO-web repository. Make sure the token's account has appropriate permissions.
+
+### Local Deployment Script
+
+For manual deployments, use the provided `deploy-to-netlify.sh` script:
+
+```bash
+# Navigate to scripts directory
+cd scripts
+
+# Make script executable
+chmod +x deploy-to-netlify.sh
+
+# Run deployment
+./deploy-to-netlify.sh "<path-to-apk>" "<version>" "<path-to-Sunshine-AIO-web>" "[changelog]"
+
+# Example:
+./deploy-to-netlify.sh "../app/build/outputs/apk/release/RookieOnQuest-v2.5.0.apk" "2.5.0" "../Sunshine-AIO-web" "Bug fixes and improvements"
+```
+
+**Arguments:**
+| Argument | Description | Required |
+|----------|-------------|----------|
+| `apk_path` | Path to the APK file | Yes |
+| `version` | Version number (e.g., "2.5.0") | Yes |
+| `sunshine_aio_web_path` | Path to cloned Sunshine-AIO-web repository | Yes |
+| `changelog` | Release notes (optional, defaults to "Release {version}") | No |
+
+**What the script does:**
+1. Validates APK and directory paths exist
+2. Calculates SHA-256 checksum
+3. Copies APK to `public/updates/rookie/`
+4. Creates/updates `version.json` with metadata
+5. Shows git status for review
+
+**Note:** The script prepares files for commit but does NOT automatically push. After running:
+```bash
+cd ../Sunshine-AIO-web
+git add -A
+git commit -m "Deploy RookieOnQuest v2.5.0"
+git push origin main
+# Netlify auto-deploys after push
+```
+
+### Manual Netlify Deployment
+
+If CI/CD fails, deploy manually:
+
+```bash
+# 1. Clone Sunshine-AIO-web
+git clone https://github.com/LeGeRyChEeSe/Sunshine-AIO-web.git
+cd Sunshine-AIO-web
+
+# 2. Copy APK
+cp path/to/RookieOnQuest-v2.5.0.apk public/updates/rookie/RookieOnQuest_2.5.0.apk
+
+# 3. Calculate checksum
+sha256sum public/updates/rookie/RookieOnQuest_2.5.0.apk
+
+# 4. Update version.json
+# Edit public/updates/rookie/version.json with new version, checksum, timestamp
+
+# 5. Commit and push
+git add public/updates/rookie/
+git commit -m "Deploy RookieOnQuest v2.5.0"
+git push origin main
+
+# Netlify auto-deploys after push
+```
+
+### Verify Netlify Deployment
+
+1. Check Sunshine-AIO-web GitHub commit pushed successfully
+2. Visit Netlify dashboard → Deploys → Verify "Deploy started" triggered
+3. Wait for "Deploy published" status
+4. Test update check from Quest app
+
+### Netlify URL
+
+The update gateway is accessible at: **https://sunshine-aio.com** (or configured custom domain)
+
+### Retry Strategy for HTTPS Accessibility
+
+After pushing to Sunshine-AIO-web, the workflow verifies APK accessibility via HTTPS using a retry mechanism:
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Max Retries | 6 | Sufficient for typical Netlify deploys (1-5 min) |
+| Retry Delay | 30 seconds | Balances quick detection vs. not overwhelming Netlify |
+| Total Wait Time | ~3 minutes | Covers most deployment scenarios |
+
+**Retry Logic:**
+1. **Attempt 1-6:** Check `https://www.sunshine-aio.com/updates/rookie/RookieOnQuest_{version}.apk`
+2. **Success (HTTP 200):** Mark as verified, continue
+3. **Failure:** Wait 30s, retry
+4. **After 6 attempts:** Mark as "pending" (Netlify may still be deploying)
+
+**Why this approach:**
+- Netlify typically deploys in 1-5 minutes
+- 6 retries × 30s = 3 minutes covers most deployments
+- If still pending after 3 minutes, deployment is likely slow but will complete
+- The workflow does NOT fail on pending - it's informational
+
+**Customization:**
+To adjust retry parameters, modify these lines in `release.yml`:
+```yaml
+MAX_RETRIES=6    # Increase for slower deployments
+RETRY_DELAY=30   # Increase delay between checks
+```
+
+---
+
 ## GitHub Secrets Configuration
 
 **Required Secrets (Repository Settings > Secrets and Variables > Actions):**
@@ -269,17 +458,20 @@ keytool -genkeypair -v \
 ### In-App Update Check
 
 **Trigger:** On app launch
-**API:** GitHub API `/repos/LeGeRyChEeSe/rookie-on-quest/releases/latest`
+**Primary API:** Netlify Function `https://sunshine-aio.com/.netlify/functions/check-update`
+**Fallback:** GitHub API `/repos/LeGeRyChEeSe/rookie-on-quest/releases/latest`
 
 **Flow:**
-1. Fetch latest release tag from GitHub API
-2. Compare with `BuildConfig.VERSION_NAME`
-3. If newer version available:
+1. Fetch latest release info from Netlify secure gateway
+2. Compare version with `BuildConfig.VERSION_NAME`
+3. Verify HMAC signature for security
+4. If newer version available:
+   - Download APK from `https://sunshine-aio.com/updates/rookie/RookieOnQuest_{version}.apk`
+   - Verify SHA-256 checksum
    - Display update dialog
-   - Offer to download APK
    - Install via `FileProvider`
 
-**Code:** See `MainViewModel.kt` → `checkForUpdates()`
+**Code:** See `MainViewModel.kt` → `checkForUpdates()` and `UpdateService.kt`
 
 ### Update Installation
 
@@ -329,6 +521,7 @@ Installation triggered via Android's `PackageInstaller`.
 |---------|---------|-------------|-------|
 | GitHub Actions | CI/CD | High | GitHub |
 | GitHub Releases | APK hosting | High | GitHub |
+| Netlify (Sunshine-AIO) | Secure update gateway | **Critical** | VRPirates Team |
 | VRPirates Servers | Game catalog/downloads | **Critical** | VRPirates Team |
 | GitHub API | Update checks | Medium | GitHub |
 
@@ -370,8 +563,96 @@ Installation triggered via Android's `PackageInstaller`.
 
 ---
 
+## Troubleshooting
+
+### Netlify Deployment Issues
+
+#### Problem: Deployment fails with "Push failed"
+
+**Symptoms:**
+- GitHub Actions job fails at "Commit and Push to Sunshine-AIO-web"
+- Error: "Push failed"
+
+**Solutions:**
+1. Check that `GH_PAT_SUNSHINE_AIO` secret is valid and has `repo` scope
+2. Verify the token hasn't expired
+3. Check that your GitHub account has push access to Sunshine-AIO-web repository
+4. Check GitHub Actions logs for more details
+
+#### Problem: APK not accessible after deployment
+
+**Symptoms:**
+- GitHub Actions shows success but APK doesn't download
+- version.json shows old version
+
+**Solutions:**
+1. Check Netlify dashboard: https://app.netlify.com/sites/sunshine-aio/deploys
+2. Wait 1-5 minutes for deployment to complete (Netlify shows "Deploy published")
+3. Verify commit pushed to Sunshine-AIO-web: https://github.com/LeGeRyChEeSe/Sunshine-AIO-web/commits/main
+4. Check that APK file exists in repository: `public/updates/rookie/`
+5. Verify version.json has correct checksum
+
+#### Problem: Update check fails from Quest app
+
+**Symptoms:**
+- App shows "Update check failed" error
+- Can't connect to update server
+
+**Solutions:**
+1. Verify app is using correct endpoint: `https://sunshine-aio.com/.netlify/functions/check-update`
+2. Check device clock is synchronized (out-of-sync clocks cause 403 errors)
+3. Verify `ROOKIE_UPDATE_SECRET` matches between server and client
+4. Test endpoint manually:
+   ```bash
+   curl -H "X-Rookie-Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        -H "X-Rookie-Signature: <hmac-signature>" \
+        https://sunshine-aio.com/.netlify/functions/check-update
+   ```
+
+#### Problem: version.json validation fails
+
+**Symptoms:**
+- GitHub Actions fails at "Setup deployment environment"
+- Error: "version.json is not valid JSON" or "missing required fields"
+
+**Solutions:**
+1. Check that JSON syntax is correct (no trailing commas)
+2. Verify all required fields: version, checksum, downloadUrl
+3. Check workflow logs for exact error
+
+### GitHub Actions Issues
+
+#### Problem: Release build fails with "Secret not found"
+
+**Symptoms:**
+- Workflow fails at build step
+- Error: "ROOKIE_UPDATE_SECRET" or other secret not found
+
+**Solutions:**
+1. Go to: https://github.com/LeGeRyChEeSe/rookie-on-quest/settings/secrets/actions
+2. Verify all required secrets exist:
+   - `ROOKIE_UPDATE_SECRET`
+   - `GH_PAT_SUNSHINE_AIO`
+   - `KEYSTORE_FILE`
+   - `KEYSTORE_PASSWORD`
+   - `KEY_ALIAS`
+   - `KEY_PASSWORD`
+
+#### Problem: APK not signed correctly
+
+**Symptoms:**
+- App won't install on Quest
+- "Package parsing error" or "App not installed"
+
+**Solutions:**
+1. Verify keystore is correct
+2. Check alias matches: `rookie_release_key`
+3. Ensure passwords are correct
+4. Verify signing happened in workflow logs
+
 ## Resources
 
 - **GitHub Actions Docs:** https://docs.github.com/en/actions
 - **Android App Signing:** https://developer.android.com/studio/publish/app-signing
 - **ProGuard Manual:** https://www.guardsquare.com/manual/home
+- **Netlify Docs:** https://docs.netlify.com/

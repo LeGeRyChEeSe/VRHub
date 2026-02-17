@@ -1576,7 +1576,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .build()
 
                 val initialDownloaded = if (targetFile.exists()) targetFile.length() else 0L
-                val requestBuilder = Request.Builder().url(updateInfo.downloadUrl)
+
+                // Resolve downloadUrl: support absolute URLs, protocol-relative URLs, and relative paths
+                // - Absolute URLs (http://, https://): used as-is
+                // - Protocol-relative URLs (//example.com): resolved to https://
+                // - Relative paths (/path): resolved against SECURE_UPDATE_BASE_URL
+                val resolvedDownloadUrl = when {
+                    updateInfo.downloadUrl.startsWith("http://") ||
+                    updateInfo.downloadUrl.startsWith("https://") -> {
+                        // Absolute URL - use as-is
+                        updateInfo.downloadUrl
+                    }
+                    updateInfo.downloadUrl.startsWith("//") -> {
+                        // Protocol-relative URL (e.g., "//sunshine-aio.com/path") - add https:
+                        "https:" + updateInfo.downloadUrl
+                    }
+                    else -> {
+                        // Relative path - resolve against base URL (strip trailing slash from base)
+                        val baseUrl = com.vrpirates.rookieonquest.data.Constants.SECURE_UPDATE_BASE_URL.trimEnd('/')
+                        baseUrl + updateInfo.downloadUrl
+                    }
+                }
+                Log.d(TAG, "Resolved download URL: $resolvedDownloadUrl")
+
+                val requestBuilder = Request.Builder().url(resolvedDownloadUrl)
                 
                 // Add Range header for resumable downloads if partial file exists
                 if (initialDownloaded > 0) {

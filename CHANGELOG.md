@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1-bridge] - 2026-02-16
+
+### ✨ New Features
+- **Secure Update Gateway:** Implemented Netlify-based update system for private distribution.
+- **HMAC-SHA256 Signing:** Added request signing for secure update validation.
+- **Bridge Version:** Support for legacy users transitioning to new update system.
+
+### 📝 Notes
+- This is a bridge release to support the new private distribution system.
+- APK deployed automatically to Netlify update gateway.
+
 ## [2.5.0-rc.1] - 2026-02-04
 
 ### ✨ New Features
