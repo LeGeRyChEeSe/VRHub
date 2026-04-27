@@ -1,6 +1,5 @@
 package com.vrpirates.rookieonquest.data
 
-import com.vrpirates.rookieonquest.network.VrpService
 import com.vrpirates.rookieonquest.network.UpdateService
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -58,6 +57,16 @@ object Constants {
      * Base URL for VRPirates API
      */
     const val VRP_API_BASE_URL = "https://vrpirates.wiki/"
+
+    /**
+     * Base URI for VRPirates downloads (static, from local.properties)
+     */
+    val VRP_BASE_URI: String = com.vrpirates.rookieonquest.BuildConfig.VRP_BASE_URI
+
+    /**
+     * Password for 7z archives (static, from local.properties)
+     */
+    val VRP_PASSWORD: String = com.vrpirates.rookieonquest.BuildConfig.VRP_PASSWORD
 
     /**
      * Base URL for secure update gateway

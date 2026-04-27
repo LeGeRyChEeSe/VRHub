@@ -86,10 +86,18 @@ android {
             }
         }
         
-        val updateSecret = project.findProperty("ROOKIE_UPDATE_SECRET")?.toString() 
-            ?: localProperties.getProperty("ROOKIE_UPDATE_SECRET") 
+        val updateSecret = project.findProperty("ROOKIE_UPDATE_SECRET")?.toString()
+            ?: localProperties.getProperty("ROOKIE_UPDATE_SECRET")
             ?: ""
-            
+
+        // VRP static config (from local.properties)
+        val vrpBaseUri = project.findProperty("VRP_BASE_URI")?.toString()
+            ?: localProperties.getProperty("VRP_BASE_URI")
+            ?: "https://vrpirates.wiki/"
+        val vrpPassword = project.findProperty("VRP_PASSWORD")?.toString()
+            ?: localProperties.getProperty("VRP_PASSWORD")
+            ?: ""
+
         val isRelease = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
 
         if (isRelease && updateSecret.isEmpty()) {
@@ -99,6 +107,8 @@ android {
         }
 
         buildConfigField("String", "ROOKIE_UPDATE_SECRET", "\"$updateSecret\"")
+        buildConfigField("String", "VRP_BASE_URI", "\"$vrpBaseUri\"")
+        buildConfigField("String", "VRP_PASSWORD", "\"$vrpPassword\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

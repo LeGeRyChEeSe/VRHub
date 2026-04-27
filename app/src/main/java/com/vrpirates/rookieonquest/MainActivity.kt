@@ -68,6 +68,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.FileProvider
 import com.vrpirates.rookieonquest.ui.*
+import com.vrpirates.rookieonquest.data.ServerConfigRepository
+import com.vrpirates.rookieonquest.ui.ConfigurationScreen
+import com.vrpirates.rookieonquest.ui.ConfigurationViewModel
 import com.vrpirates.rookieonquest.ui.components.CatalogUpdateBanner
 import com.vrpirates.rookieonquest.ui.theme.RookieOnQuestTheme
 import kotlinx.coroutines.delay
@@ -83,10 +86,34 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen()
+                    MainScreenWrapper()
                 }
             }
         }
+    }
+}
+
+/**
+ * Wrapper composable that decides whether to show the ConfigurationScreen
+ * or the main catalog screen based on whether a valid configuration exists.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun MainScreenWrapper() {
+    val context = LocalContext.current
+    var configKey by remember { mutableStateOf(0) }
+    val configRepository = remember(configKey) { ServerConfigRepository(context) }
+    val hasValidConfig = configRepository.hasValidConfig()
+
+    if (!hasValidConfig) {
+        ConfigurationScreen(
+            onConfigSaved = {
+                // Increment key to force recomposition and re-read of config
+                configKey++
+            }
+        )
+    } else {
+        MainScreen()
     }
 }
 

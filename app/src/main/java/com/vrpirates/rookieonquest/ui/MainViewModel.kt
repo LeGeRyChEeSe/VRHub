@@ -1945,8 +1945,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 com.vrpirates.rookieonquest.logic.CatalogUtils.catalogSyncMutex.withLock {
                     withContext(Dispatchers.IO) {
                         // 1. Sync Catalog first to have the latest games list
-                        val config = repository.fetchConfig()
-                        repository.syncCatalog(config.baseUri) { progress ->
+                        repository.fetchConfig() // Deprecated, kept for compatibility
+                        repository.syncCatalog(com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI) { progress ->
                             _catalogSyncProgress.value = progress
                         }
 

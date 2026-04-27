@@ -12,7 +12,7 @@ import android.util.Log
 import com.vrpirates.rookieonquest.logic.CatalogParser
 import com.vrpirates.rookieonquest.logic.CatalogUtils
 import com.vrpirates.rookieonquest.network.PublicConfig
-import com.vrpirates.rookieonquest.network.VrpService
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -68,11 +68,10 @@ class MainRepository(
 
     // Use shared network instances from NetworkModule (singleton)
     private val okHttpClient = NetworkModule.okHttpClient
-    private val service = NetworkModule.retrofit.create(VrpService::class.java)
 
     private val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
 
-    private var cachedConfig: PublicConfig? = null
+    // Use static config from BuildConfig (local.properties)
     internal var decodedPassword: String? = null
     
     val iconsDir = File(context.filesDir, "icons").apply { if (!exists()) mkdirs() }
@@ -106,21 +105,12 @@ class MainRepository(
     }
 
     suspend fun fetchConfig(): PublicConfig = withContext(Dispatchers.IO) {
-        try {
-            val config = service.getPublicConfig()
-            cachedConfig = config
-            try {
-                val decoded = Base64.decode(config.password64, Base64.DEFAULT)
-                decodedPassword = String(decoded, Charsets.UTF_8)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to decode password64, using raw value: ${e.message}")
-                decodedPassword = config.password64
-            }
-            config
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching config", e)
-            throw e
-        }
+        // Use static config from BuildConfig (local.properties)
+        decodedPassword = Constants.VRP_PASSWORD
+        PublicConfig(
+            baseUri = Constants.VRP_BASE_URI,
+            password64 = Constants.VRP_PASSWORD
+        )
     }
 
                 suspend fun syncCatalog(baseUri: String, onProgress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
@@ -192,7 +182,7 @@ class MainRepository(
                             onProgress(0.5f) 
                             Log.d(TAG, "Meta file ready, size: ${tempMetaFile.length()} bytes")
             
-                            val passwordsToTry = (listOfNotNull(decodedPassword, cachedConfig?.password64) + listOf<String?>(null)).distinct()
+                            val passwordsToTry = (listOfNotNull(decodedPassword, Constants.VRP_PASSWORD) + listOf<String?>(null)).distinct()
                             var gameListContent = ""
                             var success = false
             
@@ -496,9 +486,8 @@ class MainRepository(
      * for consistency to prevent behavioral divergence.
      */
     suspend fun getGameRemoteInfo(game: GameData): Triple<Map<String, Long>, Long, Map<String, Any?>> = withContext(Dispatchers.IO) {
-        val config = cachedConfig ?: throw Exception("Config not loaded")
+        val sanitizedBase = if (Constants.VRP_BASE_URI.endsWith("/")) Constants.VRP_BASE_URI else "${Constants.VRP_BASE_URI}/"
         val hash = CryptoUtils.md5(game.releaseName + "\n")
-        val sanitizedBase = if (config.baseUri.endsWith("/")) config.baseUri else "${config.baseUri}/"
         val dirUrl = "$sanitizedBase$hash/"
 
         val rawSegments = mutableListOf<String>()
@@ -909,8 +898,7 @@ class MainRepository(
             // DownloadWorker is the primary download path for new installations.
             //
             // If modifying download logic here, review DownloadWorker.downloadSegment() for consistency.
-            val config = cachedConfig ?: throw Exception("Config not loaded")
-            val sanitizedBase = if (config.baseUri.endsWith("/")) config.baseUri else "${config.baseUri}/"
+            val sanitizedBase = if (Constants.VRP_BASE_URI.endsWith("/")) Constants.VRP_BASE_URI else "${Constants.VRP_BASE_URI}/"
             val dirUrl = "$sanitizedBase$hash/"
 
             if (!gameTempDir.exists()) gameTempDir.mkdirs()
@@ -1156,7 +1144,7 @@ class MainRepository(
                     // Note: Skip separate "Preparing extraction" call here - merge already ended at 85%
                     // The counting phase will maintain 85% until extraction starts
                     // Try multiple password variants for extraction robustness (Story 4.3 Round 20 Fix)
-                    val passwordsToTry = (listOfNotNull(decodedPassword, cachedConfig?.password64) + listOf<String?>(null)).distinct()
+                    val passwordsToTry = (listOfNotNull(decodedPassword, Constants.VRP_PASSWORD) + listOf<String?>(null)).distinct()
                     var extractionSuccess = false
                     var lastExtractionError: Exception? = null
 

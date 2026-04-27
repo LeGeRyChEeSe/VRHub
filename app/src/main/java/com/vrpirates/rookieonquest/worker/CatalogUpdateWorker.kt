@@ -9,7 +9,6 @@ import com.vrpirates.rookieonquest.data.Constants
 import com.vrpirates.rookieonquest.data.NetworkModule
 import com.vrpirates.rookieonquest.logic.CatalogParser
 import com.vrpirates.rookieonquest.logic.CatalogUtils
-import com.vrpirates.rookieonquest.network.VrpService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -35,9 +34,8 @@ class CatalogUpdateWorker(
         Log.i(TAG, "Checking for catalog updates in background...")
 
         try {
-            val service = NetworkModule.retrofit.create(VrpService::class.java)
-            val config = service.getPublicConfig()
-            val baseUri = config.baseUri
+            // Use static config from Constants (local.properties)
+            val baseUri = com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI
 
             // 1. Initial lightweight check (outside lock)
             val remoteMetadata = CatalogUtils.getRemoteCatalogMetadata(baseUri)
@@ -94,7 +92,7 @@ class CatalogUpdateWorker(
             
                                 val password = try {
             
-                                    val decoded = android.util.Base64.decode(config.password64, android.util.Base64.DEFAULT)
+                                    val decoded = android.util.Base64.decode(com.vrpirates.rookieonquest.data.Constants.VRP_PASSWORD, android.util.Base64.DEFAULT)
             
                                     String(decoded, Charsets.UTF_8)
             
@@ -102,7 +100,7 @@ class CatalogUpdateWorker(
             
                                     Log.w(TAG, "Failed to decode password64 from config, using raw value")
             
-                                    config.password64
+                                    com.vrpirates.rookieonquest.data.Constants.VRP_PASSWORD
             
                                 }
             

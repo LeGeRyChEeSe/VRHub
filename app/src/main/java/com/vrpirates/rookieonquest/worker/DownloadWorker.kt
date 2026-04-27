@@ -32,7 +32,7 @@ import com.vrpirates.rookieonquest.data.NoDownloadableFilesException
 import com.vrpirates.rookieonquest.data.NonRetryableDownloadException
 import com.vrpirates.rookieonquest.data.toData
 import com.vrpirates.rookieonquest.network.PublicConfig
-import com.vrpirates.rookieonquest.network.VrpService
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -80,7 +80,6 @@ class DownloadWorker(
 
     // Use shared network instances from NetworkModule (singleton)
     private val okHttpClient = NetworkModule.okHttpClient
-    private val service = NetworkModule.retrofit.create(VrpService::class.java)
 
     // Use filesDir instead of cacheDir to prevent Android from purging large game archives
     // during extraction. cacheDir can be cleaned by the system when storage is low.
@@ -90,7 +89,7 @@ class DownloadWorker(
         FilePaths.DOWNLOADS_ROOT_DIR_NAME
     )
 
-    private var cachedConfig: PublicConfig? = null
+    // Use static config from Constants (local.properties)
     private var decodedPassword: String? = null
 
     // Reusable NotificationCompat.Builder to reduce GC pressure during progress updates
@@ -138,12 +137,17 @@ class DownloadWorker(
     ): Result = withContext(Dispatchers.IO) {
         updateStatus(releaseName, InstallStatus.DOWNLOADING)
 
-        val config = fetchConfig()
+        // Use static config from Constants (local.properties)
+        decodedPassword = com.vrpirates.rookieonquest.data.Constants.VRP_PASSWORD
+        fetchConfig() // Initialize decodedPassword
+
         val game = gameDao.getByReleaseName(releaseName)?.toData()
             ?: throw GameNotFoundException(releaseName)
 
         val hash = CryptoUtils.md5(releaseName + "\n")
-        val sanitizedBase = if (config.baseUri.endsWith("/")) config.baseUri else "${config.baseUri}/"
+        val sanitizedBase = if (com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI.endsWith("/"))
+            com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI
+        else "${com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI}/"
         val dirUrl = "$sanitizedBase$hash/"
 
         val remoteSegments = fetchRemoteSegments(dirUrl, game.packageName, releaseName)
@@ -518,18 +522,9 @@ class DownloadWorker(
         return files
     }
 
-    private suspend fun fetchConfig(): PublicConfig {
-        if (cachedConfig != null) return cachedConfig!!
-
-        val config = service.getPublicConfig()
-        cachedConfig = config
-        try {
-            val decoded = Base64.decode(config.password64, Base64.DEFAULT)
-            decodedPassword = String(decoded, Charsets.UTF_8)
-        } catch (e: Exception) {
-            decodedPassword = config.password64
-        }
-        return config
+    private suspend fun fetchConfig() {
+        // Use static config from Constants (local.properties)
+        decodedPassword = com.vrpirates.rookieonquest.data.Constants.VRP_PASSWORD
     }
 
     private fun checkAvailableSpace(

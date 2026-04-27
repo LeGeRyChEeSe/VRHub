@@ -118,3 +118,13 @@ development_status:
   9-3-transition-build-and-legacy-support: done
   9-4-automated-apk-deployment-to-netlify: done
   epic-9-retrospective: done
+#
+  epic-10: in-progress
+  10-1-configuration-screen-on-first-launch: done
+  10-2-configure-server-via-json-url: done
+  10-3-configure-server-via-manual-kv-pairs: review
+  10-4-test-configuration-before-saving: backlog
+  10-5-save-and-persist-configuration: backlog
+  10-6-modify-configuration-from-settings: backlog
+  10-7-display-legal-disclaimer: backlog
+  epic-10-retrospective: optional
