@@ -113,7 +113,31 @@ class MainRepository(
         )
     }
 
-                suspend fun syncCatalog(baseUri: String, onProgress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
+    /**
+     * Set the active server configuration.
+     * Must be called before syncCatalog() to ensure the correct server is used.
+     *
+     * @param config The server configuration to use for catalog operations
+     */
+    fun setActiveConfig(config: ServerConfig) {
+        decodedPassword = decodeBase64Password(config.password)
+    }
+
+    /**
+     * Decode a Base64-encoded password string.
+     */
+    private fun decodeBase64Password(encoded: String): String? {
+        return try {
+            if (encoded.isNotBlank()) {
+                String(android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP))
+            } else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to decode password", e)
+            null
+        }
+    }
+
+    suspend fun syncCatalog(baseUri: String, onProgress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
                     Log.i(TAG, "Starting catalog sync from: $baseUri")
                     // Progress weighted by estimated duration of each phase:
                     // 5% for initial handshake and metadata check

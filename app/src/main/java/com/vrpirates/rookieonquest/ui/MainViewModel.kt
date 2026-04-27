@@ -13,6 +13,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.vrpirates.rookieonquest.BuildConfig
 import com.vrpirates.rookieonquest.data.GameData
+import com.vrpirates.rookieonquest.data.ServerConfig
+import com.vrpirates.rookieonquest.data.ServerConfigRepository
 import com.vrpirates.rookieonquest.data.Constants
 import com.vrpirates.rookieonquest.data.InstallUtils
 import com.vrpirates.rookieonquest.data.PermissionManager
@@ -391,6 +393,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "MainViewModel"
 
     private val repository = MainRepository(application)
+    private val configRepository = ServerConfigRepository(application)
     private val prefs = application.getSharedPreferences(com.vrpirates.rookieonquest.data.Constants.PREFS_NAME, Context.MODE_PRIVATE)
 
     private val _searchQuery = MutableStateFlow("")
@@ -1944,13 +1947,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // UI-triggered sync and the background CatalogUpdateWorker.
                 com.vrpirates.rookieonquest.logic.CatalogUtils.catalogSyncMutex.withLock {
                     withContext(Dispatchers.IO) {
-                        // 1. Sync Catalog first to have the latest games list
-                        repository.fetchConfig() // Deprecated, kept for compatibility
-                        repository.syncCatalog(com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI) { progress ->
+                        // 1. Load saved config and set as active for this sync
+                        val savedConfig = configRepository.loadConfig()
+                        val baseUri = if (savedConfig != null && savedConfig.isValid()) {
+                            repository.setActiveConfig(savedConfig)
+                            savedConfig.baseUri
+                        } else {
+                            // Fallback to legacy config if no saved config
+                            repository.fetchConfig() // Deprecated, kept for compatibility
+                            com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI
+                        }
+
+                        // 2. Sync Catalog first to have the latest games list
+                        repository.syncCatalog(baseUri) { progress ->
                             _catalogSyncProgress.value = progress
                         }
 
-                        // 2. Refresh statuses now that we have the latest catalog
+                        // 3. Refresh statuses now that we have the latest catalog
                         // We get the fresh games list directly to be immediate
                         val freshGames = repository.getAllGamesFlow().first()
 
