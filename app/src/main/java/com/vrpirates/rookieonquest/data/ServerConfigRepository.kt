@@ -7,6 +7,7 @@ import com.google.gson.JsonSyntaxException
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
 import java.net.URL
 
@@ -100,7 +101,10 @@ class ServerConfigRepository(context: Context) {
 
         // Read response body
         val body = response.body?.string()
-        if (body.isNullOrBlank()) {
+        if (body == null || body.length > MAX_BODY_LENGTH) {
+            return@withContext Result.failure(JsonParseException("Server returned empty or oversized response"))
+        }
+        if (body.isBlank()) {
             return@withContext Result.failure(JsonParseException("Server returned empty response"))
         }
 
@@ -147,6 +151,7 @@ class ServerConfigRepository(context: Context) {
         private const val KEY_SERVER_CONFIG = "server_config"
         private const val MAX_URI_LENGTH = 2048
         private const val MAX_PASSWORD_LENGTH = 512
+        private const val MAX_BODY_LENGTH = 1024 * 1024 // 1 MB
         private val GSON = Gson()
     }
 }
@@ -182,3 +187,55 @@ class JsonParseException(message: String) : Exception(message)
  * Exception for missing required configuration keys.
  */
 class MissingKeysException(message: String) : Exception(message)
+
+/**
+ * Result of testing server configuration connectivity.
+ */
+sealed class TestResult {
+    object Success : TestResult()
+    data class ConnectionError(val message: String) : TestResult()
+    data class Timeout(val seconds: Int) : TestResult()
+    data class InvalidConfig(val message: String) : TestResult()
+}
+
+/**
+ * Test the connectivity of a server configuration.
+ *
+ * @param config The server configuration to test
+ * @return TestResult indicating success or specific failure reason
+ */
+suspend fun testConnection(config: ServerConfig): TestResult {
+    return withContext(Dispatchers.IO) {
+        val url = try {
+            java.net.URL(config.baseUri)
+        } catch (e: Exception) {
+            return@withContext TestResult.InvalidConfig("Invalid URL format")
+        }
+
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", "application/json")
+            .build()
+
+        val response = try {
+            // Use a 10-second timeout as per AC #4
+            withTimeoutOrNull(10_000) {
+                NetworkModule.okHttpClient.newCall(request).await()
+            }
+        } catch (e: java.io.IOException) {
+            return@withContext TestResult.ConnectionError(e.message ?: "Network error")
+        } catch (e: Exception) {
+            return@withContext TestResult.ConnectionError(e.message ?: "Connection failed")
+        }
+
+        if (response == null) {
+            return@withContext TestResult.Timeout(10)
+        }
+
+        if (!response.isSuccessful) {
+            return@withContext TestResult.ConnectionError("Server returned error: ${response.code}")
+        }
+
+        TestResult.Success
+    }
+}

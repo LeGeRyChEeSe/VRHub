@@ -122,8 +122,8 @@ development_status:
   epic-10: in-progress
   10-1-configuration-screen-on-first-launch: done
   10-2-configure-server-via-json-url: done
-  10-3-configure-server-via-manual-kv-pairs: review
-  10-4-test-configuration-before-saving: backlog
+  10-3-configure-server-via-manual-kv-pairs: done
+  10-4-test-configuration-before-saving: done
   10-5-save-and-persist-configuration: backlog
   10-6-modify-configuration-from-settings: backlog
   10-7-display-legal-disclaimer: backlog

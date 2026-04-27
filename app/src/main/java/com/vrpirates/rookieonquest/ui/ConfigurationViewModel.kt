@@ -12,6 +12,8 @@ import com.vrpirates.rookieonquest.data.MissingKeysException
 import com.vrpirates.rookieonquest.data.NetworkException
 import com.vrpirates.rookieonquest.data.ServerConfig
 import com.vrpirates.rookieonquest.data.ServerConfigRepository
+import com.vrpirates.rookieonquest.data.TestResult
+import com.vrpirates.rookieonquest.data.testConnection
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,11 +91,12 @@ class ConfigurationViewModel(application: Application) : AndroidViewModel(applic
      * Update the JSON URL input.
      */
     fun setJsonUrl(url: String) {
-        val isValidFormat = url.isNotBlank() && (
-            url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
+        val trimmed = url.trim()
+        val isValidFormat = trimmed.isNotBlank() && (
+            trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)
         )
         _uiState.value = _uiState.value.copy(
-            jsonUrl = url,
+            jsonUrl = trimmed,
             isSaveEnabled = isValidFormat,
             isSaved = false,
             errorMessage = null,
@@ -156,8 +159,13 @@ class ConfigurationViewModel(application: Application) : AndroidViewModel(applic
 
     /**
      * Test the current configuration.
-     * - JSON_URL mode: fetches JSON from URL and validates structure
-     * - MANUAL_KV mode: validates locally that baseUri and password keys exist and are valid
+     * - JSON_URL mode: fetches JSON from URL and validates structure, then tests connection
+     * - MANUAL_KV mode: validates locally that baseUri and password keys exist, then tests connection
+     *
+     * AC #1: Loading indicator shown during test
+     * AC #2: "Configuration valid" shown on success, SAVE enabled
+     * AC #3: "Connection failed: [error]" on connection error, SAVE disabled
+     * AC #4: "Connection timeout" on timeout (>10s), SAVE disabled
      */
     fun testConfiguration() {
         testJob?.cancel()
@@ -179,20 +187,54 @@ class ConfigurationViewModel(application: Application) : AndroidViewModel(applic
 
             currentCoroutineContext().ensureActive()
 
-            val result = when (inputMode) {
+            // Step 1: Validate configuration (local validation)
+            val validationResult = when (inputMode) {
                 InputMode.JSON_URL -> repository.fetchJsonConfig(jsonUrl)
                 InputMode.MANUAL_KV -> validateManualConfig(kvPairs)
             }
 
             currentCoroutineContext().ensureActive()
-            result.fold(
+
+            // If validation failed, show error immediately
+            validationResult.fold(
                 onSuccess = { config ->
-                    _uiState.value = _uiState.value.copy(
-                        isTesting = false,
-                        successMessage = "Configuration is valid",
-                        isSaveEnabled = true,
-                        testedConfig = config
-                    )
+                    // Step 2: Test connection to server with 10-second timeout
+                    val connectionResult = testConnection(config)
+                    currentCoroutineContext().ensureActive()
+                    when (connectionResult) {
+                        is TestResult.Success -> {
+                            _uiState.value = _uiState.value.copy(
+                                isTesting = false,
+                                successMessage = "Configuration valid",
+                                isSaveEnabled = true,
+                                testedConfig = config
+                            )
+                        }
+                        is TestResult.ConnectionError -> {
+                            _uiState.value = _uiState.value.copy(
+                                isTesting = false,
+                                errorMessage = "Connection failed: ${connectionResult.message}",
+                                isSaveEnabled = false,
+                                testedConfig = null
+                            )
+                        }
+                        is TestResult.Timeout -> {
+                            _uiState.value = _uiState.value.copy(
+                                isTesting = false,
+                                errorMessage = "Connection timeout",
+                                isSaveEnabled = false,
+                                testedConfig = null
+                            )
+                        }
+                        is TestResult.InvalidConfig -> {
+                            _uiState.value = _uiState.value.copy(
+                                isTesting = false,
+                                errorMessage = "Invalid configuration: ${connectionResult.message}",
+                                isSaveEnabled = false,
+                                testedConfig = null
+                            )
+                        }
+                    }
                 },
                 onFailure = { error ->
                     val errorMessage = when (error) {
@@ -200,8 +242,8 @@ class ConfigurationViewModel(application: Application) : AndroidViewModel(applic
                         is NetworkException -> error.message ?: "Network error"
                         is JsonParseException -> "Server returned invalid JSON"
                         is MissingKeysException -> "Configuration missing required keys"
-                        is IllegalArgumentException -> error.message ?: "Invalid configuration"
-                        else -> "Test failed: ${error.message}"
+                        is IllegalArgumentException -> error.message?.replace("\n", " ") ?: "Invalid configuration"
+                        else -> "Test failed: ${error.message?.replace("\n", " ") ?: "unknown error"}"
                     }
                     _uiState.value = _uiState.value.copy(
                         isTesting = false,
