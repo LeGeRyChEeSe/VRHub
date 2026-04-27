@@ -1,6 +1,6 @@
 # Story 10.3: Configure Server via Manual Key-Value Pairs
 
-Status: review
+Status: done
 
 ## Story
 
@@ -131,7 +131,17 @@ Implemented Manual KV configuration mode:
 - [x] [Review][Patch] MEDIUM — isSaved flag never reset after modification [ConfigurationViewModel.kt:113]
 - [x] [Review][Patch] MEDIUM — baseUri.isBlank() / password.isBlank() return identical error message [ConfigurationViewModel.kt:225-229]
 - [x] [Review][Patch] MEDIUM — Duplicate key collision: associate() silently keeps last value [ConfigurationViewModel.kt:250-257]
+- [x] [Review][Patch] BLOCKER — Import TimeoutCancellationException unused, await() defined in Constants.kt [ServerConfigRepository.kt:9] — resolved by story 10.4 refactor to withTimeoutOrNull
+- [x] [Review][Patch] HIGH — URL with leading/trailing whitespace not stripped in setJsonUrl [ConfigurationViewModel.kt:93] — resolved: trimmed in story 10.4
+- [x] [Review][Patch] HIGH — Raw error.message injected directly into UI [ConfigurationViewModel.kt:245-246] — resolved: message sanitized with replace("\n", " ")
+- [x] [Review][Patch] HIGH — No response body size limit — OOM risk [ServerConfigRepository.kt:103] — resolved: MAX_BODY_LENGTH = 1MB added in story 10.4
+- [x] [Review][Patch] MEDIUM — Dead code: catch TimeoutCancellationException unreachable [ServerConfigRepository.kt:221-222] — resolved: withTimeoutOrNull returns null, no throw
+- [x] [Review][Patch] LOW — Timeout error message missing duration info [ConfigurationViewModel.kt:223] — obsolete: AC#4 mandates exact "Connection timeout" message
+- [x] [Review][Defer] Delete of last KVPair impossible — pre-existing [ConfigurationScreen.kt:249]
+- [x] [Review][Defer] SAVE button disabled after isSaved=true — pre-existing [ConfigurationScreen.kt:146]
+- [x] [Review][Defer] Extra keys case-sensitive vs baseUri/password ignore-case — pre-existing [ServerConfigRepository.kt vs ConfigurationViewModel.kt]
+- [x] [Review][Defer] No debounce on TEST button — pre-existing [ConfigurationScreen.kt:119]
 
 ### Status
 
-Status: review
+Status: done
