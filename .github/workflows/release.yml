@@ -300,6 +300,8 @@ jobs:
           BUILD_VERSION: ${{ env.BUILD_VERSION }}
           BUILD_VERSION_CODE: ${{ env.BUILD_VERSION_CODE }}
           ROOKIE_UPDATE_SECRET: ${{ secrets.ROOKIE_UPDATE_SECRET }}
+          VRP_BASE_URI: ${{ secrets.VRP_BASE_URI }}
+          VRP_PASSWORD: ${{ secrets.VRP_PASSWORD }}
         run: |
           BUILD_ARGS=()
 
@@ -314,6 +316,14 @@ jobs:
           if [ -n "$ROOKIE_UPDATE_SECRET" ]; then
             echo "Building with ROOKIE_UPDATE_SECRET"
             BUILD_ARGS+=("-PROOKIE_UPDATE_SECRET=$ROOKIE_UPDATE_SECRET")
+          fi
+          if [ -n "$VRP_BASE_URI" ]; then
+            echo "Building with VRP_BASE_URI"
+            BUILD_ARGS+=("-PVRP_BASE_URI=$VRP_BASE_URI")
+          fi
+          if [ -n "$VRP_PASSWORD" ]; then
+            echo "Building with VRP_PASSWORD"
+            BUILD_ARGS+=("-PVRP_PASSWORD=$VRP_PASSWORD")
           fi
           if [ ${#BUILD_ARGS[@]} -eq 0 ]; then
             echo "Building with default version from build.gradle.kts"

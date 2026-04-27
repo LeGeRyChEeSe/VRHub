@@ -6,7 +6,6 @@ import com.vrpirates.rookieonquest.data.Constants
 import com.vrpirates.rookieonquest.data.NetworkModule
 import com.vrpirates.rookieonquest.data.DownloadUtils
 import com.vrpirates.rookieonquest.data.await
-import com.vrpirates.rookieonquest.network.VrpService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext

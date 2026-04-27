@@ -4,9 +4,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Rookie On Quest** is a standalone Android application for Meta Quest VR headsets that allows users to browse, download, and install VR games natively without requiring a PC. The app is built with **Kotlin** and **Jetpack Compose** and serves as a client for the VRPirates/Rookie ecosystem.
+**VRHub** is a standalone Android application for Meta Quest VR headsets that allows users to browse, download, and install VR games from custom server configurations. The app is built with **Kotlin** and **Jetpack Compose** and serves as a neutral client — users configure their own server, the app does not host or provide any content.
 
-**Critical Context:** This app is entirely dependent on VRPirates servers and infrastructure. It functions as a specialized interface for their services.
+**Branding:** "A Solstice Project"
+
+**Epic/Story Workflow:** This project uses BMad methodology. Use `bmad-help` for navigation. Current active Epic: **Epic 1: Server Configuration System** (7 stories, see `_bmad-output/planning-artifacts/epics.md`).
+
+## Architecture
+
+### Server Configuration System (Epic 1)
+
+The app replaces all VRPirates hardcoded values with a user-configurable KV pairs system:
+
+- **JSON URL mode:** User provides a URL pointing to a JSON config file (`{"baseUri": "...", "password": "..."}`)
+- **Manual KV mode:** User enters key-value pairs manually
+- **TEST button:** Validates config before saving (connection test, JSON structure check)
+- **Storage:** SharedPreferences or Room for persistence
+- **FR-VH1 to FR-VH13** cover all configuration requirements
+
+### Data Flow
+```
+UI (MainActivity/Compose)
+  ↓
+MainViewModel (state management, events)
+  ↓
+MainRepository (network, storage, installation logic)
+  ↓
+[Room Database, OkHttp, Retrofit, 7z extraction]
+```
 
 ## Build & Development Commands
 
@@ -43,7 +68,7 @@ make install
 ```
 
 ### Secrets Configuration
-**ROOKIE_UPDATE_SECRET** - Required for release builds to authenticate with the secure update gateway (sunshine-aio.com):
+**ROOKIE_UPDATE_SECRET** - Required for release builds to authenticate with the secure update gateway:
 
 - **Local Development**: Add to `local.properties`:
   ```
@@ -57,6 +82,11 @@ make install
   # With Gradle property
   gradlew.bat assembleRelease -PROOKIE_UPDATE_SECRET=your_secret
   ```
+
+**Build Command (release):**
+```bash
+gradlew.bat assembleRelease -PROOKIE_UPDATE_SECRET=xxx
+```
 
 ### Release Workflow
 ```bash
@@ -96,17 +126,18 @@ MainRepository (network, storage, installation logic)
 - Permission checking, app updates, diagnostics export
 
 **MainRepository.kt** (1000+ lines)
-- **syncCatalog()**: Downloads and extracts `meta.7z` from VRPirates mirror, parses `VRP-GameList.txt`, extracts thumbnails/icons
+- **syncCatalog()**: Fetches catalog from user-configured server URL, parses game list, extracts thumbnails/icons
 - **installGame()**: Multi-phase installation:
   1. Verify files with server (ground truth)
   2. Pre-flight storage check using `StatFs`
   3. Download with HTTP Range resumption
-  4. Extract 7z archives with password
+  4. Extract 7z archives with password from config
   5. Handle special install instructions via `install.txt` parsing
   6. Move OBB files to `/Android/obb/{packageName}/`
   7. Launch APK installer via `FileProvider`
 - **verifyAndCleanupInstalls()**: Post-install cleanup of temp files
 - Uses MD5 hashing for file/directory naming consistency
+- Server URL and password come from user configuration (Stories 1.2-1.6)
 
 **CatalogParser.kt**
 - Parses semicolon-delimited game catalog format:
@@ -226,12 +257,13 @@ The project uses JUnit for unit tests and AndroidX Test for instrumented tests.
 
 ## Critical Warnings
 
-1. **Never modify catalog parsing without testing against real VRP-GameList.txt format**
-2. **Always use MD5 hash for directory names to match server structure**
-3. **Storage space checks must account for extraction overhead**
-4. **Queue processor must handle cancellation at every suspension point**
-5. **APK version verification uses `PackageManager.getPackageArchiveInfo()`**
-6. **File moves to `/Android/obb/` may fail silently on some Android versions**
+1. **Server configuration is user-provided** — app validates structure but not content; user bears full responsibility for configured server
+2. **Never modify catalog parsing without testing against real server format** (structure may vary)
+3. **Always use MD5 hash for directory names** to match server structure
+4. **Storage space checks must account for extraction overhead**
+5. **Queue processor must handle cancellation at every suspension point**
+6. **APK version verification uses `PackageManager.getPackageArchiveInfo()`**
+7. **File moves to `/Android/obb/` may fail silently on some Android versions**
 
 ## Common Debugging Scenarios
 
