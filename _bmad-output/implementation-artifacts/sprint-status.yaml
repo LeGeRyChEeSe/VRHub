@@ -124,7 +124,7 @@ development_status:
   10-2-configure-server-via-json-url: done
   10-3-configure-server-via-manual-kv-pairs: done
   10-4-test-configuration-before-saving: done
-  10-5-save-and-persist-configuration: backlog
+  10-5-save-and-persist-configuration: done
   10-6-modify-configuration-from-settings: backlog
   10-7-display-legal-disclaimer: backlog
   epic-10-retrospective: optional
