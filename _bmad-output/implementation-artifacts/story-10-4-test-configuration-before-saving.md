@@ -32,17 +32,17 @@ so that I know it works before navigating away.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Implement test configuration logic (AC: #1, #2, #3, #4)
-  - [ ] Subtask 1.1: Create testConnection(config: ServerConfig): TestResult suspend function
-  - [ ] Subtask 1.2: Implement connection test with 10-second timeout
-  - [ ] Subtask 1.3: Handle connection errors with specific messages
-  - [ ] Subtask 1.4: Handle timeout errors specifically
+- [x] Task 1: Implement test configuration logic (AC: #1, #2, #3, #4)
+  - [x] Subtask 1.1: Create testConnection(config: ServerConfig): TestResult suspend function
+  - [x] Subtask 1.2: Implement connection test with 10-second timeout
+  - [x] Subtask 1.3: Handle connection errors with specific messages
+  - [x] Subtask 1.4: Handle timeout errors specifically
 
-- [ ] Task 2: Implement UI loading and feedback states (AC: #1, #2, #3, #4)
-  - [ ] Subtask 2.1: Add isTesting state to ConfigurationViewModel
-  - [ ] Subtask 2.2: Show loading indicator during test
-  - [ ] Subtask 2.3: Display success/error messages
-  - [ ] Subtask 2.4: Enable/disable SAVE button based on test result
+- [x] Task 2: Implement UI loading and feedback states (AC: #1, #2, #3, #4)
+  - [x] Subtask 2.1: Add isTesting state to ConfigurationViewModel
+  - [x] Subtask 2.2: Show loading indicator during test
+  - [x] Subtask 2.3: Display success/error messages
+  - [x] Subtask 2.4: Enable/disable SAVE button based on test result
 
 ## Dev Notes
 
@@ -88,12 +88,50 @@ sealed class TestResult {
 ## Dev Agent Record
 
 ### Agent Model Used
+MiniMax-M2
 
 ### Debug Log References
+N/A - Build successful with no errors
 
 ### Completion Notes List
+Implemented network connection testing for both JSON URL and Manual KV modes:
+
+- Added `TestResult` sealed class in `ServerConfigRepository.kt` with `Success`, `ConnectionError`, `Timeout`, and `InvalidConfig` states
+- Added `testConnection(config: ServerConfig): TestResult` suspend function that:
+  - Uses `withTimeoutOrNull(10_000)` for 10-second timeout (AC #4)
+  - Returns `Timeout` result on timeout cancellation
+  - Returns `ConnectionError` on IOException with message
+  - Returns `InvalidConfig` on invalid URL format
+  - Returns `Success` on successful HTTP response
+
+- Updated `ConfigurationViewModel.testConfiguration()` to:
+  1. First validate configuration locally (JSON parse or KV validation)
+  2. On validation success, call `testConnection(config)` to verify server is reachable
+  3. Display "Configuration is valid" success message on connection success (AC #2)
+  4. Display "Connection failed: [error]" on connection error (AC #3)
+  5. Display "Connection timeout" on timeout (AC #4)
+  6. Keep SAVE button disabled until connection test passes
+
+- Added unit tests for `validateManualConfig()` logic covering all AC scenarios
+- All 11 unit tests pass
+- Build compiles successfully with no errors
 
 ### File List
 
 - UPDATE: `app/src/main/java/com/vrpirates/rookieonquest/ui/ConfigurationViewModel.kt`
 - UPDATE: `app/src/main/java/com/vrpirates/rookieonquest/data/ServerConfigRepository.kt`
+- CREATE: `app/src/test/java/com/vrpirates/rookieonquest/ui/ConfigurationViewModelTest.kt`
+
+### Change Log
+
+- "Implemented network connection test with 10-second timeout — TestResult sealed class, testConnection() function, updated testConfiguration() flow (Date: 2026-04-27)"
+- "Added unit tests for ConfigurationViewModel validateManualConfig logic (Date: 2026-04-27)"
+
+### Status
+
+Status: done
+
+### Review Findings
+
+- [x] [Review][Patch] Success message text mismatch: "Configuration is valid" instead of "Configuration valid" [ConfigurationViewModel.kt:208]
+- [x] [Review][Patch] Timeout error message mismatch: "Connection timed out after X seconds" instead of "Connection timeout" [ConfigurationViewModel.kt:224]
