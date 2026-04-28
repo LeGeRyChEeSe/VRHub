@@ -1,5 +1,5 @@
 # generated: 2026-02-14
-# project: rookie-on-quest
+# project: vrhub
 # tracking_system: file-system
 # story_location: e:\Unity\rookie-on-quest\_bmad-output\implementation-artifacts
 #
@@ -33,7 +33,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 #
 generated: 2026-02-14
-project: rookie-on-quest
+project: vrhub
 tracking_system: file-system
 story_location: e:\Unity\rookie-on-quest\_bmad-output\implementation-artifacts
 #
@@ -115,6 +115,7 @@ development_status:
   9-2-secure-update-client-android-side: done
   9-3-transition-build-and-legacy-support: done
   9-4-automated-apk-deployment-to-netlify: done
+  9-5-github-releases-api-primary: backlog
   epic-9-retrospective: done
 #
   epic-10: in-progress
@@ -128,5 +129,6 @@ development_status:
   epic-10-retrospective: optional
 #
   epic-11: in-progress
-  11-1-update-readme-for-vrhub-rebrand: ready-for-dev
-  11-2-cleanup-repository: backlog
+  11-1-update-readme-for-vrhub-rebrand: done
+  11-2-cleanup-repository: done
+  11-3-rename-repository-references: done
