@@ -142,10 +142,10 @@ make release
 ### CI/CD & Local Validation
 This project uses GitHub Actions for PR validation. You can run the validation logic locally to catch issues before pushing:
 
-- **Windows:** `powershell scripts/test-ci-logic.ps1`
-- **Linux/macOS:** `./scripts/test-ci-logic.sh`
+- **Linux/macOS:** `./scripts/test-ci-config.sh`
 
-For more details on the build pipeline, see the **[Infrastructure Architecture](docs/architecture-infra.md)** documentation.
+For end-to-end tests including release candidate builds:
+- **Linux/macOS:** `./scripts/test-rc-e2e.sh`
 
 ### Version Management
 This project follows **[Semantic Versioning (SemVer)](https://semver.org/)**.
