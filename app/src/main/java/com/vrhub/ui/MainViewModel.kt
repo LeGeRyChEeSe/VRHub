@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
 import com.vrhub.data.MainRepository
 import com.vrhub.network.UpdateInfo
 import com.vrhub.network.UpdateService
+import com.vrhub.network.GitHubApiResult
 import kotlinx.coroutines.*
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
@@ -830,6 +831,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var sizeFetchJob: Job? = null
 
     private val updateService = NetworkModule.updateService
+    private val githubReleaseService = NetworkModule.githubReleaseService
 
     // Use shared OkHttpClient from NetworkModule (singleton)
     private val okHttpClient = NetworkModule.okHttpClient
@@ -1436,15 +1438,163 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun checkForAppUpdates(): Boolean {
+        // Try GitHub API first (primary), fall back to Netlify only on 404 (repo transferred/deleted)
+        val githubResult = checkGitHubReleasesWithBackoff()
+
+        return when (githubResult) {
+            is GitHubApiResult.Success -> {
+                val currentVersion = BuildConfig.VERSION_NAME
+                val latestClean = githubResult.updateInfo.version.lowercase().removePrefix("v")
+                val currentClean = currentVersion.lowercase().removePrefix("v")
+                if (isVersionNewer(latestClean, currentClean)) {
+                    _isUpdateDialogShowing.value = true
+                    _events.emit(MainEvent.ShowUpdatePopup(githubResult.updateInfo))
+                    true
+                } else {
+                    false
+                }
+            }
+            is GitHubApiResult.NotFound -> {
+                // 404 from GitHub = repo transferred/deleted - fall back to Netlify
+                Log.w(TAG, "GitHub repo not found (404), falling back to Netlify update service")
+                checkNetlifyUpdatesWithFallback()
+            }
+            is GitHubApiResult.RateLimited -> {
+                Log.w(TAG, "GitHub API rate limited (403)")
+                _error.value = "Update check failed: Too many requests to GitHub. Please wait a few minutes before trying again."
+                false
+            }
+            is GitHubApiResult.ServerError -> {
+                Log.w(TAG, "GitHub API server error (${githubResult.code}), retrying with backoff")
+                _error.value = "Update check failed: GitHub is temporarily unavailable. Please try again later."
+                false
+            }
+            is GitHubApiResult.ClientError -> {
+                Log.w(TAG, "GitHub API client error (${githubResult.code})")
+                _error.value = "Update check failed: Request rejected by GitHub (${githubResult.code}). Please try again later."
+                false
+            }
+            is GitHubApiResult.NetworkError -> {
+                Log.w(TAG, "GitHub API network error: ${githubResult.message}")
+                _error.value = "Update check failed: Network error. Please check your internet connection and try again."
+                false
+            }
+        }
+    }
+
+    /**
+     * Checks GitHub Releases API with retry and exponential backoff.
+     *
+     * IMPORTANT: Rate limits (403) and temporary errors (5xx, IOException) trigger retry with backoff
+     * on GitHub API, NOT fallback to Netlify. Netlify fallback is ONLY for 404 (repo transferred/deleted).
+     *
+     * @return [GitHubApiResult] indicating success or specific error type
+     */
+    private suspend fun checkGitHubReleasesWithBackoff(): GitHubApiResult {
+        val githubOwner = com.vrhub.data.Constants.GITHUB_OWNER
+        val githubRepo = com.vrhub.data.Constants.GITHUB_REPO
+
+        var currentDelay = 1000L
+        val maxRetries = com.vrhub.data.Constants.UPDATE_MAX_RETRIES
+
+        repeat(maxRetries) { attempt ->
+            try {
+                val release = githubReleaseService.getLatestRelease(githubOwner, githubRepo, "VRHub/1.0")
+                // Successfully got GitHub release - convert to UpdateInfo
+                val updateInfo = convertGitHubReleaseToUpdateInfo(release)
+                return GitHubApiResult.Success(updateInfo)
+            } catch (e: retrofit2.HttpException) {
+                when (e.code()) {
+                    403 -> {
+                        // Rate limited - should NOT fall back to Netlify, retry with backoff
+                        val remaining = e.response()?.raw()?.header("X-RateLimit-Remaining")?.toIntOrNull()
+                        val resetTime = e.response()?.raw()?.header("X-RateLimit-Reset")
+                        Log.w(TAG, "GitHub API rate limited (403), remaining: $remaining, retrying in ${currentDelay}ms...")
+                        if (attempt < maxRetries - 1) {
+                            kotlinx.coroutines.delay(currentDelay)
+                            currentDelay *= 2
+                        } else {
+                            return GitHubApiResult.RateLimited(remaining ?: 0, resetTime)
+                        }
+                    }
+                    404 -> {
+                        // Not found - repo transferred/deleted = fall back to Netlify
+                        return GitHubApiResult.NotFound("Repository not found on GitHub")
+                    }
+                    in 500..599 -> {
+                        // Server error - retry with backoff, NOT fallback
+                        Log.w(TAG, "GitHub API server error (${e.code()}), retrying in ${currentDelay}ms...")
+                        if (attempt < maxRetries - 1) {
+                            kotlinx.coroutines.delay(currentDelay)
+                            currentDelay *= 2
+                        } else {
+                            return GitHubApiResult.ServerError(e.code(), "Server error")
+                        }
+                    }
+                    else -> {
+                        // Other client errors (4xx except 403/404) - retry with backoff
+                        Log.w(TAG, "GitHub API client error (${e.code()}), retrying in ${currentDelay}ms...")
+                        if (attempt < maxRetries - 1) {
+                            kotlinx.coroutines.delay(currentDelay)
+                            currentDelay *= 2
+                        } else {
+                            return GitHubApiResult.ClientError(e.code(), e.message() ?: "Client error")
+                        }
+                    }
+                }
+            } catch (e: java.io.IOException) {
+                // Network error - retry with backoff, NOT fallback
+                Log.w(TAG, "GitHub API network error (${e.message}), retrying in ${currentDelay}ms...")
+                if (attempt < maxRetries - 1) {
+                    kotlinx.coroutines.delay(currentDelay)
+                    currentDelay *= 2
+                } else {
+                    return GitHubApiResult.NetworkError(e.message ?: "Network error")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Unexpected GitHub API error: ${e.message}")
+                return GitHubApiResult.NetworkError(e.message ?: "Unknown error")
+            }
+        }
+        return GitHubApiResult.NetworkError("Max retries exhausted")
+    }
+
+    /**
+     * Converts a GitHub release response to [UpdateInfo].
+     * The APK asset is expected to be named: VRHub_{version}.apk
+     */
+    private fun convertGitHubReleaseToUpdateInfo(release: com.vrhub.network.GitHubReleaseResponse): UpdateInfo {
+        // Find the APK asset (should be named VRHub_{version}.apk)
+        val apkAsset = release.assets.find { it.name.endsWith(".apk", ignoreCase = true) }
+            ?: throw IllegalStateException("No APK asset found in GitHub release ${release.tagName}. Please ensure the release includes an APK file.")
+        val downloadUrl = apkAsset.browserDownloadUrl
+        val version = release.tagName.removePrefix("v")
+        val changelog = release.body ?: "Release $version - See GitHub release for details"
+        val timestamp = release.publishedAt ?: java.time.Instant.now().toString()
+
+        return UpdateInfo(
+            version = version,
+            changelog = changelog,
+            downloadUrl = downloadUrl,
+            checksum = "", // GitHub doesn't provide checksum in API response - could be in release body
+            timestamp = timestamp
+        )
+    }
+
+    /**
+     * Falls back to Netlify update service when GitHub repo is not found (404).
+     * This handles the case where the repo was transferred to a GitHub organization.
+     */
+    private suspend fun checkNetlifyUpdatesWithFallback(): Boolean {
         var currentDelay = 1000L
         val maxRetries = com.vrhub.data.Constants.UPDATE_MAX_RETRIES
 
         repeat(maxRetries) { attempt ->
             try {
                 val date = java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now())
-                val secret = com.vrhub.data.Constants.ROOKIE_UPDATE_SECRET
+                val secret = com.vrhub.data.Constants.VRHUB_UPDATE_SECRET
                 val signature = com.vrhub.data.CryptoUtils.hmacSha256(date, secret)
-                
+
                 val latest = updateService.checkUpdate(signature, date)
                 val currentVersion = BuildConfig.VERSION_NAME
 

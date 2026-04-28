@@ -1,5 +1,6 @@
 package com.vrhub.data
 
+import com.vrhub.network.GitHubReleaseService
 import com.vrhub.network.UpdateService
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -59,10 +60,31 @@ object Constants {
     const val SECURE_UPDATE_BASE_URL = "https://www.sunshine-aio.com/"
 
     /**
+     * GitHub API base URL for releases
+     */
+    const val GITHUB_API_BASE_URL = "https://api.github.com/"
+
+    /**
+     * GitHub repository owner for releases API (VRHub update source).
+     */
+    const val GITHUB_OWNER = "LeGeRyChEeSe"
+
+    /**
+     * GitHub repository name for releases API.
+     */
+    const val GITHUB_REPO = "VRHub"
+
+    /**
+     * Pattern for GitHub releases URL (for reference in config).
+     * Actual URL is constructed from owner/repo: https://api.github.com/repos/{owner}/{repo}/releases/latest
+     */
+    const val GITHUB_RELEASES_URL_PATTERN = "https://api.github.com/repos/{owner}/{repo}/releases/latest"
+
+    /**
      * Secret key for secure update signature (HMAC-SHA256).
      * Injected at build time via build.gradle.kts.
      */
-    val ROOKIE_UPDATE_SECRET = com.vrhub.BuildConfig.ROOKIE_UPDATE_SECRET
+    val VRHUB_UPDATE_SECRET = com.vrhub.BuildConfig.VRHUB_UPDATE_SECRET
 
     /**
      * HTTP connection timeout in seconds
@@ -290,6 +312,27 @@ object NetworkModule {
      */
     val updateService: UpdateService by lazy {
         secureUpdateRetrofit.create(UpdateService::class.java)
+    }
+
+    /**
+     * Retrofit instance for GitHub API (primary update source).
+     */
+    val githubApiRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(Constants.GITHUB_API_BASE_URL)
+            .client(okHttpClient.newBuilder()
+                .connectTimeout(Constants.UPDATE_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(Constants.UPDATE_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    /**
+     * Service for GitHub Releases API.
+     */
+    val githubReleaseService: GitHubReleaseService by lazy {
+        githubApiRetrofit.create(GitHubReleaseService::class.java)
     }
 }
 
