@@ -40,9 +40,9 @@ jobs:
           
       - name: Build to populate cache
         run: |
-          chmod +x gradlew
+          chmod +x scripts/gradlew
           # --no-build-cache to ensure we start from scratch but populate the dependency cache
-          ./gradlew assembleDebug --no-build-cache
+          ./scripts/gradlew assembleDebug --no-build-cache
 
       - name: Save Benchmark Cache
         uses: actions/cache/save@v4.2.0
@@ -71,11 +71,11 @@ jobs:
         id: cold
         run: |
           START=$(date +%s)
-          chmod +x gradlew
+          chmod +x scripts/gradlew
           # --no-build-cache disables the Gradle local build cache (outputs reuse)
           # but does NOT affect the Gradle dependency cache (~/.gradle/caches).
           # This allows measuring build time from source without previous task outputs.
-          ./gradlew assembleDebug --no-build-cache
+          ./scripts/gradlew assembleDebug --no-build-cache
           END=$(date +%s)
           DURATION=$((END - START))
           echo "duration=$DURATION" >> $GITHUB_OUTPUT
@@ -110,12 +110,12 @@ jobs:
         id: warm
         run: |
           # Clean only the project build files, keep the Gradle dependency cache
-          chmod +x gradlew
-          ./gradlew clean
+          chmod +x scripts/gradlew
+          ./scripts/gradlew clean
           
           START=$(date +%s)
           # Use --build-cache to leverage the restored build cache
-          ./gradlew assembleDebug --build-cache
+          ./scripts/gradlew assembleDebug --build-cache
           END=$(date +%s)
           DURATION=$((END - START))
           echo "duration=$DURATION" >> $GITHUB_OUTPUT

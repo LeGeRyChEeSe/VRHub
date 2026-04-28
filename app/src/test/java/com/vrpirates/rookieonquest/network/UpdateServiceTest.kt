@@ -53,8 +53,8 @@ class UpdateServiceTest {
 
         // Then
         val request = mockWebServer.takeRequest()
-        assertEquals("test-signature", request.getHeader("X-Rookie-Signature"))
-        assertEquals("2026-02-15T05:00:00Z", request.getHeader("X-Rookie-Date"))
+        assertEquals("test-signature", request.getHeader("X-VRHub-Signature"))
+        assertEquals("2026-02-15T05:00:00Z", request.getHeader("X-VRHub-Date"))
         assertEquals("/.netlify/functions/check-update", request.path)
         
         assertEquals("2026-02-15T05:00:00Z", result.timestamp)

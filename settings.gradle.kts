@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RookieOnQuest"
+rootProject.name = "VRHub"
 include(":app")
 
 // Gradle Build Cache Configuration

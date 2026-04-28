@@ -62,11 +62,11 @@ runs:
       # This ensures consistent behavior across PR Validation, Release, and Benchmarking.
       shell: bash
       run: |
-        if [ -f "gradlew" ]; then
-          chmod +x gradlew
-          echo "✅ Executable permission granted to gradlew"
+        if [ -f "scripts/gradlew" ]; then
+          chmod +x scripts/gradlew
+          echo "✅ Executable permission granted to scripts/gradlew"
         else
-          echo "ℹ️ gradlew not found in current directory, skipping chmod"
+          echo "ℹ️ scripts/gradlew not found in current directory, skipping chmod"
         fi
 
 # Cache Invalidation Strategy:

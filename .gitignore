@@ -77,6 +77,25 @@ QWEN.md
 ROADMAP.md
 ACTION_PLAN.md
 CLAUDE.md
+CONTRIBUTING.md
+DEVELOPMENT.md
+WORKTREE-SYSTEM.md
+project-context.md
+docs/
+
+# GitHub Issue Templates
+.github/ISSUE_TEMPLATE/
+
+# Local-only scripts (not used by CI)
+scripts/copy-worktree-files.ps1
+scripts/deploy-to-netlify.sh
+scripts/init-worktree.bat
+scripts/init-worktree.sh
+scripts/test-ci-config.ps1
+scripts/test-ci-logic.ps1
+scripts/test-ci-logic.sh
+scripts/test-deploy-to-netlify.sh
+scripts/test-extraction.sh
 
 # Miscellaneous
 worktrees/
@@ -97,6 +116,7 @@ package.json
 # Story worktree tracking
 .story-id
 .story-files
+.worktreeinclude
 nul
 
 # Web Server Source

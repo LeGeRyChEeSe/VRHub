@@ -26,7 +26,7 @@ data class UpdateInfo(
  * Retrofit service for checking application updates via the secure gateway.
  *
  * Requests to this service must be authenticated using HMAC-SHA256 request signing.
- * The signature is computed using the ROOKIE_UPDATE_SECRET and the current UTC timestamp.
+ * The signature is computed using the VRHUB_UPDATE_SECRET and the current UTC timestamp.
  *
  * ENDPOINT NOTE:
  * The correct endpoint path is `.netlify/functions/check-update` which routes to the Netlify serverless function.
@@ -46,7 +46,7 @@ interface UpdateService {
      */
     @GET(".netlify/functions/check-update")
     suspend fun checkUpdate(
-        @Header("X-Rookie-Signature") signature: String,
-        @Header("X-Rookie-Date") date: String
+        @Header("X-VRHub-Signature") signature: String,
+        @Header("X-VRHub-Date") date: String
     ): UpdateInfo
 }

@@ -2,22 +2,20 @@ ifeq ($(OS),Windows_NT)
     # Force CMD as the shell for Windows compatibility
     SHELL := cmd.exe
     .SHELLFLAGS := /c
-    INIT_SCRIPT := scripts\init-worktree.bat
+    GRADLEW := scripts\gradlew.bat
 else
     SHELL := /bin/bash
-    INIT_SCRIPT := ./scripts/init-worktree.sh
+    GRADLEW := ./scripts/gradlew
 endif
 
 # Variables - Use forward slashes for paths to avoid escape issues
-APP_NAME := RookieOnQuest
-DISPLAY_NAME := Rookie On Quest
+APP_NAME := VRHub
+DISPLAY_NAME := VRHub
 BUILD_GRADLE := app/build.gradle.kts
 CHANGELOG := CHANGELOG.md
 DIST_DIR := dist
 
 # Version extraction via PowerShell (targeted and robust)
-# Note: Version extraction and other tasks below still rely on PowerShell/Windows commands
-# as the project is primarily developed on Windows.
 VERSION := $(shell powershell -NoProfile -Command "(Get-Content $(BUILD_GRADLE) | Select-String 'versionName = \".*\"' | Select-Object -First 1).Line.Split([char]34)[1]")
 DATE := $(shell powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd'")
 APK_NAME := $(APP_NAME)-v$(VERSION).apk
@@ -26,12 +24,11 @@ APK_PATH := app/build/outputs/apk/release/$(APK_NAME)
 # Git Variables (can be overridden: make commit GIT_MSG="My message")
 GIT_MSG ?= Release v$(VERSION)
 
-.PHONY: help clean build release install commit tag push sync gh-release set-version init-worktree init
+.PHONY: help clean build release install commit tag push sync gh-release set-version
 
 help:
-	@echo RookieOnQuest Makefile
+	@echo VRHub Makefile
 	@echo -----------------------
-	@echo make init id [agent]   - Initialize a new worktree for a story
 	@echo make set-version V=x.x.x - Update version and changelog
 	@echo make build          - Generate debug APK
 	@echo make release        - Generate release APK
@@ -45,30 +42,9 @@ help:
 	@echo -----------------------
 	@echo make clean          - Clean project
 
-# Parse positional arguments: make init 1.0 gemini
-_POS_ARGS := $(filter-out init%,$(MAKECMDGOALS))
-_STORY_POS := $(word 1,$(_POS_ARGS))
-_AGENT_POS := $(word 2,$(_POS_ARGS))
-
-# Use named args if provided, otherwise fall back to positional
-STORY := $(or $(STORY),$(_STORY_POS))
-AGENT := $(or $(AGENT),$(_AGENT_POS))
-
-init: init-worktree
-
-init-worktree:
-ifeq ($(OS),Windows_NT)
-	@if "$(STORY)"=="" (echo [ERROR] STORY is required. Example: make init 1.8 dev & exit /b 1)
-	@$(INIT_SCRIPT) $(STORY) $(AGENT)
-else
-	@if [ -z "$(STORY)" ]; then echo "[ERROR] STORY is required. Example: make init 1.8 dev"; exit 1; fi
-	@chmod +x $(INIT_SCRIPT)
-	@$(INIT_SCRIPT) $(STORY) $(AGENT)
-endif
-
 clean:
 	@if exist $(DIST_DIR) rd /s /q $(DIST_DIR)
-	@cmd /c gradlew.bat clean
+	@cmd /c $(GRADLEW) clean
 
 set-version:
 	@powershell -NoProfile -Command "if ('$(V)' -eq '') { Write-Error 'Provide a version, e.g., make set-version V=2.1.2'; exit 1 }"
@@ -78,11 +54,11 @@ set-version:
 	@powershell -NoProfile -Command "$$p='$(CHANGELOG)'; $$v='$(V)'; $$d='$(DATE)'; $$c=Get-Content $$p -Raw; if ($$c -notmatch '## \[' + [regex]::Escape($$v) + '\]') { $$new='## [' + $$v + '] - ' + $$d + \"`r`n`r`n### Added`r`n- `r`n`r`n\"; $$c = $$c -replace '(?s)(.*?Semantic Versioning.*?\r?\n\r?\n)', \"$$1$$new\"; $$c | Set-Content $$p -Encoding UTF8; Write-Host 'Changelog updated' -ForegroundColor Green } else { Write-Host 'Version already exists in changelog' -ForegroundColor Yellow }"
 
 build:
-	@cmd /c gradlew.bat assembleDebug
+	@cmd /c $(GRADLEW) assembleDebug
 
 release:
 	@echo Preparing release v$(VERSION)...
-	@cmd /c gradlew.bat assembleRelease
+	@cmd /c $(GRADLEW) assembleRelease
 	@if not exist $(DIST_DIR) mkdir $(DIST_DIR)
 	@powershell -NoProfile -Command "if (Test-Path '$(APK_PATH)') { Copy-Item '$(APK_PATH)' '$(DIST_DIR)/$(APK_NAME)' -Force } else { Write-Error 'APK not found at $(APK_PATH)'; exit 1 }"
 	@echo Extracting notes...
