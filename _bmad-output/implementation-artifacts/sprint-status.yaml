@@ -54,12 +54,10 @@ development_status:
   1-13-shelving-ready-to-install-games: done
   epic-1-retrospective: done
 #
-  epic-2: in-progress
-  2-1-stickman-animation-state-machine-foundation: done
-  2-2-phase-specific-animation-implementations: backlog
-  2-3-global-progress-indicator-integration: backlog
-  2-4-contextual-message-system-for-download-install-modes: backlog
-  2-5-animation-performance-optimization-for-quest-vr: backlog
+  epic-2: done
+  2-1-rename-application: done
+  2-2-apply-solstice-branding: done
+  2-3-cleanup-rookie-on-quest-references: done
   epic-2-retrospective: optional
 #
   epic-3: backlog
@@ -125,6 +123,10 @@ development_status:
   10-3-configure-server-via-manual-kv-pairs: done
   10-4-test-configuration-before-saving: done
   10-5-save-and-persist-configuration: done
-  10-6-modify-configuration-from-settings: backlog
-  10-7-display-legal-disclaimer: backlog
+  10-6-modify-configuration-from-settings: done
+  10-7-display-legal-disclaimer: done
   epic-10-retrospective: optional
+#
+  epic-11: in-progress
+  11-1-update-readme-for-vrhub-rebrand: ready-for-dev
+  11-2-cleanup-repository: backlog
