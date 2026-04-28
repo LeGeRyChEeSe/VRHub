@@ -61,10 +61,36 @@ temp_notes.md
 .qwen/
 .roo/
 
+# BMAD methodology artifacts
+_bmad-output/
+_bmad/
+_bmad_config/
+.bmad/
+
+# Agent management
+.agents/
+
+# Historical/unused documentation
+GEMINI.md
+PROJECT_DASHBOARD.md
+QWEN.md
+ROADMAP.md
+ACTION_PLAN.md
+CLAUDE.md
+
 # Miscellaneous
 worktrees/
 node_modules/
 package-lock.json
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
 
 package.json
 

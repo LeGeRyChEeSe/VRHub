@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -7,25 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-04-28
+
+### 🚀 Improvements
+- **App Renamed to VRHub:** Rebranded the entire application with new package name `com.vrhub`
+- **Build System:** Streamlined workflows and catalog for better maintainability
+
+### ✨ New Features
+- **Server Configuration:** Complete new settings UI to configure your own game server:
+  - JSON URL mode (provide a URL to your server config file)
+  - Manual mode (enter server details key by key)
+  - Test button to validate your configuration before saving
+  - Settings are saved and persist between app launches
+
+### 🔧 Fixes
+- **Better Password Handling:** Improved validation of archive passwords
+- **Game List Compatibility:** Server can now serve game list as `GameList.txt`
+- **Build Cleanup:** Removed unnecessary files from the project
+
 ## [3.0.0] - 2026-02-17
 
 ### ✨ New Features
-- **Secure Update Gateway:** Implemented Netlify-based update system for private distribution. Apps now check `sunshine-aio.com` for updates instead of GitHub.
+- **Secure Update Gateway:** Implemented update system for private distribution.
 - **HMAC-SHA256 Request Signing:** Added request signing for secure update validation to prevent unauthorized updates.
-- **Automated APK Deployment:** CI/CD automatically deploys new APKs to Netlify update gateway on every release.
+- **Automated APK Deployment:** CI/CD automatically deploys new APKs on every release.
 - **Release Candidate Support:** Added support for pre-release versioning (RC) and automated GitHub release creation.
 - **Fast Track Local Install:** Games that are already downloaded can be installed instantly without re-downloading.
 - **Shelving Ready-to-Install Games:** Downloaded games can be "shelved" (moved to long-term storage) and later restored for installation.
-- **Local Installs UI:** New interface to manage locally installed games that aren't in the VRPirates catalog.
+- **Local Installs UI:** New interface to manage locally installed games that aren't in the catalog.
 
 ### 🚀 Improvements
 - **Fail-Fast Validation:** Added validation to ensure tag/version inputs match project configuration.
 - **Clean Build Process:** Old APK files are automatically cleaned up before deploying new versions.
-- **CI/CD Reliability:** Improved Netlify configuration and secrets management for more reliable deployments.
+- **CI/CD Reliability:** Improved configuration and secrets management for more reliable deployments.
 
 ### 🔧 Technical Notes
 - **AGP 9.0.0 Upgrade Rejected:** Android Studio recommended upgrading to AGP 9.0.0, but this caused build failures due to Room 2.6.1 incompatibility with Kotlin 2.2.x. Reverted to AGP 8.13.2 + Kotlin 1.9.22. Future upgrade will require Room 2.8.x with KSP.
-- This release marks the transition to a private distribution model via Netlify update gateway.
 
 ## [2.4.0] - 2026-01-05
 

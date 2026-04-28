@@ -19,13 +19,13 @@ android {
         // VERSION CONFIGURATION - Source of Truth for Default Values
         // ================================================================================
         // versionCode can be overridden by Gradle property: -PversionCode="10"
-        // versionName can be overridden by Gradle property: -PversionName="2.5.0"
+        // versionName can be overridden by Gradle property: -PversionName="4.0.0"
         //
         // Implemented in Story 8.5: Centralized version management with CI extraction and RC support.
         // Fallback values are maintained for local building.
         //
         // DRY PRINCIPLE NOTE:
-        // The values 12 (versionCode) and "3.0.0" (versionName) are the SINGLE SOURCE OF TRUTH.
+        // The values 13 (versionCode) and "4.0.0" (versionName) are the SINGLE SOURCE OF TRUTH.
         // The GHA workflow (release.yml) extracts these values from this file rather than
         // hardcoding them, ensuring consistency.
         //
@@ -45,7 +45,7 @@ android {
         // NOTE: This validation mirrors the CI validation in release.yml for consistency.
         // The only difference is regression warning is CI-only (GHA has access to git history).
         versionCode = when {
-            versionCodeProperty == null -> 12 // Default when not provided
+            versionCodeProperty == null -> 13 // Default when not provided
             versionCodeProperty.toIntOrNull() == null -> throw GradleException(
                 "Invalid versionCode property: '$versionCodeProperty'. " +
                 "versionCode must be a valid integer >= 1. " +
@@ -65,7 +65,7 @@ android {
         }
 
         versionName = when {
-            versionNameProperty == null -> "3.0.0" // Default when not provided
+            versionNameProperty == null -> "4.0.0" // Default when not provided
             versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?(\\+[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?$")) -> versionNameProperty
             else -> throw GradleException(
                 "Invalid versionName property: '$versionNameProperty'. " +
@@ -76,18 +76,18 @@ android {
         }
 
         // Secure Update Secret: Required for release builds
-        // LOCAL DEV: Add to local.properties -> ROOKIE_UPDATE_SECRET=your_secret
-        // CI/CD: Set as GitHub repository secret (ROOKIE_UPDATE_SECRET)
-        // Sources: 1. Gradle Property (-PROOKIE_UPDATE_SECRET), 2. local.properties
+        // LOCAL DEV: Add to local.properties -> VRHUB_UPDATE_SECRET=your_secret
+        // CI/CD: Set as GitHub repository secret (VRHUB_UPDATE_SECRET)
+        // Sources: 1. Gradle Property (-PVRHUB_UPDATE_SECRET), 2. local.properties
         val localProperties = Properties().apply {
             val localFile = rootProject.file("local.properties")
             if (localFile.exists()) {
                 localFile.inputStream().use { load(it) }
             }
         }
-        
-        val updateSecret = project.findProperty("ROOKIE_UPDATE_SECRET")?.toString()
-            ?: localProperties.getProperty("ROOKIE_UPDATE_SECRET")
+
+        val updateSecret = project.findProperty("VRHUB_UPDATE_SECRET")?.toString()
+            ?: localProperties.getProperty("VRHUB_UPDATE_SECRET")
             ?: ""
 
         // VRP server config is now entirely user-configurable via Server Configuration
@@ -96,12 +96,12 @@ android {
         val isRelease = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
 
         if (isRelease && updateSecret.isEmpty()) {
-            throw GradleException("ROOKIE_UPDATE_SECRET project property is required for release builds. Please provide it via -PROOKIE_UPDATE_SECRET=your_secret")
+            throw GradleException("VRHUB_UPDATE_SECRET project property is required for release builds. Please provide it via -PVRHUB_UPDATE_SECRET=your_secret")
         } else if (!isRelease && updateSecret.isEmpty()) {
-            logger.warn("[update] WARNING: ROOKIE_UPDATE_SECRET is empty. Update checks will fail with 403 Forbidden when connecting to secure gateway.")
+            logger.warn("[update] WARNING: VRHUB_UPDATE_SECRET is empty. Update checks will fail with 403 Forbidden when connecting to secure gateway.")
         }
 
-        buildConfigField("String", "ROOKIE_UPDATE_SECRET", "\"$updateSecret\"")
+        buildConfigField("String", "VRHUB_UPDATE_SECRET", "\"$updateSecret\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
