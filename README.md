@@ -20,6 +20,7 @@ A standalone Meta Quest application to browse, download, and install VR games na
 - [Overview](#overview)
 - [Key Features](#key-features)
 - [Download & Installation](#download--installation)
+- [Server Configuration](#server-configuration)
 - [Build & Development Commands](#build--development-commands)
 - [Contributing](#contributing)
 
