@@ -115,7 +115,7 @@ development_status:
   9-2-secure-update-client-android-side: done
   9-3-transition-build-and-legacy-support: done
   9-4-automated-apk-deployment-to-netlify: done
-  9-5-github-releases-api-primary: backlog
+  9-5-github-releases-api-primary: done
   epic-9-retrospective: done
 #
   epic-10: in-progress
