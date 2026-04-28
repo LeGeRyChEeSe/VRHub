@@ -71,8 +71,11 @@ class MainRepository(
 
     private val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
 
-    // Use static config from BuildConfig (local.properties)
+    // Decoded password from user-provided server configuration (set via setActiveConfig)
     internal var decodedPassword: String? = null
+    internal var baseUri: String? = null
+
+    val config: ServerConfig? = null
     
     val iconsDir = File(context.filesDir, "icons").apply { if (!exists()) mkdirs() }
     val thumbnailsDir = File(context.filesDir, "thumbnails").apply { if (!exists()) mkdirs() }
@@ -104,13 +107,19 @@ class MainRepository(
         return gameDao.getByPackageName(packageName)?.toData()
     }
 
-    suspend fun fetchConfig(): PublicConfig = withContext(Dispatchers.IO) {
-        // Use static config from BuildConfig (local.properties)
-        decodedPassword = Constants.VRP_PASSWORD
-        PublicConfig(
-            baseUri = Constants.VRP_BASE_URI,
-            password64 = Constants.VRP_PASSWORD
-        )
+    @Deprecated("Use setActiveConfig() with ServerConfig from ServerConfigRepository instead")
+    suspend fun fetchConfig(): PublicConfig? = withContext(Dispatchers.IO) {
+        // No longer uses hardcoded values - this method exists for migration compatibility only
+        // If called without a prior setActiveConfig(), returns null to signal no config
+        val decoded = decodedPassword
+        val uri = baseUri
+        if (decoded != null && uri != null) {
+            // Cannot return password64 since we don't store the original encoded value
+            // The caller should use setActiveConfig() + the config repository directly
+            null
+        } else {
+            null
+        }
     }
 
     /**
@@ -121,6 +130,7 @@ class MainRepository(
      */
     fun setActiveConfig(config: ServerConfig) {
         decodedPassword = decodeBase64Password(config.password)
+        baseUri = config.baseUri
     }
 
     /**
@@ -206,7 +216,7 @@ class MainRepository(
                             onProgress(0.5f) 
                             Log.d(TAG, "Meta file ready, size: ${tempMetaFile.length()} bytes")
             
-                            val passwordsToTry = (listOfNotNull(decodedPassword, Constants.VRP_PASSWORD) + listOf<String?>(null)).distinct()
+                            val passwordsToTry = listOfNotNull(decodedPassword, null).distinct()
                             var gameListContent = ""
                             var success = false
             
@@ -307,7 +317,8 @@ class MainRepository(
             val sharedBuffer = ByteArray(DownloadUtils.DOWNLOAD_BUFFER_SIZE)
             var entry = sevenZFile.nextEntry
             while (entry != null) {
-                if (entry.name.endsWith("VRP-GameList.txt", ignoreCase = true)) {
+                if (entry.name.endsWith("VRP-GameList.txt", ignoreCase = true) ||
+                    entry.name.equals("GameList.txt", ignoreCase = true)) {
                     val out = java.io.ByteArrayOutputStream()
                     var bytesRead: Int
                     while (sevenZFile.read(sharedBuffer).also { bytesRead = it } != -1) {
@@ -510,7 +521,10 @@ class MainRepository(
      * for consistency to prevent behavioral divergence.
      */
     suspend fun getGameRemoteInfo(game: GameData): Triple<Map<String, Long>, Long, Map<String, Any?>> = withContext(Dispatchers.IO) {
-        val sanitizedBase = if (Constants.VRP_BASE_URI.endsWith("/")) Constants.VRP_BASE_URI else "${Constants.VRP_BASE_URI}/"
+        // Use baseUri from active config (set via setActiveConfig), or fail if not set
+        val baseUri = this@MainRepository.baseUri
+            ?: throw IllegalStateException("No server configuration set. Call setActiveConfig() before sync/install operations.")
+        val sanitizedBase = if (baseUri.endsWith("/")) baseUri else "$baseUri/"
         val hash = CryptoUtils.md5(game.releaseName + "\n")
         val dirUrl = "$sanitizedBase$hash/"
 
@@ -922,7 +936,9 @@ class MainRepository(
             // DownloadWorker is the primary download path for new installations.
             //
             // If modifying download logic here, review DownloadWorker.downloadSegment() for consistency.
-            val sanitizedBase = if (Constants.VRP_BASE_URI.endsWith("/")) Constants.VRP_BASE_URI else "${Constants.VRP_BASE_URI}/"
+            val repositoryBaseUri = this@MainRepository.baseUri
+                ?: throw IllegalStateException("No server configuration set. Call setActiveConfig() before sync/install operations.")
+            val sanitizedBase = if (repositoryBaseUri.endsWith("/")) repositoryBaseUri else "$repositoryBaseUri/"
             val dirUrl = "$sanitizedBase$hash/"
 
             if (!gameTempDir.exists()) gameTempDir.mkdirs()
@@ -1168,7 +1184,7 @@ class MainRepository(
                     // Note: Skip separate "Preparing extraction" call here - merge already ended at 85%
                     // The counting phase will maintain 85% until extraction starts
                     // Try multiple password variants for extraction robustness (Story 4.3 Round 20 Fix)
-                    val passwordsToTry = (listOfNotNull(decodedPassword, Constants.VRP_PASSWORD) + listOf<String?>(null)).distinct()
+                    val passwordsToTry = listOfNotNull(decodedPassword, null).distinct()
                     var extractionSuccess = false
                     var lastExtractionError: Exception? = null
 
@@ -2694,7 +2710,7 @@ class MainRepository(
      * @param isDownloadOnly If true, skip installation after download
      * @param keepApk If true, save APK to Downloads folder
      */
-    fun enqueueDownload(releaseName: String, isDownloadOnly: Boolean, keepApk: Boolean) {
+    fun enqueueDownload(releaseName: String, isDownloadOnly: Boolean, keepApk: Boolean, serverBaseUri: String, serverPassword: String) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .setRequiresBatteryNotLow(true)
@@ -2705,6 +2721,8 @@ class MainRepository(
             .putString(DownloadWorker.KEY_RELEASE_NAME, releaseName)
             .putBoolean(DownloadWorker.KEY_IS_DOWNLOAD_ONLY, isDownloadOnly)
             .putBoolean(DownloadWorker.KEY_KEEP_APK, keepApk)
+            .putString(DownloadWorker.KEY_BASE_URI, serverBaseUri)
+            .putString(DownloadWorker.KEY_PASSWORD, serverPassword)
             .build()
 
         val downloadRequest = OneTimeWorkRequestBuilder<DownloadWorker>()
