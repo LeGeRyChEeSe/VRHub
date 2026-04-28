@@ -1,70 +1,116 @@
-# 🛑 PROJECT CEASED / END OF LIFE
-
-**Rookie On Quest is officially discontinued.**
-
-Following the recent DMCA takedown by Meta (March 17, 2026) and the subsequent complete cessation of **VR Pirates (VRP)** and the **Rookie Sideloader** ecosystem, this project is no longer functional. Since Rookie On Quest was entirely dependent on VRP's servers and infrastructure to provide its catalog and downloads, the application can no longer fetch game lists or facilitate installations.
-
-**The servers are offline, and the project has been archived.**
-
----
-
-# Rookie On Quest
+# VRHub
 
 <p align="center">
-  <img src="app/src/main/res/drawable/app_icon.png" width="256" alt="Rookie On Quest Icon">
+  <img src="app/src/main/res/drawable/app_icon.png" width="256" alt="VRHub Icon">
   <br>
-  <img src="https://img.shields.io/badge/STATUS-ARCHIVED-red?style=for-the-badge" alt="Status Archived">
-  <img src="https://img.shields.io/badge/VERSION-3.0.0-orange?style=for-the-badge" alt="Latest Release">
-  <img src="https://img.shields.io/github/stars/LeGeRyChEeSe/rookie-on-quest?style=for-the-badge&color=2ea44f" alt="Stars">
-  <img src="https://img.shields.io/github/last-commit/LeGeRyChEeSe/rookie-on-quest?style=for-the-badge" alt="Last Commit">
+  <img src="https://img.shields.io/badge/VERSION-4.0.0-orange?style=for-the-badge" alt="Latest Release">
+  <img src="https://img.shields.io/github/stars/LeGeRyChEeSe/VRHub?style=for-the-badge&color=2ea44f" alt="Stars">
+  <img src="https://img.shields.io/github/last-commit/LeGeRyChEeSe/VRHub?style=for-the-badge" alt="Last Commit">
 </p>
 
-A standalone Meta Quest application to browse, download, and install VR games natively. **This project is now obsolete.**
+<p align="center">
+  <strong>A Solstice Project</strong>
+</p>
+
+A standalone Meta Quest application to browse, download, and install VR games natively, built with **Kotlin** and **Jetpack Compose**.
 
 ---
 
 ### Table of Contents
 - [Overview](#overview)
-- [The End of the Journey](#the-end-of-the-journey)
-- [Special Thanks](#special-thanks)
-- [Key Features (Legacy)](#key-features-legacy)
-- [Download & Installation (Legacy)](#download--installation-legacy)
+- [Key Features](#key-features)
+- [Download & Installation](#download--installation)
+- [Build & Development Commands](#build--development-commands)
+- [Contributing](#contributing)
 
 ---
 
 ## Overview
 
-**Rookie On Quest** was a standalone client for the Meta Quest, built natively with **Kotlin** and **Jetpack Compose**. It functioned as a specialized interface for the [Rookie](https://github.com/VRPirates/rookie)/VRPirates ecosystem. 
+VRHub is a personal VR game manager for Meta Quest headsets. Connect to your **private server** to browse your own game catalog and install titles directly — no manual sideloading required. Your library, organized and at your fingertips.
 
-As stated since the project's inception, this application was **entirely dependent on the servers and infrastructure maintained by the VRPirates team**. With their infrastructure now permanently offline following legal action, this app has reached its end of life.
-
-## The End of the Journey
-
-On March 17, 2026, the VR Pirates team announced their complete and permanent shutdown following a DMCA request from Meta. This included the removal of all mirrors, the cessation of their cracking operations, and the disabling of the backend servers that Rookie On Quest relied upon.
-
-Without these servers, the app can no longer:
-- Fetch the game catalog.
-- Download APK or OBB files.
-- Provide update information.
-
-The repository remains here for educational purposes and as a testament to the work put into the Android implementation, but **no further updates will be provided and the app is non-functional.**
-
-## Special Thanks
-
-A final and heartfelt thank you to the **Rookie developers and the VRPirates community**. Their years of dedication to the VR community made this project possible. We respect their decision to cease operations and thank them for the journey.
-
-### Key Features (Legacy)
-- **Standalone Sideloading**: (Disabled) Install games (APK + OBB) directly on your Meta Quest.
-- **Full Catalog Access**: (Disabled) Browse and search through the complete VRPirates library.
-- **Background Downloads**: (Disabled) Optimized to continue downloading even when the device sleeps.
-- **Optimized Performance**: Smooth navigation through 2400+ game entries.
+**This app does not host or provide any games. You must only install games you have legitimately purchased.** VRHub is designed solely for managing your personal collection on your own server. We do not condone piracy in any form.
 
 ---
 
-## Download & Installation (Legacy)
+## Key Features
 
-> [!WARNING]
-> **The application will no longer function.** The instructions below are kept for historical reference only.
+- **Standalone Sideloading**: Install games (APK + OBB) directly on your Meta Quest.
+- **Custom Server Configuration**: Connect to any compatible server via JSON URL or manual key-value pairs.
+- **Background Downloads**: Optimized to continue downloading even when the device sleeps.
+- **Offline Mode**: Browse cached catalog and queued installations when offline.
+- **Optimized Performance**: Smooth navigation through large game catalogs.
+
+---
+
+## Download & Installation
+
+[![Download VRHub](https://img.shields.io/badge/Download%20VRHub-v4.0.0-007bff?style=for-the-badge&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+
+> [!IMPORTANT]
+> Requires Meta Quest with **Developer Mode** enabled. Enable it at [meta.com/quest/developers](https://meta.com/quest/developers/).
+
+### Method 1: SideQuest (Recommended)
+The easiest way to install APKs on Quest.
+
+1. Download and install [SideQuest](https://sidequestvr.com/) on your PC/Mac
+2. Connect your Quest headset via USB or Wi-Fi
+3. Download the latest APK: [![Download VRHub](https://img.shields.io/badge/Download%20VRHub-007bff?style=flat&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+4. Drag and drop the APK onto SideQuest — installation is automatic
+
+### Method 2: Direct Browser Install
+Install directly from your Quest without a PC (Quest Browser required).
+
+1. On your Quest headset, open the **Meta Quest Browser**
+2. Download the APK: [![Download VRHub](https://img.shields.io/badge/Download%20VRHub-007bff?style=flat&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+3. Open the downloaded file — the system APK installer will handle the rest
+
+### Method 3: adb (Developer)
+For advanced users comfortable with command-line tools.
+
+1. Download the APK: [![Download VRHub](https://img.shields.io/badge/Download%20VRHub-007bff?style=flat&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+2. Connect Quest via USB and enable USB debugging
+3. Run: `adb install -r VRHub-vX.X.X.apk`
+
+---
+
+## Server Configuration
+
+After installing VRHub, you need to connect it to your personal game server.
+
+### Method 1: JSON URL
+
+If your server provides a JSON configuration file, select **JSON URL** mode and enter the URL to that `.json` file (e.g., `https://example.com/config.json`).
+
+The JSON file hosted at that URL must contain at minimum:
+
+```json
+{
+  "baseUri": "https://your-server.com/games/",
+  "password": "your-server-password"
+}
+```
+
+| Key | Description |
+|-----|-------------|
+| `baseUri` | Base URL to your game files directory |
+| `password` | Password required to extract compressed game archives |
+
+### Method 2: Manual Entry
+
+If you don't have a URL to a config file, select **Manual Entry** mode and create the key-value pairs directly:
+
+| Key | Value |
+|-----|-------|
+| `baseUri` | `https://your-server.com/games/` |
+| `password` | `your-server-password` |
+
+### Testing Your Configuration
+
+Use the **TEST** button to validate your configuration before saving. VRHub will check the server connection and verify the configuration structure.
+
+> [!IMPORTANT]
+> VRHub is a personal catalog manager. The app does not provide or host any game content. You are solely responsible for the server you configure and must only use it to manage games you have legitimately purchased.
 
 ---
 
@@ -75,10 +121,22 @@ A final and heartfelt thank you to the **Rookie developers and the VRPirates com
 - **Android SDK 34** (API 34).
 
 ### Building the Project
-1. Clone this repository.
-2. Open the project in **Android Studio**.
-3. Wait for Gradle to sync and download dependencies.
-4. Go to `Build > Build Bundle(s) / APK(s) > Build APK(s)` or run `./gradlew assembleDebug`.
+```bash
+# Clean the project
+gradlew.bat clean
+# or
+make clean
+
+# Build debug APK
+gradlew.bat assembleDebug
+# or
+make build
+
+# Build release APK (requires keystore.properties)
+gradlew.bat assembleRelease
+# or
+make release
+```
 
 ### CI/CD & Local Validation
 This project uses GitHub Actions for PR validation. You can run the validation logic locally to catch issues before pushing:
@@ -105,10 +163,10 @@ The regex pattern used is: `^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-
 
 ### Secure Update Authentication
 To enable application update checks, a secret key is required for request signing.
-- **Environment Variable:** `ROOKIE_UPDATE_SECRET`
+- **Environment Variable:** `VRHUB_UPDATE_SECRET`
 - **Local Development:** You can provide this in your `local.properties` file or as a Gradle property:
   ```properties
-  ROOKIE_UPDATE_SECRET=your_secret_here
+  VRHUB_UPDATE_SECRET=your_secret_here
   ```
 - **Release Builds:** For security, release builds will fail if this secret is not provided via the environment variable or `keystore.properties`.
 
@@ -130,9 +188,9 @@ All commit messages and pull requests should use the following prefixes:
 
 ### Share Ideas & Report Bugs
 If you have an idea for a new feature or have found a bug, please open an issue:
-- [Report a Bug](https://github.com/LeGeRyChEeSe/rookie-on-quest/issues/new?template=bug_report.md)
-- [Suggest a Feature](https://github.com/LeGeRyChEeSe/rookie-on-quest/issues/new?template=feature_request.md)
-- [Ask a Question or Give Feedback](https://github.com/LeGeRyChEeSe/rookie-on-quest/issues/new?template=question.md)
+- [Report a Bug](https://github.com/LeGeRyChEeSe/VRHub/issues/new?template=bug_report.md)
+- [Suggest a Feature](https://github.com/LeGeRyChEeSe/VRHub/issues/new?template=feature_request.md)
+- [Ask a Question or Give Feedback](https://github.com/LeGeRyChEeSe/VRHub/issues/new?template=question.md)
 
 ### Submit a Pull Request
 1. Fork the repository.
