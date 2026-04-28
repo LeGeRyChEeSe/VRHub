@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.vrpirates.rookieonquest"
+    namespace = "com.vrhub"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.vrpirates.rookieonquest"
+        applicationId = "com.vrhub"
         minSdk = 29
         targetSdk = 34
 
@@ -90,13 +90,8 @@ android {
             ?: localProperties.getProperty("ROOKIE_UPDATE_SECRET")
             ?: ""
 
-        // VRP static config (from local.properties)
-        val vrpBaseUri = project.findProperty("VRP_BASE_URI")?.toString()
-            ?: localProperties.getProperty("VRP_BASE_URI")
-            ?: "https://vrpirates.wiki/"
-        val vrpPassword = project.findProperty("VRP_PASSWORD")?.toString()
-            ?: localProperties.getProperty("VRP_PASSWORD")
-            ?: ""
+        // VRP server config is now entirely user-configurable via Server Configuration
+        // No more hardcoded VRP_BASE_URI or VRP_PASSWORD in the app
 
         val isRelease = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
 
@@ -107,8 +102,6 @@ android {
         }
 
         buildConfigField("String", "ROOKIE_UPDATE_SECRET", "\"$updateSecret\"")
-        buildConfigField("String", "VRP_BASE_URI", "\"$vrpBaseUri\"")
-        buildConfigField("String", "VRP_PASSWORD", "\"$vrpPassword\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -255,7 +248,7 @@ android {
 // STATUS: Accepted for Story 8.1-8.5, will be refactored in Story 8.7
 //
 // WHAT THIS DOES:
-// Renames the APK output from "app-release.apk" to "RookieOnQuest-v{version}.apk"
+// Renames the APK output from "app-release.apk" to "VRHub-v{version}.apk"
 // This makes the APK filename consistent and version-identifiable.
 //
 // WHY INTERNAL API IS USED:
@@ -276,7 +269,7 @@ android.applicationVariants.all {
     outputs
         .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
         .forEach { output ->
-            output.outputFileName = "RookieOnQuest-v${versionName}.apk"
+            output.outputFileName = "VRHub-v${versionName}.apk"
         }
 }
 

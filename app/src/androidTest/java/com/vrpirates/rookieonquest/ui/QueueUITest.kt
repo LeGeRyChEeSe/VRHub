@@ -4,7 +4,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.vrpirates.rookieonquest.QueueManagerOverlay
-import com.vrpirates.rookieonquest.ui.theme.RookieOnQuestTheme
+import com.vrhub.ui.theme.VRHubTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,7 +53,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -85,7 +85,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -114,7 +114,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -140,7 +140,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -167,7 +167,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -193,7 +193,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -221,7 +221,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -249,7 +249,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -276,7 +276,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -303,7 +303,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -328,7 +328,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -362,7 +362,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -385,7 +385,7 @@ class QueueUITest {
     @Test
     fun emptyState_displayedWhenQueueIsEmpty() {
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = emptyList(),
                     viewedReleaseName = null,
@@ -414,7 +414,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
@@ -441,7 +441,7 @@ class QueueUITest {
         )
 
         composeTestRule.setContent {
-            RookieOnQuestTheme {
+            VRHubTheme {
                 QueueManagerOverlay(
                     queue = queue,
                     viewedReleaseName = null,
