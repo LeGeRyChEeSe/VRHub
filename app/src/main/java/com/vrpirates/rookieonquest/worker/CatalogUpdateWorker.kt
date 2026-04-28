@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.vrpirates.rookieonquest.data.AppDatabase
 import com.vrpirates.rookieonquest.data.Constants
 import com.vrpirates.rookieonquest.data.NetworkModule
+import com.vrpirates.rookieonquest.data.ServerConfigRepository
 import com.vrpirates.rookieonquest.logic.CatalogParser
 import com.vrpirates.rookieonquest.logic.CatalogUtils
 import kotlinx.coroutines.Dispatchers
@@ -18,8 +19,9 @@ import java.io.File
 /**
  * Background worker that periodically checks for catalog updates.
  * If an update is detected (via Last-Modified or ETag comparison), it downloads
- * the metadata file, extracts the game list, and calculates the number of 
+ * the metadata file, extracts the game list, and calculates the number of
  * new or updated games compared to the local database.
+ * Uses the user-configured server settings via ServerConfigRepository.
  */
 class CatalogUpdateWorker(
     appContext: Context,
@@ -30,12 +32,19 @@ class CatalogUpdateWorker(
         private const val TAG = "CatalogUpdateWorker"
     }
 
-            override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         Log.i(TAG, "Checking for catalog updates in background...")
 
         try {
-            // Use static config from Constants (local.properties)
-            val baseUri = com.vrpirates.rookieonquest.data.Constants.VRP_BASE_URI
+            // Get server config from user settings (required for catalog sync)
+            val configRepository = ServerConfigRepository(applicationContext)
+            val savedConfig = configRepository.loadConfig()
+            if (savedConfig == null || !savedConfig.isValid()) {
+                Log.d(TAG, "No server configuration found. Skipping background catalog update.")
+                return@withContext Result.success()
+            }
+
+            val baseUri = savedConfig.baseUri
 
             // 1. Initial lightweight check (outside lock)
             val remoteMetadata = CatalogUtils.getRemoteCatalogMetadata(baseUri)
@@ -88,20 +97,16 @@ class CatalogUpdateWorker(
             
             
             
-                                // Decode password directly from config (Finding: Avoid inefficient MainRepository instantiation)
-            
+                                // Decode password from user-configured server settings
                                 val password = try {
-            
-                                    val decoded = android.util.Base64.decode(com.vrpirates.rookieonquest.data.Constants.VRP_PASSWORD, android.util.Base64.DEFAULT)
-            
-                                    String(decoded, Charsets.UTF_8)
-            
+                                    if (savedConfig.password.isNotBlank()) {
+                                        String(android.util.Base64.decode(savedConfig.password, android.util.Base64.NO_WRAP))
+                                    } else {
+                                        ""
+                                    }
                                 } catch (e: Exception) {
-            
-                                    Log.w(TAG, "Failed to decode password64 from config, using raw value")
-            
-                                    com.vrpirates.rookieonquest.data.Constants.VRP_PASSWORD
-            
+                                    Log.w(TAG, "Failed to decode password64 from config")
+                                    savedConfig.password
                                 }
             
             
@@ -173,7 +178,8 @@ class CatalogUpdateWorker(
             builder.get().use { sevenZFile ->
                 var entry = sevenZFile.nextEntry
                 while (entry != null) {
-                    if (entry.name.endsWith("VRP-GameList.txt", ignoreCase = true)) {
+                    if (entry.name.endsWith("VRP-GameList.txt", ignoreCase = true) ||
+                        entry.name.equals("GameList.txt", ignoreCase = true)) {
                         val out = java.io.ByteArrayOutputStream()
                         val buffer = ByteArray(8192)
                         var bytesRead: Int

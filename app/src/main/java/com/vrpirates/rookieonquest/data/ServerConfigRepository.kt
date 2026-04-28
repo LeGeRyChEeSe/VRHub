@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
+import org.apache.commons.compress.archivers.sevenz.SevenZFile
+import java.io.File
 import java.net.URL
 
 /**
@@ -24,9 +26,21 @@ class ServerConfigRepository(context: Context) {
     /**
      * Save the server configuration.
      * @param config The configuration to save
+     * @param inputMode The input mode used to create the config (JSON_URL or MANUAL_KV)
      */
-    fun saveConfig(config: ServerConfig) {
-        prefs.edit().putString(KEY_SERVER_CONFIG, ServerConfig.toJson(config)).apply()
+    fun saveConfig(config: ServerConfig, inputMode: String) {
+        prefs.edit()
+            .putString(KEY_SERVER_CONFIG, ServerConfig.toJson(config))
+            .putString(KEY_INPUT_MODE, inputMode)
+            .apply()
+    }
+
+    /**
+     * Load the input mode used to create the saved configuration.
+     * @return The saved input mode, or null if none exists
+     */
+    fun loadInputMode(): String? {
+        return prefs.getString(KEY_INPUT_MODE, null)
     }
 
     /**
@@ -43,8 +57,12 @@ class ServerConfigRepository(context: Context) {
      * @return true if a valid configuration is saved
      */
     fun hasValidConfig(): Boolean {
-        val config = loadConfig()
-        return config != null && config.isValid()
+        return try {
+            val config = loadConfig()
+            config != null && config.isValid()
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /**
@@ -68,7 +86,7 @@ class ServerConfigRepository(context: Context) {
      * @param urlString The URL to fetch JSON config from
      * @return Result containing ServerConfig on success, or error with specific message
      */
-    suspend fun fetchJsonConfig(urlString: String): Result<ServerConfig> = withContext(Dispatchers.IO) {
+    suspend fun fetchJsonConfig(urlString: String, passwordOverride: String = ""): Result<ServerConfig> = withContext(Dispatchers.IO) {
         // Validate URL format
         val url = try {
             URL(urlString)
@@ -86,6 +104,7 @@ class ServerConfigRepository(context: Context) {
         val request = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
+            .header("User-Agent", Constants.USER_AGENT)
             .build()
 
         val response = try {
@@ -131,6 +150,9 @@ class ServerConfigRepository(context: Context) {
             return@withContext Result.failure(JsonParseException("Configuration values too long"))
         }
 
+        // Use password override if provided, otherwise use password from JSON
+        val finalPassword = if (passwordOverride.isNotBlank()) passwordOverride else jsonConfig.password
+
         // Build ServerConfig with extra keys
         val extraKeys = mutableMapOf<String, String>()
         jsonConfig.extraKeys?.forEach { (key, value) ->
@@ -141,7 +163,7 @@ class ServerConfigRepository(context: Context) {
 
         Result.success(ServerConfig(
             baseUri = jsonConfig.baseUri,
-            password = jsonConfig.password,
+            password = finalPassword,
             extraKeys = extraKeys
         ))
     }
@@ -149,6 +171,7 @@ class ServerConfigRepository(context: Context) {
     companion object {
         private const val PREFS_NAME = "vrhub_server_config"
         private const val KEY_SERVER_CONFIG = "server_config"
+        private const val KEY_INPUT_MODE = "input_mode"
         private const val MAX_URI_LENGTH = 2048
         private const val MAX_PASSWORD_LENGTH = 512
         private const val MAX_BODY_LENGTH = 1024 * 1024 // 1 MB
@@ -196,6 +219,7 @@ sealed class TestResult {
     data class ConnectionError(val message: String) : TestResult()
     data class Timeout(val seconds: Int) : TestResult()
     data class InvalidConfig(val message: String) : TestResult()
+    data class PasswordValidationFailed(val message: String) : TestResult()
 }
 
 /**
@@ -215,6 +239,7 @@ suspend fun testConnection(config: ServerConfig): TestResult {
         val request = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
+            .header("User-Agent", Constants.USER_AGENT)
             .build()
 
         val response = try {
@@ -237,5 +262,85 @@ suspend fun testConnection(config: ServerConfig): TestResult {
         }
 
         TestResult.Success
+    }
+}
+
+/**
+ * Test the password by attempting to download and extract the meta.7z file.
+ * This validates that the password is correct for the archive.
+ *
+ * @param config The server configuration with baseUri and password to test
+ * @param context Android context for temp file operations
+ * @return TestResult indicating success or password validation failure
+ */
+suspend fun testPassword(config: ServerConfig, context: android.content.Context): TestResult = withContext(Dispatchers.IO) {
+    val tempFile = File(context.cacheDir, "password_test_temp.7z")
+    tempFile.deleteOnExit()
+
+    try {
+        val sanitizedBase = if (config.baseUri.endsWith("/")) config.baseUri else "${config.baseUri}/"
+        val metaUrl = "${sanitizedBase}meta.7z"
+
+        val downloadRequest = Request.Builder()
+            .url(metaUrl)
+            .header("User-Agent", Constants.USER_AGENT)
+            .build()
+
+        val response = withTimeoutOrNull(30_000) {
+            NetworkModule.okHttpClient.newCall(downloadRequest).await()
+        } ?: return@withContext TestResult.Timeout(30)
+
+        if (!response.isSuccessful) {
+            return@withContext TestResult.ConnectionError("Failed to download meta.7z: ${response.code}")
+        }
+
+        response.body?.use { body ->
+            tempFile.outputStream().use { output ->
+                body.byteStream().use { input ->
+                    input.copyTo(output)
+                }
+            }
+        }
+
+        val decodedPassword = try {
+            if (config.password.isNotBlank()) {
+                String(android.util.Base64.decode(config.password, android.util.Base64.NO_WRAP))
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+
+        val extractionSuccess = try {
+            SevenZFile.builder()
+                .setFile(tempFile)
+                .setPassword(decodedPassword?.toCharArray())
+                .get()
+                .use { sevenZFile ->
+                    var foundContent = false
+                    var entry = sevenZFile.nextEntry
+                    while (entry != null) {
+                        val buffer = ByteArray(1)
+                        val bytesRead = sevenZFile.read(buffer)
+                        if (bytesRead > 0) {
+                            foundContent = true
+                        }
+                        entry = sevenZFile.nextEntry
+                    }
+                    foundContent
+                }
+        } catch (e: Exception) {
+            false
+        }
+
+        tempFile.delete()
+
+        if (extractionSuccess) {
+            TestResult.Success
+        } else {
+            TestResult.PasswordValidationFailed("Invalid password: archive extraction failed")
+        }
+    } catch (e: Exception) {
+        tempFile.delete()
+        TestResult.PasswordValidationFailed("Password validation failed: ${e.message}")
     }
 }
