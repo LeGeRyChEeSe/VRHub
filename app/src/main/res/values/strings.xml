@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Rookie On Quest</string>
+    <string name="app_name">VRHub</string>
 
     <!-- Story 1.7: Installation task status messages for internationalization -->
     <string name="status_queued">Queued</string>
@@ -19,9 +19,9 @@
     <string name="perm_storage_title">Storage Access Permission Required</string>
     <string name="perm_battery_title">Battery Optimization Permission Required</string>
     
-    <string name="perm_install_desc">Allow Rookie On Quest to install game files (APK) directly on your headset.</string>
+    <string name="perm_install_desc">Allow VRHub to install game files (APK) directly on your headset.</string>
     <string name="perm_storage_desc">Allow access to manage all files for game data. This is required to copy OBB files to the correct location.</string>
-    <string name="perm_battery_desc">Allow Rookie On Quest to run in the background without battery restrictions. This prevents interruptions during long downloads.</string>
+    <string name="perm_battery_desc">Allow VRHub to run in the background without battery restrictions. This prevents interruptions during long downloads.</string>
     
     <string name="perm_install_why">Why: Quest headsets require special permission to install APK files from outside the official store.</string>
     <string name="perm_storage_why">Why: Many VR games require OBB data files that must be copied to a specific system folder.</string>
@@ -42,17 +42,17 @@
 
     <!-- Story 1.8: Permission Overlay Strings -->
     <string name="perm_overlay_title">Action Required</string>
-    <string name="perm_overlay_subtitle">Rookie On Quest needs some permissions to sideload games directly to your headset library.</string>
+    <string name="perm_overlay_subtitle">VRHub needs some permissions to sideload games directly to your headset library.</string>
     <string name="perm_overlay_grant_button">GRANT PERMISSIONS</string>
 
     <string name="perm_install_unknown_apps_title">Install Unknown Apps</string>
-    <string name="perm_install_unknown_apps_desc">Allows Rookie to install the games you download.</string>
+    <string name="perm_install_unknown_apps_desc">Allows VRHub to install the games you download.</string>
 
     <string name="perm_manage_storage_title">File Access</string>
     <string name="perm_manage_storage_desc">Required to copy OBB and game files to storage.</string>
 
     <string name="perm_battery_optimization_title">Battery Optimization</string>
-    <string name="perm_battery_optimization_desc">Prevents the system from killing Rookie during long downloads.</string>
+    <string name="perm_battery_optimization_desc">Prevents the system from killing VRHub during long downloads.</string>
 
     <string name="perm_denial_message">Permission required. Please grant %1$s in Settings to install games.</string>
     <string name="status_blocked_permissions">Blocked: Missing Permissions</string>
@@ -74,7 +74,7 @@
 
     <!-- Story 4.3: App Update Strings -->
     <string name="update_available_title">Update Available</string>
-    <string name="update_available_desc">A new version of Rookie is available. Keeping the app up to date ensures compatibility with the latest games.</string>
+    <string name="update_available_desc">A new version of VRHub is available. Keeping the app up to date ensures compatibility with the latest games.</string>
     <string name="btn_update_now">UPDATE NOW</string>
 
     <!-- Story 4.3: Dialog Strings -->
@@ -96,4 +96,10 @@
     <string name="catalog_syncing_with_count">Syncing %1$d new/updated games... %2$d%%</string>
     <string name="catalog_syncing_with_count_simple">Syncing %1$d new/updated games...</string>
     <string name="catalog_syncing">Syncing catalog...</string>
+
+    <!-- Story 2.2: Solstice Branding -->
+    <string name="branding_tagline">A Solstice Project</string>
+    <string name="about_title">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_branding">A Solstice Project</string>
 </resources>
