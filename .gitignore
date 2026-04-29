@@ -121,3 +121,6 @@ nul
 
 # Web Server Source
 Sunshine-AIO-web/
+
+# Monetization Server (separate repo)
+vrhub-monetization/
