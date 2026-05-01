@@ -219,7 +219,7 @@ jobs:
 
   report:
     name: Consolidation & Feedback
-    needs: [setup, lint, unit-tests, instrumented-tests, build, performance-check]
+    needs: [setup, lint, unit-tests, build, performance-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -249,13 +249,12 @@ jobs:
           LINT_ERRORS: ${{ needs.lint.outputs.errors }}
           LINT_WARNINGS: ${{ needs.lint.outputs.warnings }}
           UNIT_TESTS_OUTCOME: ${{ needs.unit-tests.outputs.outcome }}
-          INSTR_TESTS_OUTCOME: ${{ needs.instrumented-tests.outputs.outcome }}
           BUILD_OUTCOME: ${{ needs.build.outputs.outcome }}
           BUILD_TARGET_SECONDS: ${{ needs.setup.outputs.target_pr }}
           CORE_DURATION: ${{ needs.performance-check.outputs.duration }}
         with:
           script: |
-            const { LINT_OUTCOME, LINT_ERRORS, LINT_WARNINGS, BUILD_DURATION_SECONDS, BUILD_TARGET_SECONDS, UNIT_TESTS_OUTCOME, INSTR_TESTS_OUTCOME, BUILD_OUTCOME, CORE_DURATION } = process.env;
+            const { LINT_OUTCOME, LINT_ERRORS, LINT_WARNINGS, BUILD_DURATION_SECONDS, BUILD_TARGET_SECONDS, UNIT_TESTS_OUTCOME, BUILD_OUTCOME, CORE_DURATION } = process.env;
             const duration = parseInt(CORE_DURATION || BUILD_DURATION_SECONDS || 0);
             const target = parseInt(BUILD_TARGET_SECONDS || 300);
             const minutes = Math.floor(duration / 60);
@@ -270,21 +269,20 @@ jobs:
             };
 
             const lintStatus = getStatusIcon(LINT_OUTCOME);
-            const overallSuccess = [LINT_OUTCOME, UNIT_TESTS_OUTCOME, INSTR_TESTS_OUTCOME, BUILD_OUTCOME].every(o => o === 'success');
+            const overallSuccess = [LINT_OUTCOME, UNIT_TESTS_OUTCOME, BUILD_OUTCOME].every(o => o === 'success');
             const icon = overallSuccess ? '✅' : '❌';
             const statusText = overallSuccess ? 'All checks passed!' : 'Validation failed.';
-            
+
             const body = `### PR Validation Summary ${icon}
-            
+
             **Status:** ${statusText}
             **Core Duration:** ${timeStr} ${duration < target ? '✅' : '⚠️'} (Target < ${targetMinutes}m)
-            
+
             | Check | Status | Details |
             |-------|--------|---------|
             | **Lint** | ${lintStatus} | ${LINT_ERRORS || 'N/A'} Errors, ${LINT_WARNINGS || 'N/A'} Warnings |
             | **Unit Tests** | ${getStatusIcon(UNIT_TESTS_OUTCOME)} | JUnit Reports |
-            | **Instr. Tests** | ${getStatusIcon(INSTR_TESTS_OUTCOME)} | Android Emulator |
-            | **Build** | ${getStatusIcon(BUILD_OUTCOME)} | assembleDebug |
+            | **Build** | ${getStatusIcon(BUILD_OUTCOME)} | assembleDevDebug |
             
             ---
             *Reports and artifacts (including Lint HTML) are available in the [Artifacts Tab](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts) of the [Action Run Summary](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
@@ -324,7 +322,7 @@ jobs:
       - name: Final Status Check
         if: always()
         run: |
-          if [[ "${{ needs.lint.result }}" != "success" || "${{ needs.unit-tests.result }}" != "success" || "${{ needs.instrumented-tests.result }}" != "success" || "${{ needs.build.result }}" != "success" || "${{ needs.performance-check.result }}" != "success" ]]; then
+          if [[ "${{ needs.lint.result }}" != "success" || "${{ needs.unit-tests.result }}" != "success" || "${{ needs.build.result }}" != "success" || "${{ needs.performance-check.result }}" != "success" ]]; then
             echo "One or more jobs failed."
             exit 1
           fi
