@@ -1,7 +1,7 @@
 package com.vrhub.network
 
 /**
- * Static configuration for VRPirates server.
+ * Static configuration for game server.
  * Values are loaded from BuildConfig (local.properties).
  */
 data class PublicConfig(

@@ -50,8 +50,8 @@ object Constants {
     const val PREFS_NAME = "vrhub_prefs"
 
     /**
-     * User-Agent string used for all HTTP requests to VRPirates servers
-     * Required for server compatibility
+     * User-Agent string used for all HTTP requests to game servers.
+     * Required for server compatibility.
      */
     const val USER_AGENT = "rclone/v1.72.1"
 
@@ -284,7 +284,7 @@ object DateTimeConstants {
  */
 object NetworkModule {
     /**
-     * Shared OkHttpClient instance configured for VRPirates server communication.
+     * Shared OkHttpClient instance configured for server communication.
      * Thread-safe and connection-pooled for efficiency.
      */
     val okHttpClient: OkHttpClient by lazy {
@@ -394,7 +394,7 @@ suspend fun okhttp3.Call.await(): okhttp3.Response = kotlinx.coroutines.suspendC
 object CryptoUtils {
     /**
      * Computes MD5 hash of a string.
-     * Used for generating directory names consistent with VRPirates server structure.
+     * Used for generating directory names consistent with server structure.
      *
      * @param input The string to hash
      * @return Lowercase hexadecimal MD5 hash string
@@ -474,7 +474,7 @@ object DownloadUtils {
 
     /**
      * Maximum concurrent HEAD requests for file size verification.
-     * Limits parallel connections to prevent socket exhaustion on mirror servers.
+     * Limits parallel connections to prevent socket exhaustion on game servers.
      * Value of 5 balances speed and server load.
      */
     const val MAX_CONCURRENT_HEAD_REQUESTS = 5
@@ -487,7 +487,7 @@ object DownloadUtils {
 
     /**
      * Regex pattern for extracting href links from HTML directory listings.
-     * Used for parsing VRPirates mirror directory contents.
+     * Used for parsing server mirror directory contents.
      */
     val HREF_REGEX: Regex = """href\s*=\s*"([^"]+)"""".toRegex(RegexOption.IGNORE_CASE)
 

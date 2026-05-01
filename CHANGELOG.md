@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-05-01
+
+### ✨ New Features
+- **VRHub Monetization System:** New supporter tiers and email-based purchase validation:
+  - Email initiation flow with magic link via Ko-fi
+  - Supporter tier (gold badge) and Lucky tier (purple badge)
+  - Restore purchase flow with saved email validation
+  - Debug monetization panel for testing backend endpoints
+  - Build flavors: dev (.debug suffix) + prod flavors
+
+### 🔧 Fixes
+- **Test Migration:** Migrated unit tests to use correct package structure
+- **CI Workflow:** Fixed CI workflow to use explicit dev flavor task names
+- **Instrumented Tests:** Made instrumented tests optional due to Android emulator instability on GitHub Actions
+
 ## [4.0.0] - 2026-04-28
 
 ### 🚀 Improvements
@@ -140,4 +155,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-12-21
 
 ### Added
-- Standalone Meta Quest application ("Rookie On Quest") for native sideloading.
+- Standalone Meta Quest application for native sideloading.

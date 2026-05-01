@@ -32,7 +32,7 @@ object CatalogUtils {
      * 
      * Rationale: 1 hour (3,600,000 ms) provides an optimal balance between minimizing redundant 
      * server HEAD requests/downloads and ensuring users receive timely updates. This accounts 
-     * for typical VRPirates mirror synchronization latencies and prevents excessive background 
+     * for typical server synchronization latencies and prevents excessive background 
      * traffic while the app is actively used.
      */
     const val CACHE_FRESHNESS_THRESHOLD_MS = 3600000L // 1 hour
@@ -58,7 +58,7 @@ object CatalogUtils {
      * 3. "X-Checksum-Sha256" is also captured if available for future use.
      * 4. For file:// URLs, it uses the local file's last modified timestamp as a fallback (Story 4.3 Round 11 Fix).
      * 
-     * @param baseUri The base URL of the VRPirates mirror.
+     * @param baseUri The base URL of the game server.
      * @return A map containing header names and their values.
      */
     suspend fun getRemoteCatalogMetadata(baseUri: String): Map<String, String> = withContext(Dispatchers.IO) {
@@ -165,7 +165,7 @@ object CatalogUtils {
      * Uses Last-Modified, ETag, or MD5/SHA256 hashes for comparison.
      *
      * @param context Android context to access SharedPreferences.
-     * @param baseUri The base URL of the VRPirates mirror.
+     * @param baseUri The base URL of the game server.
      * @param remoteMetadata Optional pre-fetched metadata map to avoid redundant HEAD request.
      * @param prefix Prefix for the SharedPreferences keys (e.g., "meta_" or "notified_meta_").
      * @return True if a newer catalog version is detected on the server compared to the local state.
