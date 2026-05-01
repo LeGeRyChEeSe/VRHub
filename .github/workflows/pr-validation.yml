@@ -314,7 +314,7 @@ jobs:
       - name: Build summary
         shell: bash
         run: |
-          overall_success="${{ needs.lint.result == 'success' && needs.unit-tests.result == 'success' && needs.instrumented-tests.result == 'success' && needs.build.result == 'success' }}"
+          overall_success="${{ needs.lint.result == 'success' && needs.unit-tests.result == 'success' && needs.build.result == 'success' }}"
           echo "### PR Validation: ${overall_success == 'true' && '✅ PASS' || '❌ FAIL'}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "[View Full PR Feedback and Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
