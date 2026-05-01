@@ -18,7 +18,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.vrhub.BuildConfig
 import com.vrhub.R
 
 /**
@@ -87,12 +89,23 @@ fun ConfigurationScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    text = "VRHub",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "VRHub",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    // DEBUG badge for dev flavor
+                    if (BuildConfig.APPLICATION_ID.endsWith(".debug")) {
+                        Text(
+                            text = " DEBUG",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
                 Text(
                     text = stringResource(R.string.branding_tagline),
                     style = MaterialTheme.typography.bodySmall,
@@ -233,6 +246,19 @@ fun ConfigurationScreen(
                     )
                 } else {
                     Text("SAVE")
+                }
+            }
+
+            // SKIP button for debug builds only
+            if (BuildConfig.APPLICATION_ID.endsWith(".debug")) {
+                OutlinedButton(
+                    onClick = {
+                        viewModel.skipConfiguration()
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isLoading
+                ) {
+                    Text("SKIP")
                 }
             }
         }

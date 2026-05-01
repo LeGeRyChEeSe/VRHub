@@ -397,6 +397,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val configRepository = ServerConfigRepository(application)
     private val prefs = application.getSharedPreferences(com.vrhub.data.Constants.PREFS_NAME, Context.MODE_PRIVATE)
 
+    // Monetization Tier State
+    private val _monetizationTier = MutableStateFlow<String?>(null)
+    val monetizationTier: StateFlow<String?> = _monetizationTier
+
+    private val _isMonetizationValid = MutableStateFlow(false)
+    val isMonetizationValid: StateFlow<Boolean> = _isMonetizationValid
+
+    private val _monetizationError = MutableStateFlow<String?>(null)
+    val monetizationError: StateFlow<String?> = _monetizationError
+
+    // Mutex to ensure atomic updates to monetization state
+    private val monetizationMutex = Mutex()
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
@@ -1058,6 +1071,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InstallState())
 
         init {
+            // Load monetization tier from preferences
+            val (tier, isValid) = configRepository.loadMonetizationTier()
+            _monetizationTier.value = tier
+            _isMonetizationValid.value = isValid
+
+            // Validate saved email with server on startup
+            val savedEmail = configRepository.loadMonetizationEmail()
+            if (savedEmail != null) {
+                viewModelScope.launch {
+                    validateMonetizationEmail(savedEmail)
+                }
+            }
+
             // Register listener for catalog updates
             prefs.registerOnSharedPreferenceChangeListener(prefListener)
             // Perform immediate check to ensure initial state consistency (Story 4.3 Round 14 Fix)
@@ -1927,6 +1953,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 // Check if a catalog update was found in background
                 checkCatalogUpdate()
+            }
+        }
+    }
+
+    /**
+     * Update the monetization tier and persist it.
+     * Called after successful /validate API call.
+     * Uses mutex to ensure atomic StateFlow updates.
+     */
+    fun updateMonetizationTier(tier: String?, isValid: Boolean) {
+        viewModelScope.launch {
+            monetizationMutex.withLock {
+                _monetizationTier.value = tier
+                _isMonetizationValid.value = isValid
+                configRepository.saveMonetizationTier(tier, isValid)
+            }
+        }
+    }
+
+    /**
+     * Validate a saved email with the monetization server.
+     * Updates tier state if a valid license is found.
+     * Uses mutex to ensure atomic StateFlow updates.
+     */
+    suspend fun validateMonetizationEmail(email: String) {
+        _monetizationError.value = null
+        try {
+            val response = NetworkModule.monetizationApi.validateEmail(email)
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null && body.valid && body.tier != null) {
+                    // tier: null with valid: true is treated as invalid (user exists but no active tier)
+                    monetizationMutex.withLock {
+                        _monetizationTier.value = body.tier
+                        _isMonetizationValid.value = true
+                        configRepository.saveMonetizationTier(body.tier, true)
+                    }
+                    Log.d(TAG, "Monetization: Restored tier ${body.tier} for $email")
+                } else {
+                    monetizationMutex.withLock {
+                        _monetizationTier.value = null
+                        _isMonetizationValid.value = false
+                        configRepository.saveMonetizationTier(null, false)
+                    }
+                    Log.d(TAG, "Monetization: No valid license for $email")
+                }
+            } else {
+                _monetizationError.value = "Validation failed (code ${response.code()})"
+                Log.w(TAG, "Monetization: /validate returned ${response.code()} for $email")
+            }
+        } catch (e: Exception) {
+            _monetizationError.value = "Network error: ${e.message}"
+            Log.e(TAG, "Monetization: Failed to validate email $email", e)
+        }
+    }
+
+    /**
+     * Retry monetization validation for the saved email.
+     * Exposed for user-triggered retry from UI.
+     */
+    fun retryMonetizationValidation() {
+        val savedEmail = configRepository.loadMonetizationEmail()
+        if (savedEmail != null) {
+            viewModelScope.launch {
+                validateMonetizationEmail(savedEmail)
             }
         }
     }

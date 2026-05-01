@@ -168,10 +168,71 @@ class ServerConfigRepository(context: Context) {
         ))
     }
 
+    /**
+     * Save the user's monetization tier.
+     * @param tier The tier: "supporter", "lucky", or null if not valid
+     * @param isValid Whether the tier is currently valid
+     */
+    fun saveMonetizationTier(tier: String?, isValid: Boolean) {
+        prefs.edit()
+            .putString(KEY_MONETIZATION_TIER, tier)
+            .putBoolean(KEY_MONETIZATION_VALID, isValid)
+            .apply()
+    }
+
+    /**
+     * Load the user's monetization tier.
+     * @return Pair of (tier, isValid) - tier can be null if not set
+     */
+    fun loadMonetizationTier(): Pair<String?, Boolean> {
+        val tier = prefs.getString(KEY_MONETIZATION_TIER, null)
+        val isValid = prefs.getBoolean(KEY_MONETIZATION_VALID, false)
+        return tier to isValid
+    }
+
+    /**
+     * Clear the monetization tier (e.g., on logout or reset).
+     */
+    fun clearMonetizationTier() {
+        prefs.edit()
+            .remove(KEY_MONETIZATION_TIER)
+            .remove(KEY_MONETIZATION_VALID)
+            .apply()
+    }
+
+    /**
+     * Save the user's monetization email.
+     * Used to restore tier on app restart via /validate.
+     * @param email The user's email address
+     */
+    fun saveMonetizationEmail(email: String) {
+        prefs.edit()
+            .putString(KEY_MONETIZATION_EMAIL, email)
+            .apply()
+    }
+
+    /**
+     * Load the user's monetization email.
+     * @return The saved email, or null if none exists
+     */
+    fun loadMonetizationEmail(): String? {
+        return prefs.getString(KEY_MONETIZATION_EMAIL, null)
+    }
+
+    /**
+     * Clear the monetization email.
+     */
+    fun clearMonetizationEmail() {
+        prefs.edit().remove(KEY_MONETIZATION_EMAIL).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "vrhub_server_config"
         private const val KEY_SERVER_CONFIG = "server_config"
         private const val KEY_INPUT_MODE = "input_mode"
+        private const val KEY_MONETIZATION_TIER = "monetization_tier"
+        private const val KEY_MONETIZATION_VALID = "monetization_valid"
+        private const val KEY_MONETIZATION_EMAIL = "monetization_email"
         private const val MAX_URI_LENGTH = 2048
         private const val MAX_PASSWORD_LENGTH = 512
         private const val MAX_BODY_LENGTH = 1024 * 1024 // 1 MB

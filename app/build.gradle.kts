@@ -10,6 +10,7 @@ plugins {
 android {
     namespace = "com.vrhub"
     compileSdk = 34
+    flavorDimensions += "environment"
 
     defaultConfig {
         applicationId = "com.vrhub"
@@ -151,6 +152,17 @@ android {
         }
     }
 
+    productFlavors {
+    create("prod") {
+        dimension = "environment"
+    }
+    create("dev") {
+        dimension = "environment"
+        applicationIdSuffix = ".debug"
+        versionNameSuffix = "-dev"
+    }
+}
+
     buildTypes {
         release {
             // Enable R8/ProGuard minification and obfuscation for release builds
@@ -178,8 +190,8 @@ android {
                     signingConfigs.getByName("release")
                 }
                 isCI -> {
-                    // In CI, we only warn during configuration. 
-                    // The build will naturally fail if a release task is executed 
+                    // In CI, we only warn during configuration.
+                    // The build will naturally fail if a release task is executed
                     // because the 'release' signingConfig won't be fully configured.
                     logger.warn("[signing] CI/CD build without keystore. Release builds will fail if attempted.")
                     signingConfigs.getByName("debug")

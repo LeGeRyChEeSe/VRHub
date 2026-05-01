@@ -455,6 +455,36 @@ class ConfigurationViewModel(application: Application) : AndroidViewModel(applic
     }
 
     /**
+     * Skip configuration for debug builds.
+     * Saves a dummy config to allow the app to proceed without a real server.
+     */
+    fun skipConfiguration() {
+        saveJob?.cancel()
+        saveJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            try {
+                val dummyConfig = ServerConfig(
+                    baseUri = "https://debug.invalid",
+                    password = "DEBUG_SKIP",
+                    extraKeys = emptyMap()
+                )
+                repository.saveConfig(dummyConfig, "DEBUG_SKIP")
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    isSaved = true,
+                    successMessage = "Configuration skipped (debug)",
+                    isSaveEnabled = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Skip failed: ${e.message}"
+                )
+            }
+        }
+    }
+
+    /**
      * Load existing configuration if available.
      */
     fun loadExistingConfig(): ServerConfig? {

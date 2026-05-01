@@ -1,6 +1,7 @@
 package com.vrhub.data
 
 import com.vrhub.network.GitHubReleaseService
+import com.vrhub.network.MonetizationApi
 import com.vrhub.network.UpdateService
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -333,6 +334,36 @@ object NetworkModule {
      */
     val githubReleaseService: GitHubReleaseService by lazy {
         githubApiRetrofit.create(GitHubReleaseService::class.java)
+    }
+
+    /**
+     * Base URL for VRHub monetization backend.
+     * Fixed: https://vrhub.sunshine-aio.com — do not change without server deployment.
+     * Note: ServerConfig.monetizationUrl is reserved for future per-user configuration
+     * but is not currently read by NetworkModule.
+     */
+    const val MONETIZATION_BASE_URL = "https://vrhub.sunshine-aio.com"
+
+    /**
+     * Retrofit instance for monetization API.
+     * Uses default OkHttpClient timeouts.
+     */
+    val monetizationRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(MONETIZATION_BASE_URL)
+            .client(okHttpClient.newBuilder()
+                .connectTimeout(Constants.HTTP_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .readTimeout(Constants.HTTP_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    /**
+     * Service for monetization API calls.
+     */
+    val monetizationApi: MonetizationApi by lazy {
+        monetizationRetrofit.create(MonetizationApi::class.java)
     }
 }
 
