@@ -1901,10 +1901,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val actualChecksum = com.vrhub.data.CryptoUtils.sha256(targetFile) { progress ->
                     _updateProgress.value = "Verifying integrity: ${(progress * 100).toInt()}%"
                 }
-                
-                if (updateInfo.checksum.isNullOrEmpty() || !actualChecksum.equals(updateInfo.checksum, ignoreCase = true)) {
+
+                // Only verify checksum if provided (GitHub releases don't include checksum in API response)
+                if (!updateInfo.checksum.isNullOrEmpty() && !actualChecksum.equals(updateInfo.checksum, ignoreCase = true)) {
                     targetFile.delete()
-                    throw Exception("Integrity check failed: Checksum mismatch or missing. The file may be corrupted.")
+                    throw Exception("Integrity check failed: Checksum mismatch. The file may be corrupted.")
                 }
 
                 _updateProgress.value = "Launching installer..."
