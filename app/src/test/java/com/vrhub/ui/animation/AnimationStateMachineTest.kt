@@ -1,12 +1,9 @@
-package com.vrpirates.rookieonquest.ui.animation
+package com.vrhub.ui.animation
 
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 /**
@@ -100,11 +97,7 @@ class AnimationStateMachineTest {
 
     @Test
     fun invalidTransition_pausedToDownloading_withoutActiveState() {
-        // PAUSED can only follow active states, not from Idle directly to Paused->Downloading
-        // Actually this should be valid according to the graph: Paused -> Downloading is allowed
         val stateMachine = AnimationStateMachine()
-        // First transition to Paused from Idle is NOT valid in our graph
-        // Let's verify what transitions ARE valid from Idle
         val result = stateMachine.tryTransitionTo(AnimationState.Paused())
 
         assertFalse("Idle -> Paused should be invalid (must go through active state first)", result)
@@ -298,15 +291,7 @@ class AnimationStateMachineTest {
 
     @Test
     fun installStatus_mapping_coverage() {
-        // Verify all InstallTaskStatus values are handled in the mapping
-        // This is a compile-time check - if any status is missing, the code won't compile
-        val allStatuses = listOf(
-            "QUEUED", "DOWNLOADING", "EXTRACTING", "INSTALLING",
-            "PENDING_INSTALL", "PAUSED", "BLOCKED_BY_PERMISSIONS",
-            "COMPLETED", "FAILED", "LOCAL_VERIFYING", "SHELVED"
-        )
-
-        // Verify AnimationState covers the relevant states for UI
+        // Verify all AnimationState values are handled
         val relevantStates = listOf(
             AnimationState.Idle(),
             AnimationState.Downloading(0f),
@@ -351,8 +336,6 @@ class AnimationStateMachineTest {
 
         // Launch multiple coroutines that try to transition concurrently
         // From Downloading, valid transitions are: Extracting, Paused, Idle
-        // Note: tryTransitionTo is @Synchronized so it serializes access
-        // This test verifies thread-safety (no crashes) not true parallelism
         repeat(iterations) { i ->
             launch {
                 // Each coroutine tries different transitions that are valid from Downloading

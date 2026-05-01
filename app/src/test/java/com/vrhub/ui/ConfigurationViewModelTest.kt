@@ -1,6 +1,9 @@
-package com.vrpirates.rookieonquest.ui
+package com.vrhub.ui
 
-import com.vrpirates.rookieonquest.data.*
+import com.vrhub.data.InvalidUrlException
+import com.vrhub.data.MissingKeysException
+import com.vrhub.data.ServerConfig
+import com.vrhub.data.TestResult
 import org.junit.Assert.*
 import org.junit.Test
 
