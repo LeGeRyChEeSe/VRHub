@@ -318,7 +318,7 @@ jobs:
           if [ ${#BUILD_ARGS[@]} -eq 0 ]; then
             echo "Building with default version from build.gradle.kts"
           fi
-          ./scripts/gradlew assembleRelease --build-cache "${BUILD_ARGS[@]}"
+          ./scripts/gradlew assembleProdRelease --build-cache "${BUILD_ARGS[@]}"
 
       - name: Verify build version
         timeout-minutes: 1
