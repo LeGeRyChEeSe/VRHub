@@ -337,12 +337,13 @@ jobs:
             # APK filename includes 'v' prefix: VRHub-v${versionName}.apk
             EXPECTED_FILENAME="VRHub-v${BUILD_VERSION}.apk"
             # Use array for deterministic APK selection (no head -n 1)
-            APK_ARRAY=(app/build/outputs/apk/release/"$EXPECTED_FILENAME")
+            # Flavor 'prod' outputs to apk/prod/release/, flavor 'dev' to apk/dev/release/
+            APK_ARRAY=(app/build/outputs/apk/prod/release/"$EXPECTED_FILENAME" app/build/outputs/apk/release/"$EXPECTED_FILENAME")
             APK_PATH="${APK_ARRAY[0]}"
             if [ ! -f "$APK_PATH" ]; then
               echo "::error::Version mismatch! Expected APK with filename $EXPECTED_FILENAME not found"
               echo "::error::Files found in directory:"
-              ls -la app/build/outputs/apk/release/
+              ls -la app/build/outputs/apk/prod/release/ 2>/dev/null || ls -la app/build/outputs/apk/release/ 2>/dev/null || echo "No apk directory found"
               exit 1
             fi
             echo "✅ VersionName verified: $BUILD_VERSION (file: $EXPECTED_FILENAME)"
@@ -460,20 +461,20 @@ jobs:
             echo ""
 
             # Verify APK exists (will have default versionName from build.gradle.kts)
-            APK_ARRAY=(app/build/outputs/apk/release/VRHub-v*.apk)
+            APK_ARRAY=(app/build/outputs/apk/prod/release/VRHub-v*.apk app/build/outputs/apk/release/VRHub-v*.apk)
             if [ ${#APK_ARRAY[@]} -eq 0 ] || [ ! -f "${APK_ARRAY[0]}" ]; then
               echo "::error::No APK found in build output directory"
-              ls -la app/build/outputs/apk/release/
+              ls -la app/build/outputs/apk/prod/release/ 2>/dev/null || ls -la app/build/outputs/apk/release/ 2>/dev/null || echo "No apk directory found"
               exit 1
             fi
             echo "✅ APK generated successfully with custom versionCode $BUILD_VERSION_CODE"
           else
             # Default build - verify APK exists and extract version from filename
             # Even for default builds, we verify the APK was generated correctly
-            APK_ARRAY=(app/build/outputs/apk/release/VRHub-v*.apk)
+            APK_ARRAY=(app/build/outputs/apk/prod/release/VRHub-v*.apk app/build/outputs/apk/release/VRHub-v*.apk)
             if [ ${#APK_ARRAY[@]} -eq 0 ] || [ ! -f "${APK_ARRAY[0]}" ]; then
               echo "::error::No APK found in build output directory"
-              ls -la app/build/outputs/apk/release/
+              ls -la app/build/outputs/apk/prod/release/ 2>/dev/null || ls -la app/build/outputs/apk/release/ 2>/dev/null || echo "No apk directory found"
               exit 1
             fi
             APK_PATH="${APK_ARRAY[0]}"
@@ -506,7 +507,7 @@ jobs:
           #
           # Story 8.5 established centralized extraction, but prefix refactoring 
           # is deferred to Story 8.7 "Build Dependency Caching and Performance".
-          path: app/build/outputs/apk/release/VRHub-v*.apk
+          path: app/build/outputs/apk/prod/release/VRHub-v*.apk
           if-no-files-found: error
 
       - name: Build summary
@@ -534,7 +535,7 @@ jobs:
             # DYNAMIC VERSION EXTRACTION
             # ================================================================================
             # Extract from actual APK filename or project defaults (Implemented in Story 8.5).
-            APK_FILENAME_SUMMARY=$(basename "app/build/outputs/apk/release/VRHub-v"*.apk 2>/dev/null | head -n 1)
+            APK_FILENAME_SUMMARY=$(basename "app/build/outputs/apk/prod/release/VRHub-v"*.apk 2>/dev/null | head -n 1)
             if [ -n "$APK_FILENAME_SUMMARY" ]; then
               EXTRACTED_VERSION_SUMMARY=$(echo "$APK_FILENAME_SUMMARY" | sed -n 's/VRHub-v\(.*\)\.apk/\1/p')
               if [ -n "$EXTRACTED_VERSION_SUMMARY" ]; then
@@ -568,10 +569,10 @@ jobs:
           if [ -n "$BUILD_VERSION" ]; then
             # Use expected filename if version provided
             EXPECTED_FILENAME="VRHub-v${BUILD_VERSION}.apk"
-            APK_PATH="app/build/outputs/apk/release/$EXPECTED_FILENAME"
+            APK_PATH="app/build/outputs/apk/prod/release/$EXPECTED_FILENAME"
           else
             # Use glob expansion with array for deterministic single file selection
-            APK_ARRAY=(app/build/outputs/apk/release/VRHub-v*.apk)
+            APK_ARRAY=(app/build/outputs/apk/prod/release/VRHub-v*.apk app/build/outputs/apk/release/VRHub-v*.apk)
             if [ ${#APK_ARRAY[@]} -gt 0 ]; then
               APK_PATH="${APK_ARRAY[0]}"
             else
@@ -594,7 +595,7 @@ jobs:
             APK_FILENAME=$(basename "$APK_PATH")
             echo "- **Filename:** $APK_FILENAME" >> $GITHUB_STEP_SUMMARY
             echo "- **Size:** $APK_SIZE" >> $GITHUB_STEP_SUMMARY
-            echo "- **Location:** \`app/build/outputs/apk/release/\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Location:** \`app/build/outputs/apk/prod/release/\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "- *No APK found - build may have failed*" >> $GITHUB_STEP_SUMMARY
           fi
@@ -644,7 +645,7 @@ jobs:
           name: VRHub v${{ env.BUILD_VERSION }}${{ env.RELEASE_TITLE_SUFFIX }}
           body_path: release_notes.md
           prerelease: ${{ env.IS_PRERELEASE == 'true' }}
-          files: app/build/outputs/apk/release/VRHub-v${{ env.BUILD_VERSION }}.apk
+          files: app/build/outputs/apk/prod/release/VRHub-v${{ env.BUILD_VERSION }}.apk
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
