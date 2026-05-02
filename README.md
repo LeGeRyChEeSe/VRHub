@@ -3,7 +3,6 @@
 <p align="center">
   <img src="app/src/main/res/drawable/app_icon.png" width="256" alt="VRHub Icon">
   <br>
-  <img src="https://img.shields.io/badge/VERSION-4.0.0-orange?style=for-the-badge" alt="Latest Release">
   <img src="https://img.shields.io/github/stars/LeGeRyChEeSe/VRHub?style=for-the-badge&color=2ea44f" alt="Stars">
   <img src="https://img.shields.io/github/last-commit/LeGeRyChEeSe/VRHub?style=for-the-badge" alt="Last Commit">
 </p>
@@ -21,6 +20,7 @@ A standalone Meta Quest application to browse, download, and install VR games na
 - [Key Features](#key-features)
 - [Download & Installation](#download--installation)
 - [Server Configuration](#server-configuration)
+- [Architecture](#architecture)
 - [Build & Development Commands](#build--development-commands)
 - [Contributing](#contributing)
 
@@ -46,7 +46,7 @@ VRHub is a personal VR game manager for Meta Quest headsets. Connect to your **p
 
 ## Download & Installation
 
-[![Download VRHub](https://img.shields.io/badge/Download%20VRHub-v4.0.0-007bff?style=for-the-badge&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+[![Download VRHub](https://img.shields.io/github/v/release/LeGeRyChEeSe/VRHub?include_prereleases&sort=semver&label=Download%20VRHub&style=for-the-badge)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
 
 > [!IMPORTANT]
 > Requires Meta Quest with **Developer Mode** enabled. Enable it at [meta.com/quest/developers](https://meta.com/quest/developers/).
@@ -56,20 +56,20 @@ The easiest way to install APKs on Quest.
 
 1. Download and install [SideQuest](https://sidequestvr.com/) on your PC/Mac
 2. Connect your Quest headset via USB or Wi-Fi
-3. Download the latest APK: [![Download VRHub](https://img.shields.io/badge/Download%20VRHub-007bff?style=flat&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+3. Download the latest APK: [![Download VRHub](https://img.shields.io/github/v/release/LeGeRyChEeSe/VRHub?include_prereleases&sort=semver&label=VRHub&style=flat)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
 4. Drag and drop the APK onto SideQuest — installation is automatic
 
 ### Method 2: Direct Browser Install
 Install directly from your Quest without a PC (Quest Browser required).
 
 1. On your Quest headset, open the **Meta Quest Browser**
-2. Download the APK: [![Download VRHub](https://img.shields.io/badge/Download%20VRHub-007bff?style=flat&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+2. Download the APK: [![Download VRHub](https://img.shields.io/github/v/release/LeGeRyChEeSe/VRHub?include_prereleases&sort=semver&label=VRHub&style=flat)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
 3. Open the downloaded file — the system APK installer will handle the rest
 
 ### Method 3: adb (Developer)
 For advanced users comfortable with command-line tools.
 
-1. Download the APK: [![Download VRHub](https://img.shields.io/badge/Download%20VRHub-007bff?style=flat&logo=github)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
+1. Download the APK: [![Download VRHub](https://img.shields.io/github/v/release/LeGeRyChEeSe/VRHub?include_prereleases&sort=semver&label=VRHub&style=flat)](https://github.com/LeGeRyChEeSe/VRHub/releases/latest)
 2. Connect Quest via USB and enable USB debugging
 3. Run: `adb install -r VRHub-vX.X.X.apk`
 
@@ -112,6 +112,20 @@ Use the **TEST** button to validate your configuration before saving. VRHub will
 
 ---
 
+## Architecture
+
+VRHub follows a clean, layered architecture:
+
+- **data/** — Room database, DAOs, entities, repositories, server config
+- **logic/** — Catalog parsing and utilities
+- **network/** — Retrofit services, GitHub release checks, update service
+- **ui/** — Jetpack Compose screens, ViewModels, theme
+- **worker/** — WorkManager for background downloads
+
+**Tech Stack:** Kotlin, Jetpack Compose, Room, Retrofit, WorkManager
+
+---
+
 ## Build & Development Commands
 
 ### Prerequisites
@@ -121,17 +135,17 @@ Use the **TEST** button to validate your configuration before saving. VRHub will
 ### Building the Project
 ```bash
 # Clean the project
-gradlew.bat clean
+./scripts/gradlew clean
 # or
 make clean
 
 # Build debug APK
-gradlew.bat assembleDebug
+./scripts/gradlew assembleDebug
 # or
 make build
 
 # Build release APK (requires keystore.properties)
-gradlew.bat assembleRelease
+./scripts/gradlew assembleProdRelease
 # or
 make release
 ```
@@ -140,9 +154,11 @@ make release
 This project uses GitHub Actions for PR validation. You can run the validation logic locally to catch issues before pushing:
 
 - **Linux/macOS:** `./scripts/test-ci-config.sh`
+- **Windows:** `powershell -File scripts/test-ci-config.ps1`
 
 For end-to-end tests including release candidate builds:
 - **Linux/macOS:** `./scripts/test-rc-e2e.sh`
+- **Windows:** `powershell -File scripts/test-ci-logic.ps1` (lint logic validation)
 
 ### Version Management
 This project follows **[Semantic Versioning (SemVer)](https://semver.org/)**.
@@ -158,6 +174,11 @@ The `versionName` must match the format `X.Y.Z` with optional pre-release suffix
 - Combined: `2.5.0-rc.1+build.1`
 
 The regex pattern used is: `^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$`
+
+### Build Flavors
+VRHub has two build flavors:
+- **dev** (`./scripts/gradlew assembleDevDebug`) — development build with `.debug` suffix for testing
+- **prod** (`./scripts/gradlew assembleProdRelease`) — production build for release
 
 ### Secure Update Authentication
 To enable application update checks, a secret key is required for request signing.
