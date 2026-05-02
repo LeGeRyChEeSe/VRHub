@@ -77,34 +77,32 @@ For advanced users comfortable with command-line tools.
 
 ## Server Configuration
 
-After installing VRHub, you need to connect it to your personal game server.
+After installing VRHub, you need to connect it to your personal game server. You will receive a file or text containing two pieces of information: an address and a password.
 
-### Method 1: JSON URL
-
-If your server provides a JSON configuration file, select **JSON URL** mode and enter the URL to that `.json` file (e.g., `https://example.com/config.json`).
-
-The JSON file hosted at that URL must contain at minimum:
-
-```json
+It looks something like this:
+```
 {
   "baseUri": "https://your-server.com/games/",
-  "password": "your-server-password"
+  "password": "your-password-here"
 }
 ```
 
-| Key | Description |
-|-----|-------------|
-| `baseUri` | Base URL to your game files directory |
-| `password` | Password required to extract compressed game archives |
+### Option 1: You have the address and password as text
 
-### Method 2: Manual Entry
+Select **Manual Entry** mode, then:
 
-If you don't have a URL to a config file, select **Manual Entry** mode and create the key-value pairs directly:
+1. In the **Key** field (left), type exactly: `baseUri`
+2. In the **Value** field (right), type the address you were given (e.g., `https://your-server.com/games/`)
+3. Press **ADD KEY**
+4. Repeat: in **Key** type `password`
+5. In **Value** type the password you were given
+6. Press **ADD KEY**
+7. Press the **TEST** button (it becomes clickable once both keys are added) and wait for the confirmation
+8. Press **SAVE**
 
-| Key | Value |
-|-----|-------|
-| `baseUri` | `https://your-server.com/games/` |
-| `password` | `your-server-password` |
+### Option 2: You have a link to a configuration file
+
+If someone gave you a link (like `https://example.com/config.json`), select **JSON URL** mode and paste that link. VRHub will download and use the configuration automatically.
 
 ### Testing Your Configuration
 
