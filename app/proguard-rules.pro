@@ -190,3 +190,45 @@
 # ================================================================================
 -keep class com.vrhub.data.** { *; }
 -keep class com.vrhub.network.** { *; }
+
+# ================================================================================
+# Retrofit R8 Full Mode Fix
+# ================================================================================
+# Prevent "Response must include generic type" error in R8 full mode.
+# Retrofit uses reflection to extract generic return types at runtime.
+# Source: https://github.com/square/retrofit/issues/3898
+-keepattributes Signature
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod
+
+# Keep Retrofit service interfaces and their generic type information
+-keep,allowobfuscation,allowshrinking interface retrofit2.http.*
+-keepclassmembers interface retrofit2.http.* {
+    @retrofit2.http.* <methods>;
+}
+
+# Keep concrete Retrofit service implementations
+-keep class com.vrhub.network.MonetizationApi { *; }
+
+# Keep all network model classes with their generic signatures
+-keep class com.vrhub.network.InitRequest { *; }
+-keep class com.vrhub.network.InitResponse { *; }
+-keep class com.vrhub.network.ValidateResponse { *; }
+-keep class com.vrhub.network.WebhookRequest { *; }
+-keep class com.vrhub.network.WebhookResponse { *; }
+-keep class com.vrhub.network.HealthResponse { *; }
+-keep class com.vrhub.network.CleanupResponse { *; }
+
+# Keep Gson model classes
+-keep class com.google.gson.** { *; }
+-keepattributes *Annotation*
+
+# Keep Kotlin coroutines Continuation for suspend functions
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+
+# Keep generic type parameters on Retrofit service methods
+-keep class retrofit2.** { *; }
+-dontwarn retrofit2.**
+-dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
+-dontwarn javax.annotation.**
+-dontwarn kotlin.Unit

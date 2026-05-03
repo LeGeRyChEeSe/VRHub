@@ -46,7 +46,7 @@ android {
         // NOTE: This validation mirrors the CI validation in release.yml for consistency.
         // The only difference is regression warning is CI-only (GHA has access to git history).
         versionCode = when {
-            versionCodeProperty == null -> 14 // Default when not provided
+            versionCodeProperty == null -> 15 // Default when not provided
             versionCodeProperty.toIntOrNull() == null -> throw GradleException(
                 "Invalid versionCode property: '$versionCodeProperty'. " +
                 "versionCode must be a valid integer >= 1. " +
@@ -66,7 +66,7 @@ android {
         }
 
         versionName = when {
-            versionNameProperty == null -> "4.1.0" // Default when not provided
+            versionNameProperty == null -> "4.1.1" // Default when not provided
             versionNameProperty.matches(Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?(\\+[a-zA-Z0-9]+(\\.[a-zA-Z0-9]+)*)?$")) -> versionNameProperty
             else -> throw GradleException(
                 "Invalid versionName property: '$versionNameProperty'. " +
@@ -334,3 +334,4 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
+
