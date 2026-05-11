@@ -48,7 +48,6 @@ Thumbs.db
 *.user
 
 # Project specific
-rookie/
 temp_notes.md
 
 # Agent & IDE specific folders
@@ -71,17 +70,17 @@ _bmad_config/
 .agents/
 
 # Historical/unused documentation
+AGENTS.md
+CLAUDE.md
 GEMINI.md
+MONETIZATION.md
 PROJECT_DASHBOARD.md
 QWEN.md
 ROADMAP.md
 ACTION_PLAN.md
-CLAUDE.md
-CONTRIBUTING.md
 DEVELOPMENT.md
 WORKTREE-SYSTEM.md
 project-context.md
-docs/
 
 # GitHub Issue Templates
 .github/ISSUE_TEMPLATE/
