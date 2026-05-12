@@ -75,6 +75,8 @@ import com.vrhub.ui.ConfigurationViewModel
 import com.vrhub.ui.components.CatalogUpdateBanner
 import com.vrhub.ui.theme.VRHubTheme
 import com.vrhub.ui.components.DebugMonetizationPanel
+import com.vrhub.ui.components.ConsentDialog
+import com.vrhub.data.ConsentPreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -180,6 +182,18 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
     // Permission revoked dialog state
     val showRevokedDialog by viewModel.showRevokedDialog.collectAsState()
+
+    // Story 1.2: Consent dialog state
+    var showConsentDialog by remember { mutableStateOf(false) }
+    val consentPreferences = remember { ConsentPreferences(context) }
+
+    LaunchedEffect(Unit) {
+        val hasSeenConsent = context.getSharedPreferences("vrhub_prefs", Context.MODE_PRIVATE)
+            .getBoolean("has_seen_consent_dialog", false)
+        if (!hasSeenConsent) {
+            showConsentDialog = true
+        }
+    }
 
     LaunchedEffect(listState, staggeredGridState) {
         snapshotFlow {
@@ -409,6 +423,29 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 )
             }
             else -> {
+                // Story 1.2: Consent dialog (non-dismissible, shown on first launch)
+                if (showConsentDialog) {
+                    ConsentDialog(
+                        onAccept = {
+                            coroutineScope.launch {
+                                consentPreferences.setConsentEnabled(true)
+                            }
+                            context.getSharedPreferences("vrhub_prefs", Context.MODE_PRIVATE)
+                                .edit()
+                                .putBoolean("has_seen_consent_dialog", true)
+                                .apply()
+                            showConsentDialog = false
+                        },
+                        onDecline = {
+                            context.getSharedPreferences("vrhub_prefs", Context.MODE_PRIVATE)
+                                .edit()
+                                .putBoolean("has_seen_consent_dialog", true)
+                                .apply()
+                            showConsentDialog = false
+                        }
+                    )
+                }
+
                 ModalNavigationDrawer(
                     drawerState = drawerState,
                     gesturesEnabled = currentScreen == "catalog",
