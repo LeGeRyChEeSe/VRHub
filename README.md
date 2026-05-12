@@ -5,6 +5,8 @@
   <br>
   <img src="https://img.shields.io/github/stars/LeGeRyChEeSe/VRHub?style=for-the-badge&color=2ea44f" alt="Stars">
   <img src="https://img.shields.io/github/last-commit/LeGeRyChEeSe/VRHub?style=for-the-badge" alt="Last Commit">
+  <a href="https://ko-fi.com/W7W71YNILA"><img src="https://ko-fi.com/img/githubbutton_sm.svg" height="28" alt="Support on Ko-fi"></a>
+  <a href="https://discord.gg/Wt8k22guRQ"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
 <p align="center">
