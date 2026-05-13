@@ -11,12 +11,12 @@ import com.google.gson.annotations.SerializedName
  * POST /stats/collect - Send anonymous game stats
  * @param games List of installed games with favorite status
  * @param tier User tier (standard/supporter/lucky)
- * @param timestamp Unix timestamp in milliseconds (System.currentTimeMillis())
+ * @param email User email (only for supporter/lucky tier, null for standard)
  */
 data class StatsCollectRequest(
     val games: List<GameStat>,
     val tier: String,
-    val timestamp: Long
+    val email: String? = null
 )
 
 data class GameStat(
@@ -32,9 +32,12 @@ data class StatsCollectResponse(
 
 /**
  * POST /stats/consent - Update user consent preference
+ * @param enabled Whether consent is enabled
+ * @param email User email (only for supporter/lucky tier, null for standard)
  */
 data class ConsentRequest(
-    val consent: Boolean
+    val enabled: Boolean,
+    val email: String? = null
 )
 
 data class ConsentResponse(
@@ -52,3 +55,16 @@ data class UserTierResponse(
     val tier: String?,
     val status: String
 )
+
+/**
+ * Resolves the user tier from API response with fallback to "standard".
+ * @param tier The tier from API response (may be null or empty)
+ * @return "standard" if tier is null/empty, otherwise the tier value
+ */
+fun resolveTier(tier: String?): String {
+    return when {
+        tier.isNullOrBlank() -> "standard"
+        tier in listOf("standard", "supporter", "lucky") -> tier
+        else -> "standard" // Unknown tier, fallback to standard
+    }
+}
