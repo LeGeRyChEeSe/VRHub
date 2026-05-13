@@ -37,7 +37,7 @@ class StatsCollectorTest {
         coEvery { mockApi.collectStats(any<StatsCollectRequest>()) } returns Response.success(StatsCollectResponse(message = "ok"))
 
         val collector = StatsCollector(mockApi, mockConsent)
-        collector.collectStats(mapOf("com.game.app" to false), "standard")
+        collector.collectStats(null, mapOf("com.game.app" to false), "standard")
 
         // Verify API was never called (AC1)
         coVerify(exactly = 0) { mockApi.collectStats(any<StatsCollectRequest>()) }
@@ -59,7 +59,7 @@ class StatsCollectorTest {
             "com.game.app1" to true,
             "com.game.app2" to false
         )
-        collector.collectStats(games, "lucky")
+        collector.collectStats(null, games, "lucky")
 
         assertTrue("Request should be captured", requestSlot.isCaptured)
         val capturedRequest = requestSlot.captured
@@ -86,7 +86,7 @@ class StatsCollectorTest {
         }
 
         val collector = StatsCollector(mockApi, mockConsent)
-        collector.collectStats(emptyMap(), "standard")
+        collector.collectStats(null, emptyMap(), "standard")
 
         assertFalse("API should not be called with no games", apiCalled)
     }
@@ -103,7 +103,7 @@ class StatsCollectorTest {
         val collector = StatsCollector(mockApi, mockConsent)
 
         // Should not throw exception - 403 is handled internally
-        collector.collectStats(mapOf("com.game.app" to false), "standard")
+        collector.collectStats(null, mapOf("com.game.app" to false), "standard")
 
         // Test passes if no exception is thrown
         assertTrue("403 handled gracefully", true)

@@ -21,6 +21,7 @@ class StatsCollector(
     }
 
     suspend fun collectStats(
+        email: String?,
         games: Map<String, Boolean>,
         tier: String
     ): Unit = withContext(Dispatchers.IO) {
@@ -49,10 +50,13 @@ class StatsCollector(
             return@withContext
         }
 
+        // Only include email for supporter/lucky tiers (fallback to anonymous@vrhub.local)
+        val requestEmail = if (tier in listOf("supporter", "lucky")) (email ?: "anonymous@vrhub.local") else null
+
         val request = StatsCollectRequest(
             games = gameStats,
             tier = tier,
-            timestamp = System.currentTimeMillis()
+            email = requestEmail
         )
 
         try {
@@ -78,8 +82,8 @@ class StatsCollector(
         }
     }
 
-    suspend fun updateConsent(consent: Boolean): Unit = withContext(Dispatchers.IO) {
-        val response = statsApiService.updateConsent(ConsentRequest(consent = consent))
+    suspend fun updateConsent(email: String?, consent: Boolean): Unit = withContext(Dispatchers.IO) {
+        val response = statsApiService.updateConsent(ConsentRequest(enabled = consent, email = email))
         if (response.isSuccessful) {
             Log.d(TAG, "Consent updated on server")
             if (consent) {

@@ -29,8 +29,8 @@ class FakeStatsApiService : StatsApiService {
 
     override suspend fun updateConsent(request: ConsentRequest): Response<ConsentResponse> {
         updateConsentCalled = true
-        updateConsentValue = request.consent
-        return Response.success(ConsentResponse(message = "ok", consent = request.consent))
+        updateConsentValue = request.enabled
+        return Response.success(ConsentResponse(message = "ok", consent = request.enabled))
     }
 
     override suspend fun getUserTier(email: String): Response<UserTierResponse> {

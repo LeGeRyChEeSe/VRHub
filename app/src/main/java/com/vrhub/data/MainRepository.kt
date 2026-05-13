@@ -12,9 +12,12 @@ import android.util.Log
 import com.vrhub.logic.CatalogParser
 import com.vrhub.logic.CatalogUtils
 import com.vrhub.network.PublicConfig
+import com.vrhub.network.StatsApiService
+import com.vrhub.data.StatsCollector
 import okhttp3.OkHttpClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -65,6 +68,8 @@ class MainRepository(
     }
 
     private val gameDao = db.gameDao()
+    private val consentPreferences = ConsentPreferences(context)
+    private val statsCollector = StatsCollector(NetworkModule.statsApiService, consentPreferences)
 
     // Use shared network instances from NetworkModule (singleton)
     private val okHttpClient = NetworkModule.okHttpClient
@@ -98,6 +103,7 @@ class MainRepository(
 
     suspend fun toggleFavorite(releaseName: String, isFavorite: Boolean) = withContext(Dispatchers.IO) {
         gameDao.updateFavorite(releaseName, isFavorite)
+        maybeCollectStats()
     }
 
     /**
@@ -231,7 +237,13 @@ class MainRepository(
                                     Log.w(TAG, "Extraction failed with password attempt: ${e.message}")
                                 }
                             }
-            
+
+                            if (!success || gameListContent.isEmpty()) {
+                                Log.e(TAG, "syncCatalog: all password attempts failed or content empty")
+                                onProgress(-1f)
+                                throw Exception("Catalog extraction failed or content empty")
+                            }
+
                             if (success && gameListContent.isNotEmpty()) {
                                 // 70% progress: extraction done, starting parsing.
                                 onProgress(0.7f) 
@@ -286,16 +298,13 @@ class MainRepository(
                                     }
             
                                     // 100% progress: all done.
-                                    onProgress(1f) 
+                                    onProgress(1f)
                                     Log.i(TAG, "Catalog sync complete")
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Failed to insert games into database", e)
                                     onProgress(-1f)
                                     throw e
                                 }
-                            } else {
-                                onProgress(-1f)
-                                throw Exception("Catalog extraction failed or content empty")
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "syncCatalog: error during sync: ${e.message}", e)
@@ -307,6 +316,8 @@ class MainRepository(
                         onProgress(-1f)
                         throw e
                     }
+
+                    maybeCollectStats()
                 }
                         private fun extractMetaToCache(file: File, password: String?, onGameListFound: (String) -> Unit) {
         val builder = SevenZFile.builder().setFile(file)
@@ -425,6 +436,49 @@ class MainRepository(
         } catch (e: Exception) {
             Log.e(TAG, "Error getting installed packages", e)
             emptyMap()
+        }
+    }
+
+    /**
+     * Trigger stats collection if consent is enabled.
+     * Called after catalog sync or favorite toggle.
+     */
+    suspend fun maybeCollectStats(): Unit = withContext(Dispatchers.IO) {
+        try {
+            val consentEnabled = consentPreferences.consentEnabled.first()
+            if (!consentEnabled) {
+                Log.d(TAG, "maybeCollectStats: skipped — no consent")
+                return@withContext
+            }
+
+            currentCoroutineContext().ensureActive()
+
+            val installedPackages = getInstalledPackagesMap()
+            val catalogGames = gameDao.getAllGamesList()
+
+            val games = catalogGames
+                .filter { installedPackages.containsKey(it.packageName) }
+                .associate { it.packageName to it.isFavorite }
+
+            if (games.isEmpty()) {
+                Log.d(TAG, "maybeCollectStats: no installed games in catalog")
+                return@withContext
+            }
+
+            val tier = resolveUserTier() ?: "standard"
+            statsCollector.collectStats(null, games, tier)
+        } catch (e: Exception) {
+            Log.e(TAG, "maybeCollectStats: error", e)
+        }
+    }
+
+    private suspend fun resolveUserTier(): String? {
+        return try {
+            val response = NetworkModule.statsApiService.getUserTier("anonymous")
+            if (response.isSuccessful) response.body()?.tier else null
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveUserTier: failed", e)
+            null
         }
     }
 

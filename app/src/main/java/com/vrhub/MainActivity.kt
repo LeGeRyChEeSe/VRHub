@@ -452,7 +452,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 } else {
                                     StatsCollectionWorker.cancel(context)
                                 }
-                                statsCollector.updateConsent(enabled)
+                                statsCollector.updateConsent(null, enabled)
                             } catch (e: Exception) {
                                 snackbarHostState.showSnackbar("Consent sync failed")
                             }

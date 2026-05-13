@@ -59,6 +59,16 @@ class StatsCollectionWorker(
                 .cancelUniqueWork(WORK_NAME)
             Log.d(TAG, "Stats collection work cancelled")
         }
+
+        private suspend fun resolveTier(): String? {
+            return try {
+                val response = NetworkModule.statsApiService.getUserTier("anonymous")
+                if (response.isSuccessful) response.body()?.tier else null
+            } catch (e: Exception) {
+                Log.w(TAG, "resolveTier: failed", e)
+                null
+            }
+        }
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -88,8 +98,9 @@ class StatsCollectionWorker(
                 return@withContext Result.success()
             }
 
-            // Collect stats with "standard" tier for background worker
-            statsCollector.collectStats(installedGames, "standard")
+            // Resolve real user tier (same pattern as MainRepository.maybeCollectStats)
+            val tier = resolveTier() ?: "standard"
+            statsCollector.collectStats(null, installedGames, tier)
 
             Log.d(TAG, "doWork: stats collection completed")
             Result.success()
