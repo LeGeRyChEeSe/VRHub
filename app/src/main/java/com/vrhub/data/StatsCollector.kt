@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class StatsCollector(
     private val statsApiService: StatsApiService,
-    private val consentPreferences: ConsentPreferences
+    private val consentPreferences: ConsentPreferencesInterface
 ) {
     companion object {
         private const val TAG = "StatsCollector"

@@ -79,8 +79,10 @@ import com.vrhub.ui.components.ConsentDialog
 import com.vrhub.data.ConsentPreferences
 import com.vrhub.data.StatsCollector
 import com.vrhub.data.NetworkModule
+import com.vrhub.worker.StatsCollectionWorker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -197,6 +199,20 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             .getBoolean("has_seen_consent_dialog", false)
         if (!hasSeenConsent) {
             showConsentDialog = true
+        }
+    }
+
+    // Story 3.2: Sync worker state on app start based on current consent
+    LaunchedEffect(Unit) {
+        val consentEnabled = consentPreferences.consentEnabled.first()
+        try {
+            if (consentEnabled) {
+                StatsCollectionWorker.enqueue(context)
+            } else {
+                StatsCollectionWorker.cancel(context)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Worker sync failed", e)
         }
     }
 
@@ -431,6 +447,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         coroutineScope.launch {
                             consentPreferences.setConsentEnabled(enabled)
                             try {
+                                if (enabled) {
+                                    StatsCollectionWorker.enqueue(context)
+                                } else {
+                                    StatsCollectionWorker.cancel(context)
+                                }
                                 statsCollector.updateConsent(enabled)
                             } catch (e: Exception) {
                                 snackbarHostState.showSnackbar("Consent sync failed")
@@ -446,6 +467,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         onAccept = {
                             coroutineScope.launch {
                                 consentPreferences.setConsentEnabled(true)
+                                try {
+                                    StatsCollectionWorker.enqueue(context)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("MainActivity", "Worker enqueue failed", e)
+                                }
                             }
                             context.getSharedPreferences("vrhub_prefs", Context.MODE_PRIVATE)
                                 .edit()

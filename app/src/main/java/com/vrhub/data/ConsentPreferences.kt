@@ -13,7 +13,7 @@ val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "vrhub_settings"
 )
 
-class ConsentPreferences(private val context: Context) {
+class ConsentPreferences(private val context: Context) : ConsentPreferencesInterface {
 
     private val dataStore = context.settingsDataStore
 
@@ -21,12 +21,12 @@ class ConsentPreferences(private val context: Context) {
         val CONSENT_ENABLED = booleanPreferencesKey("consent_enabled")
     }
 
-    val consentEnabled: Flow<Boolean> = dataStore.data
+    override val consentEnabled: Flow<Boolean> = dataStore.data
         .map { preferences ->
             preferences[CONSENT_ENABLED] ?: false
         }
 
-    suspend fun setConsentEnabled(enabled: Boolean) {
+    override suspend fun setConsentEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[CONSENT_ENABLED] = enabled
         }
