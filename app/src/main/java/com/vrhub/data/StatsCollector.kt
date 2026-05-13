@@ -50,8 +50,8 @@ class StatsCollector(
             return@withContext
         }
 
-        // Only include email for supporter/lucky tiers (fallback to anonymous@vrhub.local)
-        val requestEmail = if (tier in listOf("supporter", "lucky")) (email ?: "anonymous@vrhub.local") else null
+        // Only include email for supporter/lucky tiers when email is provided
+        val requestEmail = if (tier in listOf("supporter", "lucky") && email != null) email else null
 
         val request = StatsCollectRequest(
             games = gameStats,

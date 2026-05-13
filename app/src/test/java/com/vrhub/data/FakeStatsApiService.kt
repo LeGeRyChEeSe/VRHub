@@ -17,19 +17,23 @@ class FakeStatsApiService : StatsApiService {
     var collectStatsCalled = false
     var receivedGames: List<GameStat>? = null
     var receivedTier: String? = null
+    var receivedEmail: String? = null
     var updateConsentCalled = false
     var updateConsentValue: Boolean? = null
+    var updateConsentEmail: String? = null
 
     override suspend fun collectStats(request: StatsCollectRequest): Response<StatsCollectResponse> {
         collectStatsCalled = true
         receivedGames = request.games
         receivedTier = request.tier
+        receivedEmail = request.email
         return Response.success(StatsCollectResponse(message = "ok"))
     }
 
     override suspend fun updateConsent(request: ConsentRequest): Response<ConsentResponse> {
         updateConsentCalled = true
         updateConsentValue = request.enabled
+        updateConsentEmail = request.email
         return Response.success(ConsentResponse(message = "ok", consent = request.enabled))
     }
 

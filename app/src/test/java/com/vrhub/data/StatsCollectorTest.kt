@@ -65,6 +65,9 @@ class StatsCollectorTest {
         val capturedRequest = requestSlot.captured
         assertEquals("Should receive 2 games", 2, capturedRequest.games.size)
         assertEquals("Tier should be lucky", "lucky", capturedRequest.tier)
+        // Verify no timestamp field (removed in stats-api fix)
+        // Note: timestamp was removed, so we just verify email is null for standard calls with null email
+        assertNull("Email should be null for supporter tier when not provided", capturedRequest.email)
         // Verify GameStat content (packageName and isFavorite values)
         assertEquals("com.game.app1", capturedRequest.games[0].packageName)
         assertTrue(capturedRequest.games[0].isFavorite)
