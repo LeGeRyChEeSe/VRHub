@@ -2,6 +2,7 @@ package com.vrhub.data
 
 import com.vrhub.network.GitHubReleaseService
 import com.vrhub.network.MonetizationApi
+import com.vrhub.network.StatsApiService
 import com.vrhub.network.UpdateService
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -364,6 +365,13 @@ object NetworkModule {
      */
     val monetizationApi: MonetizationApi by lazy {
         monetizationRetrofit.create(MonetizationApi::class.java)
+    }
+
+    /**
+     * Service for stats collection API calls.
+     */
+    val statsApiService: StatsApiService by lazy {
+        monetizationRetrofit.create(StatsApiService::class.java)
     }
 }
 

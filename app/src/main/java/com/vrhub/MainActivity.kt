@@ -77,6 +77,8 @@ import com.vrhub.ui.theme.VRHubTheme
 import com.vrhub.ui.components.DebugMonetizationPanel
 import com.vrhub.ui.components.ConsentDialog
 import com.vrhub.data.ConsentPreferences
+import com.vrhub.data.StatsCollector
+import com.vrhub.data.NetworkModule
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -186,6 +188,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     // Story 1.2: Consent dialog state
     var showConsentDialog by remember { mutableStateOf(false) }
     val consentPreferences = remember { ConsentPreferences(context) }
+    val statsCollector = remember(NetworkModule.statsApiService, consentPreferences) {
+        StatsCollector(NetworkModule.statsApiService, consentPreferences)
+    }
 
     LaunchedEffect(Unit) {
         val hasSeenConsent = context.getSharedPreferences("vrhub_prefs", Context.MODE_PRIVATE)
@@ -425,6 +430,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     onConsentChange = { enabled ->
                         coroutineScope.launch {
                             consentPreferences.setConsentEnabled(enabled)
+                            try {
+                                statsCollector.updateConsent(enabled)
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("Consent sync failed")
+                            }
                         }
                     }
                 )
