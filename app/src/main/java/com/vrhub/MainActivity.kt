@@ -1976,43 +1976,6 @@ fun SettingsDialog(
                     )
                 }
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
-
-                Text(
-                    text = "Privacy",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-
-                ListItem(
-                    headlineContent = { Text("Share anonymous statistics") },
-                    supportingContent = {
-                        Column {
-                            Text(
-                                "Help improve VRHub by sharing anonymous data",
-                                color = Color.Gray
-                            )
-                            if (consentEnabled) {
-                                Text(
-                                    text = "✓ Your data is being shared",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF4CAF50)
-                                )
-                            }
-                        }
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = consentEnabled,
-                            onCheckedChange = onConsentChange
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-
-                Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
-
                 Text(
                     text = "Diagnostics",
                     style = MaterialTheme.typography.labelLarge,
