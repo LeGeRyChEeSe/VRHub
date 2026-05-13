@@ -407,6 +407,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 )
             }
             showSettingsDialog -> {
+                val consentEnabled by consentPreferences.consentEnabled.collectAsState(initial = false)
                 SettingsDialog(
                     keepApks = keepApks,
                     onToggleKeepApks = { viewModel.toggleKeepApks() },
@@ -419,7 +420,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         showSettingsDialog = false
                         showConfigDialog = true
                     },
-                    onDismiss = { showSettingsDialog = false }
+                    onDismiss = { showSettingsDialog = false },
+                    consentEnabled = consentEnabled,
+                    onConsentChange = { enabled ->
+                        coroutineScope.launch {
+                            consentPreferences.setConsentEnabled(enabled)
+                        }
+                    }
                 )
             }
             else -> {
@@ -1837,7 +1844,9 @@ fun SettingsDialog(
     missingPermissions: List<RequiredPermission>,
     onPermissionClick: (RequiredPermission) -> Unit,
     onServerConfigClick: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    consentEnabled: Boolean = false,
+    onConsentChange: (Boolean) -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1859,6 +1868,41 @@ fun SettingsDialog(
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { onServerConfigClick() }
+                )
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+
+                Text(
+                    text = "Privacy",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                ListItem(
+                    headlineContent = { Text("Share anonymous statistics") },
+                    supportingContent = {
+                        Column {
+                            Text(
+                                "Help improve VRHub by sharing anonymous data",
+                                color = Color.Gray
+                            )
+                            if (consentEnabled) {
+                                Text(
+                                    text = "✓ Your data is being shared",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF4CAF50)
+                                )
+                            }
+                        }
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = consentEnabled,
+                            onCheckedChange = onConsentChange
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
@@ -1931,6 +1975,41 @@ fun SettingsDialog(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
                 }
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+
+                Text(
+                    text = "Privacy",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                ListItem(
+                    headlineContent = { Text("Share anonymous statistics") },
+                    supportingContent = {
+                        Column {
+                            Text(
+                                "Help improve VRHub by sharing anonymous data",
+                                color = Color.Gray
+                            )
+                            if (consentEnabled) {
+                                Text(
+                                    text = "✓ Your data is being shared",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF4CAF50)
+                                )
+                            }
+                        }
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = consentEnabled,
+                            onCheckedChange = onConsentChange
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
 
