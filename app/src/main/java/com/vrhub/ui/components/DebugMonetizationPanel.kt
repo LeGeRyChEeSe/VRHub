@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vrhub.BuildConfig
 import com.vrhub.ui.DebugMonetizationViewModel
+import com.vrhub.network.GameStat
 
 /**
  * Floating debug panel for testing monetization endpoints.
@@ -235,6 +236,40 @@ fun DebugMonetizationPanel() {
                                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                             ) {
                                 Text("Validate", fontSize = 11.sp)
+                            }
+                        }
+
+                        // Button row 3 - Stats endpoints
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Button(
+                                onClick = { viewModel.testStatsCollect() },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.isLoading,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                            ) {
+                                Text("Test Stats", fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = { viewModel.testStatsConsent() },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.isLoading,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                            ) {
+                                Text("Test Consent", fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = { viewModel.testGetTier() },
+                                modifier = Modifier.weight(1f),
+                                enabled = !state.isLoading,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                            ) {
+                                Text("Test Tier", fontSize = 11.sp)
                             }
                         }
 

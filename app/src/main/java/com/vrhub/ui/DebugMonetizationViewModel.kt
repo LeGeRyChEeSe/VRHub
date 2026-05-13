@@ -213,6 +213,93 @@ class DebugMonetizationViewModel : ViewModel() {
         }
     }
 
+    fun testStatsCollect() {
+        val email = _state.value.email.trim().ifBlank { "anonymous@vrhub.local" }
+        val effectiveEmail = if (email == "anonymous@vrhub.local") null else email
+
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null)
+            try {
+                val sampleGames = listOf(
+                    GameStat(packageName = "com.example.game1", isFavorite = true),
+                    GameStat(packageName = "com.example.game2", isFavorite = false)
+                )
+                val request = StatsCollectRequest(
+                    games = sampleGames,
+                    tier = "supporter",
+                    email = effectiveEmail
+                )
+                val response = NetworkModule.statsApiService.collectStats(request)
+                val body = if (response.isSuccessful) {
+                    response.body()?.let { gson.toJson(it) } ?: "{\"message\": \"ok\"}"
+                } else {
+                    "Error ${response.code()}: ${response.errorBody()?.string() ?: "Unknown error"}"
+                }
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    response = formatJson(body)
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = "Network error: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun testStatsConsent() {
+        val email = _state.value.email.trim().ifBlank { "anonymous@vrhub.local" }
+        val effectiveEmail = if (email == "anonymous@vrhub.local") null else email
+
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null)
+            try {
+                val request = ConsentRequest(enabled = true, email = effectiveEmail)
+                val response = NetworkModule.statsApiService.updateConsent(request)
+                val body = if (response.isSuccessful) {
+                    response.body()?.let { gson.toJson(it) } ?: "{\"message\": \"ok\"}"
+                } else {
+                    "Error ${response.code()}: ${response.errorBody()?.string() ?: "Unknown error"}"
+                }
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    response = formatJson(body)
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = "Network error: ${e.message}"
+                )
+            }
+        }
+    }
+
+    fun testGetTier() {
+        val email = _state.value.email.trim().ifBlank { "anonymous" }
+
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true, error = null)
+            try {
+                val response = NetworkModule.statsApiService.getUserTier(email)
+                val body = if (response.isSuccessful) {
+                    response.body()?.let { gson.toJson(it) } ?: "{}"
+                } else {
+                    "Error ${response.code()}: ${response.errorBody()?.string() ?: "Unknown error"}"
+                }
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    response = formatJson(body)
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = "Network error: ${e.message}"
+                )
+            }
+        }
+    }
+
     fun toggleMinimized() {
         _state.value = _state.value.copy(isMinimized = !_state.value.isMinimized)
     }
