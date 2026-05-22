@@ -369,9 +369,18 @@ object NetworkModule {
 
     /**
      * Service for stats collection API calls.
+     * Can be replaced for testing via replaceStatsApiService().
      */
-    val statsApiService: StatsApiService by lazy {
-        monetizationRetrofit.create(StatsApiService::class.java)
+    @Volatile
+    internal var _statsApiService: StatsApiService? = null
+    val statsApiService: StatsApiService
+        get() = _statsApiService ?: monetizationRetrofit.create(StatsApiService::class.java)
+
+    /**
+     * Replace the stats API service (for testing purposes).
+     */
+    fun replaceStatsApiService(service: StatsApiService) {
+        _statsApiService = service
     }
 }
 

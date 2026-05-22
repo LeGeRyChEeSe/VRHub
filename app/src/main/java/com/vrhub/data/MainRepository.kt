@@ -103,7 +103,11 @@ class MainRepository(
 
     suspend fun toggleFavorite(releaseName: String, isFavorite: Boolean) = withContext(Dispatchers.IO) {
         gameDao.updateFavorite(releaseName, isFavorite)
-        maybeCollectStats()
+        try {
+            maybeCollectStats()
+        } catch (e: Exception) {
+            Log.w(TAG, "toggleFavorite: stats collection failed after favorite update (non-fatal)", e)
+        }
     }
 
     /**
@@ -317,7 +321,11 @@ class MainRepository(
                         throw e
                     }
 
-                    maybeCollectStats()
+                    try {
+                        maybeCollectStats()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "syncCatalog: stats collection failed after sync (non-fatal)", e)
+                    }
                 }
                         private fun extractMetaToCache(file: File, password: String?, onGameListFound: (String) -> Unit) {
         val builder = SevenZFile.builder().setFile(file)
@@ -465,7 +473,7 @@ class MainRepository(
                 return@withContext
             }
 
-            val tier = resolveUserTier() ?: "standard"
+            val tier = resolveUserTierOrDefault()
             statsCollector.collectStats(null, games, tier)
         } catch (e: Exception) {
             Log.e(TAG, "maybeCollectStats: error", e)
@@ -479,6 +487,21 @@ class MainRepository(
         } catch (e: Exception) {
             Log.w(TAG, "resolveUserTier: failed", e)
             null
+        }
+    }
+
+    internal suspend fun resolveUserTierOrDefault(): String = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val response = NetworkModule.statsApiService.getUserTier("anonymous")
+            if (response.isSuccessful) {
+                com.vrhub.network.resolveTier(response.body()?.tier)
+            } else {
+                Log.w(TAG, "resolveUserTierOrDefault: server returned non-successful response: ${response.code()}")
+                "standard"
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveUserTierOrDefault: failed", e)
+            "standard"
         }
     }
 

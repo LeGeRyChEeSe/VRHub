@@ -22,7 +22,15 @@ class FakeStatsApiService : StatsApiService {
     var updateConsentValue: Boolean? = null
     var updateConsentEmail: String? = null
 
+    // Test helpers for error scenarios
+    var throwOnCollectStats = false
+    var throwOnGetUserTier = false
+    var returnErrorResponse = false
+
     override suspend fun collectStats(request: StatsCollectRequest): Response<StatsCollectResponse> {
+        if (throwOnCollectStats) {
+            throw RuntimeException("Simulated stats collection failure")
+        }
         collectStatsCalled = true
         receivedGames = request.games
         receivedTier = request.tier
@@ -38,6 +46,12 @@ class FakeStatsApiService : StatsApiService {
     }
 
     override suspend fun getUserTier(email: String): Response<UserTierResponse> {
+        if (throwOnGetUserTier) {
+            throw RuntimeException("Simulated network failure")
+        }
+        if (returnErrorResponse) {
+            return Response.error(500, null)
+        }
         return Response.success(UserTierResponse(email = email, tier = "standard", status = "ok"))
     }
 }
