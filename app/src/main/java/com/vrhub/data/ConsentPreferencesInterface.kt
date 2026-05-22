@@ -8,5 +8,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface ConsentPreferencesInterface {
     val consentEnabled: Flow<Boolean>
+    val hasSeenConsentDialog: Flow<Boolean>
     suspend fun setConsentEnabled(enabled: Boolean)
+    suspend fun setHasSeenConsentDialog(shown: Boolean)
 }
