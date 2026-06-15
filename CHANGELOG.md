@@ -1,3 +1,18 @@
+## [4.1.2] - 2026-06-15
+
+### Fixed
+- **New games not appearing after server rescan:** When the server catalog changed (new
+  game added), `syncCatalog` correctly detected the new ETag but reused the local
+  `catalog_meta_cache.7z` if it was less than 1 hour old, then saved the new ETag without
+  loading the new content. Subsequent refreshes saw a matching ETag and skipped entirely,
+  permanently hiding new games. The local-file freshness optimisation is now bypassed
+  whenever the server reports new content.
+- **Deleted games not removed from catalog:** Games removed from the server were never
+  deleted from the local Room database because `insertGames` is an upsert. After each
+  successful sync, games whose `releaseName` is absent from the new server catalog are
+  now deleted from the local database so the catalog stays in sync without requiring an
+  app reset.
+
 ## [4.1.1] - 2026-05-03
 
 ### Added

@@ -44,4 +44,7 @@ interface GameDao {
 
     @Query("SELECT COUNT(*) FROM games")
     suspend fun getCount(): Int
+
+    @Query("DELETE FROM games WHERE releaseName NOT IN (:releaseNames)")
+    suspend fun deleteAbsent(releaseNames: List<String>)
 }

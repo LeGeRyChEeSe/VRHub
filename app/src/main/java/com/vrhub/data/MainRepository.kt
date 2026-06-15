@@ -207,19 +207,16 @@ class MainRepository(
                         Log.i(TAG, "Downloading catalog meta file: $metaUrl")
                         val tempMetaFile = CatalogUtils.getCatalogMetaFile(context)
                         try {
-                            // Avoid double download if the worker just fetched the file (Story 4.3 Round 4 Fix)
-                            // We trust the file is fresh if it exists and was modified recently (Story 4.3 Round 11 Fix)
-                            val isFresh = tempMetaFile.exists() && 
-                                         tempMetaFile.length() > 0 && 
-                                         (System.currentTimeMillis() - tempMetaFile.lastModified() < CatalogUtils.CACHE_FRESHNESS_THRESHOLD_MS)
-            
-                            if (isFresh) {
-                                Log.i(TAG, "Using recently cached meta file from worker")
-                            } else {
-                                Log.d(TAG, "syncCatalog: calling downloadFile...")
-                                CatalogUtils.downloadFile(metaUrl, tempMetaFile)
-                                Log.d(TAG, "syncCatalog: downloadFile finished")
-                            }
+                            // upToDate is false here, meaning the server ETag/Last-Modified
+                            // changed since our last sync. Always re-download in this case —
+                            // the isFresh file-age optimization is only valid when the worker
+                            // pre-fetched the file in the same sync cycle (sub-second window).
+                            // Reusing a stale local file when the server has new content causes
+                            // the new ETag to be saved without the matching game list, permanently
+                            // hiding new games from the catalog until a client reset.
+                            Log.d(TAG, "syncCatalog: server has new content, downloading...")
+                            CatalogUtils.downloadFile(metaUrl, tempMetaFile)
+                            Log.d(TAG, "syncCatalog: downloadFile finished")
             
                             // 50% progress: download complete, starting extraction.
                             // Extraction is the most CPU intensive part on Quest hardware.
@@ -282,6 +279,14 @@ class MainRepository(
                                 Log.i(TAG, "Inserting ${entities.size} games into database")
                                 try {
                                     gameDao.insertGames(entities)
+                                    // Remove games no longer in the server catalog so a deleted
+                                    // game disappears from the client without requiring a reset.
+                                    // Guard: skip deletion when the new list is empty to avoid
+                                    // wiping the entire local DB on a transient server error.
+                                    if (newList.isNotEmpty()) {
+                                        val currentReleaseNames = newList.map { it.releaseName }
+                                        gameDao.deleteAbsent(currentReleaseNames)
+                                    }
                                     // 95% progress: DB insertion done, finalizing metadata.
                                     onProgress(0.95f)
             
