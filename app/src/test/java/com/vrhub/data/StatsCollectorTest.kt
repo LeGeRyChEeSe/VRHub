@@ -19,10 +19,7 @@ import retrofit2.Response
 
 /**
  * Unit tests for StatsCollector using MockK for mocking.
- * Tests Story 3.3 AC #1, #2:
- * AC #1: Given consent=false, when collectStats() called, no API call recorded.
- * AC #2: Given consent=true and mock API service, when collectStats(games, "lucky") called,
- *        then mock service receives request with 2 games and tier "lucky".
+ * Tests Story 3.3 AC #1, #2 and Story 8.6 (gameName transmission).
  */
 @RunWith(RobolectricTestRunner::class)
 class StatsCollectorTest {
@@ -33,13 +30,11 @@ class StatsCollectorTest {
         every { mockConsent.consentEnabled } returns flowOf(false)
 
         val mockApi = mockk<StatsApiService>()
-        // Set up mock but expect no calls since consent is false
         coEvery { mockApi.collectStats(any<StatsCollectRequest>()) } returns Response.success(StatsCollectResponse(message = "ok"))
 
         val collector = StatsCollector(mockApi, mockConsent)
-        collector.collectStats(null, mapOf("com.game.app" to false), "standard")
+        collector.collectStats(null, mapOf("com.game.app" to Pair(false, null)), "standard")
 
-        // Verify API was never called (AC1)
         coVerify(exactly = 0) { mockApi.collectStats(any<StatsCollectRequest>()) }
     }
 
@@ -56,8 +51,8 @@ class StatsCollectorTest {
         val collector = StatsCollector(mockApi, mockConsent)
 
         val games = mapOf(
-            "com.game.app1" to true,
-            "com.game.app2" to false
+            "com.game.app1" to Pair(true, null as String?),
+            "com.game.app2" to Pair(false, null as String?)
         )
         collector.collectStats(null, games, "lucky")
 
@@ -65,14 +60,40 @@ class StatsCollectorTest {
         val capturedRequest = requestSlot.captured
         assertEquals("Should receive 2 games", 2, capturedRequest.games.size)
         assertEquals("Tier should be lucky", "lucky", capturedRequest.tier)
-        // Verify no timestamp field (removed in stats-api fix)
-        // Note: timestamp was removed, so we just verify email is null for standard calls with null email
-        assertNull("Email should be null for supporter tier when not provided", capturedRequest.email)
-        // Verify GameStat content (packageName and isFavorite values)
+        assertNull("Email should be null when not provided", capturedRequest.email)
         assertEquals("com.game.app1", capturedRequest.games[0].packageName)
         assertTrue(capturedRequest.games[0].isFavorite)
         assertEquals("com.game.app2", capturedRequest.games[1].packageName)
         assertFalse(capturedRequest.games[1].isFavorite)
+        // gameName is null when not provided (backward compat)
+        assertNull(capturedRequest.games[0].gameName)
+        assertNull(capturedRequest.games[1].gameName)
+    }
+
+    @Test
+    fun `collectStats transmits gameName when provided`() = runTest {
+        val mockConsent = mockk<ConsentPreferencesInterface>()
+        every { mockConsent.consentEnabled } returns flowOf(true)
+
+        val mockApi = mockk<StatsApiService>()
+        val requestSlot = slot<StatsCollectRequest>()
+
+        coEvery { mockApi.collectStats(capture(requestSlot)) } returns Response.success(StatsCollectResponse(message = "ok"))
+
+        val collector = StatsCollector(mockApi, mockConsent)
+
+        val games = mapOf(
+            "com.beatgames.beatsaber" to Pair(true, "Beat Saber"),
+            "com.camouflaj.pistolwhip" to Pair(false, null as String?)
+        )
+        collector.collectStats(null, games, "standard")
+
+        val capturedRequest = requestSlot.captured
+        val beatSaber = capturedRequest.games.first { it.packageName == "com.beatgames.beatsaber" }
+        val pistolWhip = capturedRequest.games.first { it.packageName == "com.camouflaj.pistolwhip" }
+
+        assertEquals("gameName should be transmitted when provided", "Beat Saber", beatSaber.gameName)
+        assertNull("gameName should be null when not provided (old client compat)", pistolWhip.gameName)
     }
 
     @Test
@@ -104,11 +125,8 @@ class StatsCollectorTest {
         coEvery { mockApi.collectStats(any<StatsCollectRequest>()) } returns Response.error(403, "Forbidden".toResponseBody(null))
 
         val collector = StatsCollector(mockApi, mockConsent)
+        collector.collectStats(null, mapOf("com.game.app" to Pair(false, null)), "standard")
 
-        // Should not throw exception - 403 is handled internally
-        collector.collectStats(null, mapOf("com.game.app" to false), "standard")
-
-        // Test passes if no exception is thrown
         assertTrue("403 handled gracefully", true)
     }
 }

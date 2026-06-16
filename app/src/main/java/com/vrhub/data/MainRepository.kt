@@ -471,7 +471,7 @@ class MainRepository(
 
             val games = catalogGames
                 .filter { installedPackages.containsKey(it.packageName) }
-                .associate { it.packageName to it.isFavorite }
+                .associate { it.packageName to Pair(it.isFavorite, it.gameName) }
 
             if (games.isEmpty()) {
                 Log.d(TAG, "maybeCollectStats: no installed games in catalog")

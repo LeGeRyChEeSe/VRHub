@@ -22,7 +22,7 @@ class StatsCollector(
 
     suspend fun collectStats(
         email: String?,
-        games: Map<String, Boolean>,
+        games: Map<String, Pair<Boolean, String?>>,
         tier: String
     ): Unit = withContext(Dispatchers.IO) {
         val consentEnabled = consentPreferences.consentEnabled.first()
@@ -36,12 +36,13 @@ class StatsCollector(
             return@withContext
         }
 
-        val gameStats = games.mapNotNull { (packageName, isFavorite) ->
+        val gameStats = games.mapNotNull { (packageName, pair) ->
             if (packageName == null) {
                 Log.w(TAG, "Skipping game with null packageName")
                 null
             } else {
-                GameStat(packageName = packageName, isFavorite = isFavorite)
+                val (isFavorite, gameName) = pair
+                GameStat(packageName = packageName, isFavorite = isFavorite, gameName = gameName)
             }
         }
 

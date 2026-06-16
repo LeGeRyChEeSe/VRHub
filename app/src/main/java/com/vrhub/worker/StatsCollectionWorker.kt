@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.vrhub.data.AppDatabase
 import com.vrhub.data.ConsentPreferences
 import com.vrhub.data.NetworkModule
 import com.vrhub.data.StatsCollector
@@ -89,13 +90,23 @@ class StatsCollectionWorker(
             // Get installed packages from PackageManager
             val pm = applicationContext.packageManager
             val packages = pm.getInstalledPackages(0)
-            val installedGames = packages.associate {
-                it.packageName to false
-            }
+            val installedPackageNames = packages.map { it.packageName }.toSet()
 
-            if (installedGames.isEmpty()) {
+            if (installedPackageNames.isEmpty()) {
                 Log.d(TAG, "doWork: no installed games")
                 return@withContext Result.success()
+            }
+
+            // Query Room catalog to retrieve gameName for known packages
+            val db = AppDatabase.getDatabase(applicationContext)
+            val catalogGames = db.gameDao().getAllGamesList()
+                .filter { installedPackageNames.contains(it.packageName) }
+                .associateBy { it.packageName }
+
+            // Build map: packageName -> (isFavorite=false, gameName from catalog or null)
+            val installedGames: Map<String, Pair<Boolean, String?>> = installedPackageNames.associate { pkg ->
+                val catalogEntry = catalogGames[pkg]
+                pkg to Pair(false, catalogEntry?.gameName)
             }
 
             // Resolve real user tier (same pattern as MainRepository.maybeCollectStats)

@@ -23,7 +23,9 @@ data class GameStat(
     @SerializedName("package_name")
     val packageName: String?,
     @SerializedName("is_favorite")
-    val isFavorite: Boolean
+    val isFavorite: Boolean,
+    @SerializedName("game_name")
+    val gameName: String? = null
 )
 
 data class StatsCollectResponse(
