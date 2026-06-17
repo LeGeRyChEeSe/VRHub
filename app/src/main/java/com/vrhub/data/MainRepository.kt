@@ -54,6 +54,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.vrhub.worker.DownloadWorker
+import com.vrhub.worker.StatsCollectDebounceWorker
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.channelFlow
@@ -104,9 +105,13 @@ class MainRepository(
     suspend fun toggleFavorite(releaseName: String, isFavorite: Boolean) = withContext(Dispatchers.IO) {
         gameDao.updateFavorite(releaseName, isFavorite)
         try {
-            maybeCollectStats()
+            // Story 5.2: debounce 5 min — each toggle resets the timer, only ONE
+            // consolidated POST fires 5 min after the LAST toggle (avoids 429 spam).
+            // `maybeCollectStats()` is still called directly by `syncCatalog()`
+            // (not a hot path, no debounce needed).
+            StatsCollectDebounceWorker.enqueue(context)
         } catch (e: Exception) {
-            Log.w(TAG, "toggleFavorite: stats collection failed after favorite update (non-fatal)", e)
+            Log.w(TAG, "toggleFavorite: stats debounce enqueue failed after favorite update (non-fatal)", e)
         }
     }
 
