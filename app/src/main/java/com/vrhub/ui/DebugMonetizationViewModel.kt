@@ -221,14 +221,16 @@ class DebugMonetizationViewModel : ViewModel() {
             _state.value = _state.value.copy(isLoading = true, error = null)
             try {
                 val sampleGames = listOf(
-                    GameStat(packageName = "com.example.game1", isFavorite = true),
-                    GameStat(packageName = "com.example.game2", isFavorite = false)
+                    GameStat(packageName = "com.beatgames.beatsaber", isFavorite = true, gameName = "Beat Saber"),
+                    GameStat(packageName = "com.camouflaj.pistolwhip", isFavorite = false, gameName = "Pistol Whip"),
+                    GameStat(packageName = "com.oldclient.unknowngame", isFavorite = false, gameName = null)
                 )
                 val request = StatsCollectRequest(
                     games = sampleGames,
                     tier = "supporter",
                     email = effectiveEmail
                 )
+                android.util.Log.d("VRHub_E2E", ">>> stats/collect payload: ${gson.toJson(request)}")
                 val response = NetworkModule.statsApiService.collectStats(request)
                 val body = if (response.isSuccessful) {
                     response.body()?.let { gson.toJson(it) } ?: "{\"message\": \"ok\"}"
