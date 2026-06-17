@@ -60,6 +60,14 @@ class StatsCollector(
             email = requestEmail
         )
 
+        // E2E debug log — visible only in debug builds to keep prod logs clean
+        if (com.vrhub.BuildConfig.DEBUG) {
+            try {
+                val debugJson = com.google.gson.Gson().toJson(request)
+                android.util.Log.d("VRHub_E2E", ">>> stats/collect payload: $debugJson")
+            } catch (_: Exception) {}
+        }
+
         try {
             val response = statsApiService.collectStats(request)
 
