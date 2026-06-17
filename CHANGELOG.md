@@ -1,3 +1,15 @@
+## [4.1.3] - 2026-06-17
+
+### Added
+- **Stats debounce (Story 5.2):** Rapid favorite toggles now coalesce into a single stats
+  report sent 5 minutes after the last toggle, instead of firing one POST per toggle.
+  Uses WorkManager `OneTimeWorkRequest` with `REPLACE` policy — each toggle resets the
+  5-minute timer. The consolidated POST carries the real `isFavorite` values read from
+  Room at fire time.
+- **Game name in stats payload (Story 8.6):** The human-readable game name is now
+  transmitted alongside the package name in `/stats/collect`, allowing the server to
+  display it directly in Discord webhooks without resolving names from the catalogue.
+
 ## [4.1.2] - 2026-06-15
 
 ### Fixed
