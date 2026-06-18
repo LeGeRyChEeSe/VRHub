@@ -1,11 +1,11 @@
 ## [4.1.4] - 2026-06-18
 
 ### Fixed
-- **Stats worker (Story 5.2):** Le worker périodique `StatsCollectionWorker` (WorkManager quotidien) envoyait
-  toutes les applications installées sur l'appareil — y compris les apps système et de test — au lieu de
-  se limiter aux jeux du catalogue VRHub. Il filtre désormais `gameDao().getAllGamesList()` par les packages
-  réellement installés, en cohérence avec `maybeCollectStats()`. Le champ `isFavorite` est également lu
-  depuis l'entité catalogue au lieu d'être codé en dur à `false`.
+- **Stats worker:** The periodic `StatsCollectionWorker` (daily WorkManager task) was reporting all installed
+  packages on the device — including system apps and test packages — instead of filtering to VRHub catalog
+  games only. It now mirrors `maybeCollectStats()` by intersecting `gameDao().getAllGamesList()` with
+  installed packages. `isFavorite` is also correctly read from the catalog entity instead of being
+  hardcoded to `false`.
 
 ## [4.1.3] - 2026-06-17
 
