@@ -97,16 +97,16 @@ class StatsCollectionWorker(
                 return@withContext Result.success()
             }
 
-            // Query Room catalog to retrieve gameName for known packages
+            // Only report packages present in the VRHub catalog — mirrors maybeCollectStats()
+            // to avoid sending system apps, test packages, and other non-VRHub content.
             val db = AppDatabase.getDatabase(applicationContext)
-            val catalogGames = db.gameDao().getAllGamesList()
+            val installedGames: Map<String, Pair<Boolean, String?>> = db.gameDao().getAllGamesList()
                 .filter { installedPackageNames.contains(it.packageName) }
-                .associateBy { it.packageName }
+                .associate { it.packageName to Pair(it.isFavorite, it.gameName) }
 
-            // Build map: packageName -> (isFavorite=false, gameName from catalog or null)
-            val installedGames: Map<String, Pair<Boolean, String?>> = installedPackageNames.associate { pkg ->
-                val catalogEntry = catalogGames[pkg]
-                pkg to Pair(false, catalogEntry?.gameName)
+            if (installedGames.isEmpty()) {
+                Log.d(TAG, "doWork: no VRHub catalog games installed")
+                return@withContext Result.success()
             }
 
             // Resolve real user tier (same pattern as MainRepository.maybeCollectStats)
