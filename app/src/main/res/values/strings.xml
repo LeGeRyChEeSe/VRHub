@@ -72,6 +72,10 @@
     <string name="game_btn_complete_install">COMPLETE INSTALL</string>
     <string name="filter_local_installs">Ready to Install</string>
 
+    <!-- Story 11.2: Streaming Trailer Strings -->
+    <string name="trailer_label">Trailer</string>
+    <string name="trailer_open_externally">Open externally</string>
+
     <!-- Story 4.3: App Update Strings -->
     <string name="update_available_title">Update Available</string>
     <string name="update_available_desc">A new version of VRHub is available. Keeping the app up to date ensures compatibility with the latest games.</string>

@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vrhub.R
+import com.vrhub.ui.components.TrailerPlayer
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -314,7 +315,17 @@ fun GameListItem(
                     }
                     
                     Spacer(modifier = Modifier.height(12.dp))
-                    
+
+                    // Story 11.2: streaming trailer (YouTube IFrame player). Only rendered while the
+                    // card is expanded (AnimatedVisibility) and only when a trailer URL exists.
+                    if (!game.trailerUrl.isNullOrEmpty()) {
+                        TrailerPlayer(
+                            trailerUrl = game.trailerUrl,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     if (!game.screenshotUrls.isNullOrEmpty()) {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),

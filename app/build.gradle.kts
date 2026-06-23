@@ -301,7 +301,11 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("io.coil-kt:coil-compose:2.5.0")
-    
+
+    // Story 11.2: official YouTube IFrame Player for STREAMING trailers (never downloaded).
+    // Required by YouTube ToS — do NOT replace with ExoPlayer on a raw YouTube URL.
+    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0")
+
     // 7z Support
     implementation("org.apache.commons:commons-compress:1.26.0")
     implementation("org.tukaani:xz:1.9")
