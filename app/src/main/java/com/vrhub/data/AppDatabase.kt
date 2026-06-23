@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [GameEntity::class, QueuedInstallEntity::class, InstallHistoryEntity::class], version = 6, exportSchema = false)
+@Database(entities = [GameEntity::class, QueuedInstallEntity::class, InstallHistoryEntity::class], version = 7, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun gameDao(): GameDao
@@ -20,6 +20,23 @@ abstract class AppDatabase : RoomDatabase() {
         private const val TAG = "AppDatabase"
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        internal val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                try {
+                    Log.i(TAG, "Starting migration 6 -> 7: Adding trailerUrl column to games")
+
+                    // Add trailerUrl column to games (Story 11.2 — streaming trailer URL).
+                    // Nullable TEXT, no default: existing rows get NULL (no trailer), no data loss.
+                    database.execSQL("ALTER TABLE games ADD COLUMN trailerUrl TEXT")
+
+                    Log.i(TAG, "Migration 6 -> 7 completed successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Migration 6 -> 7 FAILED", e)
+                    throw e
+                }
+            }
+        }
 
         internal val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -169,7 +186,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "vrhub_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_2_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_2_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

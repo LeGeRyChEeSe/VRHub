@@ -23,6 +23,13 @@ interface GameDao {
     @Query("UPDATE games SET description = :description, screenshotUrlsJson = :screenshots WHERE releaseName = :releaseName")
     suspend fun updateMetadata(releaseName: String, description: String?, screenshots: String?)
 
+    /**
+     * Story 11.2: Persist the resolved streaming trailer URL for a game.
+     * Used by the per-game fallback (channel B) in getGameRemoteInfo.
+     */
+    @Query("UPDATE games SET trailerUrl = :trailerUrl WHERE releaseName = :releaseName")
+    suspend fun updateTrailer(releaseName: String, trailerUrl: String?)
+
     @Query("UPDATE games SET isFavorite = :isFavorite WHERE releaseName = :releaseName")
     suspend fun updateFavorite(releaseName: String, isFavorite: Boolean)
 
