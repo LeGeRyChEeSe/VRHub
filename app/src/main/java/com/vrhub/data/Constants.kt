@@ -526,7 +526,8 @@ object DownloadUtils {
      */
     fun shouldSkipEntry(entry: String): Boolean {
         return entry.startsWith(".") || entry.startsWith("_") ||
-                entry.contains("notes.txt") || entry.contains("screenshot") ||
+                entry.contains("notes.txt") || entry.contains("trailer.txt") ||
+                entry.contains("screenshot") ||
                 entry == "../"
     }
 
