@@ -316,8 +316,9 @@ fun GameListItem(
                     
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Story 11.2: streaming trailer (YouTube IFrame player). Only rendered while the
-                    // card is expanded (AnimatedVisibility) and only when a trailer URL exists.
+                    // Story 11.2: streaming trailer (thumbnail → opens in the YouTube app/browser).
+                    // Only rendered while the card is expanded (AnimatedVisibility) and only when a
+                    // trailer URL exists.
                     if (!game.trailerUrl.isNullOrEmpty()) {
                         TrailerPlayer(
                             trailerUrl = game.trailerUrl,
