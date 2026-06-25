@@ -366,6 +366,7 @@ data class GameItemState(
     val sizeBytes: Long = 0L,
     val description: String? = null,
     val screenshotUrls: List<String>? = null,
+    val trailerUrl: String? = null,
     val lastUpdated: Long = 0L,
     val popularity: Int = 0
 )
@@ -1022,6 +1023,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 sizeBytes = game.sizeBytes ?: 0L,
                 description = game.description,
                 screenshotUrls = game.screenshotUrls,
+                trailerUrl = game.trailerUrl,
                 lastUpdated = game.lastUpdated,
                 popularity = game.popularity
             )

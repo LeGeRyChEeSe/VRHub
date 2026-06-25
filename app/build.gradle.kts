@@ -301,7 +301,12 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("io.coil-kt:coil-compose:2.5.0")
-    
+
+    // Story 11.2: trailers are streamed via the external YouTube app/browser (Intent), so no
+    // in-app player dependency is needed. (Inline IFrame embedding was dropped: YouTube's
+    // 2025-07-09 embedder enforcement blocks WebView playback, and the androidyoutubeplayer 13.x
+    // fix needs a Kotlin-2.1 toolchain this app is not on. See ui/components/TrailerPlayer.kt.)
+
     // 7z Support
     implementation("org.apache.commons:commons-compress:1.26.0")
     implementation("org.tukaani:xz:1.9")

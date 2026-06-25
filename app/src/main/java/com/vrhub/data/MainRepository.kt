@@ -86,6 +86,8 @@ class MainRepository(
     val iconsDir = File(context.filesDir, "icons").apply { if (!exists()) mkdirs() }
     val thumbnailsDir = File(context.filesDir, "thumbnails").apply { if (!exists()) mkdirs() }
     val notesDir = File(context.filesDir, "notes").apply { if (!exists()) mkdirs() }
+    // Story 11.2: streaming trailer URLs extracted from meta.7z (trailers/{releaseName}.txt).
+    val trailersDir = File(context.filesDir, "trailers").apply { if (!exists()) mkdirs() }
 
     private val catalogCacheFile = File(context.filesDir, "VRP-GameList.txt")
     // Use filesDir instead of cacheDir to prevent Android from purging large game archives
@@ -271,10 +273,20 @@ class MainRepository(
                                     // Local description check
                                     val localNote = File(notesDir, "${game.releaseName}.txt")
                                     val description = if (localNote.exists()) localNote.readText() else existing?.description ?: game.description
-            
+
+                                    // Story 11.2 channel A: pick up the trailer URL extracted from meta.7z
+                                    // (trailers/{releaseName}.txt). Falls back to any URL already persisted.
+                                    val localTrailer = File(trailersDir, "${game.releaseName}.txt")
+                                    val trailerUrl = if (localTrailer.exists()) {
+                                        localTrailer.readText().trim().ifEmpty { null }
+                                    } else {
+                                        existing?.trailerUrl
+                                    }
+
                                     game.copy(
                                         sizeBytes = game.sizeBytes ?: existing?.sizeBytes,
                                         description = description,
+                                        trailerUrl = trailerUrl,
                                         isFavorite = existing?.isFavorite ?: false,
                                         lastUpdated = if (isNewOrUpdated) System.currentTimeMillis() else (existing?.lastUpdated ?: System.currentTimeMillis()),
                                         popularity = game.popularity
@@ -366,6 +378,13 @@ class MainRepository(
                     val fileName = entry.name.substringAfterLast("/")
                     if (fileName.isNotEmpty()) {
                         val targetFile = File(notesDir, fileName)
+                        saveEntryToFile(sevenZFile, targetFile, sharedBuffer)
+                    }
+                } else if (entry.name.contains("/trailers/", ignoreCase = true)) {
+                    // Story 11.2 channel A: meta.7z carries trailers/{releaseName}.txt = streaming URL.
+                    val fileName = entry.name.substringAfterLast("/")
+                    if (fileName.isNotEmpty()) {
+                        val targetFile = File(trailersDir, fileName)
                         saveEntryToFile(sevenZFile, targetFile, sharedBuffer)
                     }
                 } else if (entry.name.endsWith(".png", ignoreCase = true) || entry.name.endsWith(".jpg", ignoreCase = true)) {
@@ -622,6 +641,14 @@ class MainRepository(
         val localNote = File(notesDir, "${game.releaseName}.txt")
         var description: String? = if (localNote.exists()) localNote.readText() else game.description
 
+        // Story 11.2 channel B: trailer URL — prefer the one extracted from meta.7z (cached locally
+        // or already on the game), otherwise fall back to fetching trailer.txt from the listing below.
+        val localTrailer = File(trailersDir, "${game.releaseName}.txt")
+        var trailerUrl: String? = when {
+            localTrailer.exists() -> localTrailer.readText().trim().ifEmpty { null }
+            else -> game.trailerUrl
+        }
+
         try {
             val request = Request.Builder().url(dirUrl).header("User-Agent", Constants.USER_AGENT).build()
             okHttpClient.newCall(request).await().use { response ->
@@ -669,6 +696,22 @@ class MainRepository(
                         Log.w(TAG, "Failed to fetch remote notes.txt for ${game.gameName}")
                     }
                 }
+
+                // Story 11.2 channel B: if no trailer yet and the listing exposes trailer.txt,
+                // fetch it (text/plain body = the YouTube watch URL). Mirrors the notes.txt fallback.
+                if (trailerUrl.isNullOrEmpty() && html.contains("trailer.txt", ignoreCase = true)) {
+                    val trailerTxtUrl = dirUrl + "trailer.txt"
+                    try {
+                        val trailerRequest = Request.Builder().url(trailerTxtUrl).header("User-Agent", Constants.USER_AGENT).build()
+                        okHttpClient.newCall(trailerRequest).await().use { trailerResponse ->
+                            if (trailerResponse.isSuccessful) {
+                                trailerUrl = trailerResponse.body?.string()?.trim()?.ifEmpty { null }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to fetch remote trailer.txt for ${game.gameName}")
+                    }
+                }
             }
 
             // Use full path for deduplication to prevent data loss in special directory structures
@@ -711,8 +754,13 @@ class MainRepository(
             
             gameDao.updateSize(game.releaseName, totalSize)
             gameDao.updateMetadata(game.releaseName, description, screenshotUrls.joinToString("|"))
+            // Story 11.2: persist the resolved trailer URL only when we actually found one,
+            // so a transient empty fetch never wipes a previously stored value.
+            if (!trailerUrl.isNullOrEmpty()) {
+                gameDao.updateTrailer(game.releaseName, trailerUrl)
+            }
 
-            Triple(segmentMap, totalSize, mapOf("description" to description, "screenshots" to screenshotUrls))
+            Triple(segmentMap, totalSize, mapOf("description" to description, "screenshots" to screenshotUrls, "trailerUrl" to trailerUrl))
         } catch (e: Exception) {
             // Use type-safe exception checking instead of brittle string matching
             // MirrorNotFoundException is thrown explicitly when response.code == 404
