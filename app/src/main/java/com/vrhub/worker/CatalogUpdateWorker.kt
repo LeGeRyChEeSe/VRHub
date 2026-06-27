@@ -93,7 +93,14 @@ class CatalogUpdateWorker(
             
                                 val sharedCacheFile = CatalogUtils.getCatalogMetaFile(applicationContext)
             
-                                privateTempFile.renameTo(sharedCacheFile)
+                                if (!privateTempFile.renameTo(sharedCacheFile)) {
+                                    // If the move fails, extractGameList below would read a
+                                    // stale (or missing) shared cache file and silently
+                                    // mis-report the update. Bail out and let WorkManager retry.
+                                    Log.e(TAG, "Failed to move downloaded meta file into shared cache")
+                                    privateTempFile.delete()
+                                    return@withContext Result.retry()
+                                }
             
             
             
@@ -139,7 +146,11 @@ class CatalogUpdateWorker(
             
                                 } else {
             
+                                    // Extraction yielded nothing: the notification metadata was
+                                    // NOT saved, so retry rather than reporting success (which
+                                    // would leave the update banner stuck until the next change).
                                     Log.e(TAG, "Failed to extract game list content")
+                                    return@withContext Result.retry()
             
                                 }
             
