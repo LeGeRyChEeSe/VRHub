@@ -1,4 +1,4 @@
-package com.vrpirates.rookieonquest.data
+package com.vrhub.data
 
 import android.content.Context
 import android.content.SharedPreferences

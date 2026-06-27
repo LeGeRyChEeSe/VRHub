@@ -1,9 +1,9 @@
-package com.vrpirates.rookieonquest.ui
+package com.vrhub.ui
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.vrpirates.rookieonquest.QueueManagerOverlay
+import com.vrhub.QueueManagerOverlay
 import com.vrhub.ui.theme.VRHubTheme
 import org.junit.Rule
 import org.junit.Test

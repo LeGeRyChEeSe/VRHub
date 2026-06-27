@@ -1,4 +1,4 @@
-package com.vrpirates.rookieonquest.worker
+package com.vrhub.worker
 
 import android.content.Context
 import android.util.Log

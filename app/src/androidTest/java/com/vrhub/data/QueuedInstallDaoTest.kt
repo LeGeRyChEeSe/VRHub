@@ -1,4 +1,4 @@
-package com.vrpirates.rookieonquest.data
+package com.vrhub.data
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider

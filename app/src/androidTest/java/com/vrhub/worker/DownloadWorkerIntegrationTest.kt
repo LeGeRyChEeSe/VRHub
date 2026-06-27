@@ -1,18 +1,17 @@
-package com.vrpirates.rookieonquest.worker
+package com.vrhub.worker
 
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.vrpirates.rookieonquest.data.AppDatabase
-import com.vrpirates.rookieonquest.data.Constants
-import com.vrpirates.rookieonquest.data.CryptoUtils
-import com.vrpirates.rookieonquest.data.DownloadUtils
-import com.vrpirates.rookieonquest.data.GameEntity
-import com.vrpirates.rookieonquest.data.InstallStatus
-import com.vrpirates.rookieonquest.data.QueuedInstallEntity
-import com.vrpirates.rookieonquest.network.PublicConfig
-import com.vrpirates.rookieonquest.network.VrpService
+import com.vrhub.data.AppDatabase
+import com.vrhub.data.Constants
+import com.vrhub.data.CryptoUtils
+import com.vrhub.data.DownloadUtils
+import com.vrhub.data.GameEntity
+import com.vrhub.data.InstallStatus
+import com.vrhub.data.QueuedInstallEntity
+import com.vrhub.network.PublicConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl
