@@ -159,7 +159,12 @@ jobs:
         uses: ./.github/actions/gradle-cache
       - name: Run Instrumented Tests
         id: run-instr
-        uses: reactivecircus/android-emulator-runner@v2.30.1
+        # Bumped from v2.30.1: on the current ubuntu-latest runner image the
+        # old action failed AVD creation with "cannot create
+        # .../test.avd/config.ini: Directory nonexistent" (the .avd dir was
+        # never created), so every instrumented run aborted before booting
+        # the emulator. v2.37.x ships the AVD-path fixes for newer images.
+        uses: reactivecircus/android-emulator-runner@v2.37.0
         with:
           api-level: 29
           target: default
@@ -315,7 +320,16 @@ jobs:
         shell: bash
         run: |
           overall_success="${{ needs.lint.result == 'success' && needs.unit-tests.result == 'success' && needs.build.result == 'success' }}"
-          echo "### PR Validation: ${overall_success == 'true' && '✅ PASS' || '❌ FAIL'}" >> $GITHUB_STEP_SUMMARY
+          # NOTE: pick the label in bash. The previous version inlined a
+          # GitHub Actions expression (`&&`/`||`) inside a bash `${...}`
+          # expansion, which bash parsed as a parameter substitution and
+          # rejected with "bad substitution", failing this step every run.
+          if [ "$overall_success" = "true" ]; then
+            status="✅ PASS"
+          else
+            status="❌ FAIL"
+          fi
+          echo "### PR Validation: $status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "[View Full PR Feedback and Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
 
