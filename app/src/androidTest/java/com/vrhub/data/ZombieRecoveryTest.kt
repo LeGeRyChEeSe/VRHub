@@ -1,4 +1,4 @@
-package com.vrpirates.rookieonquest.data
+package com.vrhub.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
