@@ -61,13 +61,21 @@ class StatsCollectionWorker(
             Log.d(TAG, "Stats collection work cancelled")
         }
 
-        private suspend fun resolveTier(): String? {
+        private suspend fun resolveTier(): String {
             return try {
                 val response = NetworkModule.statsApiService.getUserTier("anonymous")
-                if (response.isSuccessful) response.body()?.tier else null
+                if (response.isSuccessful) {
+                    // Normalize through the shared helper so unknown/empty tiers
+                    // fall back to "standard" instead of being sent raw to the
+                    // server (mirrors StatsCollectDebounceWorker / MainRepository).
+                    com.vrhub.network.resolveTier(response.body()?.tier)
+                } else {
+                    Log.w(TAG, "resolveTier: server returned ${response.code()}, defaulting")
+                    "standard"
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "resolveTier: failed", e)
-                null
+                "standard"
             }
         }
     }
@@ -110,7 +118,7 @@ class StatsCollectionWorker(
             }
 
             // Resolve real user tier (same pattern as MainRepository.maybeCollectStats)
-            val tier = resolveTier() ?: "standard"
+            val tier = resolveTier()
             statsCollector.collectStats(null, installedGames, tier)
 
             Log.d(TAG, "doWork: stats collection completed")
