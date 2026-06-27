@@ -157,6 +157,16 @@ jobs:
           distribution: 'temurin'
       - name: Gradle Cache
         uses: ./.github/actions/gradle-cache
+      - name: Enable KVM
+        # Without this the GitHub-hosted runner can't access /dev/kvm, so the
+        # emulator action falls back to "-accel off" (software emulation).
+        # An API-29 x86_64 image then boots too slowly to finish before the
+        # timeout — the device stays "offline" and the run fails. Granting the
+        # runner user access to /dev/kvm restores hardware acceleration.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Run Instrumented Tests
         id: run-instr
         # Bumped from v2.30.1: on the current ubuntu-latest runner image the
