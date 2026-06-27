@@ -1,0 +1,64 @@
+# Gradle Dependency Submission
+#
+# Generates the Gradle dependency graph (direct + transitive) and submits it
+# to GitHub's Dependency Graph API so Dependabot can see every dependency and
+# raise / resolve security alerts against the right versions.
+#
+# WHY THIS WORKFLOW EXISTS
+# ------------------------
+# It replaces GitHub's managed "Automatic Dependency Submission" feature,
+# which runs with the latest Gradle (9.6.0 at time of writing). Gradle 9.6.0
+# removed the internal `InternalProblems` API that Android Gradle Plugin
+# 8.13.2 relies on, so the managed run fails while applying the
+# `com.android.application` plugin with:
+#
+#   > Could not create service of type InternalProblems using
+#     ProblemsBuildTreeServices.createInternalProblems().
+#
+# (Gradle's own message recommends "use Gradle 9.5".) Pinning gradle-version
+# to 8.13 — the version this repo's wrapper targets and the one AGP 8.13.2
+# actually builds with — fixes the build.
+#
+# ACTION REQUIRED (one-time, in the GitHub UI):
+#   Settings -> Code security -> "Automatic dependency submission" must be
+#   DISABLED. Otherwise the managed run keeps executing in parallel with this
+#   workflow and continues to fail with the error above.
+#
+# Note on the wrapper: this project's Gradle wrapper lives under scripts/, not
+# at the repo root, so we let the action provision Gradle itself via
+# `gradle-version` rather than relying on a root `gradlew`.
+name: Dependency Submission
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # Weekly refresh so the graph stays current even without a push.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dependency-submission:
+    name: Submit Gradle dependency graph
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4.7.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v4
+        with:
+          # AGP 8.13.2 is incompatible with Gradle 9.6.0+ (which removed the
+          # InternalProblems internal API). 8.13 matches the repo wrapper and
+          # is the version the project actually configures/builds with.
+          gradle-version: '8.13'
