@@ -1,3 +1,17 @@
+## [4.1.5] - 2026-06-27
+
+### Added
+- **Trailer player (Story 11.2 / 11.3):** Each game detail view now shows a trailer card.
+  Games with a resolved YouTube video display a 16:9 thumbnail with a play overlay; games
+  with only a search-link fallback display a generic "watch trailer" card. Both open the
+  video externally via `ACTION_VIEW` (system YouTube app or browser) — no in-app IFrame,
+  which is incompatible with YouTube's 2025 embedder-identity enforcement.
+- **MetaMetadata hero image:** The game detail screen now displays the MetaMetadata
+  thumbnail as a full-width hero image above the game info.
+- **Room v7 migration:** `GameEntity` gains a nullable `trailerUrl` column. Trailer URLs
+  are populated at sync time from `meta.7z` (primary) or fetched on-demand from the
+  per-game directory listing (fallback). Existing rows migrate without data loss.
+
 ## [4.1.4] - 2026-06-18
 
 ### Fixed
