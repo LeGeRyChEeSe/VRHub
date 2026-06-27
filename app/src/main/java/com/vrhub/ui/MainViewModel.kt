@@ -357,6 +357,7 @@ data class GameItemState(
     val packageName: String,
     val releaseName: String,
     val iconFile: File?,
+    val thumbnailFile: File? = null,
     val installStatus: InstallStatus = InstallStatus.NOT_INSTALLED,
     val queueStatus: InstallTaskStatus? = null,
     val isFirstInQueue: Boolean = false,
@@ -1007,6 +1008,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val iconFile = iconLocations.find { it.exists() }
 
+            val thumbnailFile = listOf(
+                File(repository.thumbnailsDir, "${game.packageName}.jpg"),
+                File(repository.thumbnailsDir, "${game.packageName}.png"),
+                File(repository.thumbnailsDir, "${game.packageName}.jpeg")
+            ).find { it.exists() }
+
             GameItemState(
                 name = game.gameName,
                 version = game.versionCode,
@@ -1014,6 +1021,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 packageName = game.packageName,
                 releaseName = game.releaseName,
                 iconFile = iconFile,
+                thumbnailFile = thumbnailFile,
                 installStatus = status,
                 queueStatus = queueTask?.status,
                 isFirstInQueue = game.releaseName == firstInQueue,

@@ -316,6 +316,24 @@ fun GameListItem(
                     
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // MetaMetadata thumbnail — hero banner image (full width, 16:9).
+                    val hasThumbnail = game.thumbnailFile?.exists() == true
+                    if (hasThumbnail) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(game.thumbnailFile)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     // Story 11.2: streaming trailer (thumbnail → opens in the YouTube app/browser).
                     // Only rendered while the card is expanded (AnimatedVisibility) and only when a
                     // trailer URL exists.
@@ -337,7 +355,7 @@ fun GameListItem(
                                     AsyncImage(
                                         model = ImageRequest.Builder(context)
                                             .data(url)
-                                            .size(480, 270) 
+                                            .size(480, 270)
                                             .crossfade(true)
                                             .build(),
                                         contentDescription = null,
