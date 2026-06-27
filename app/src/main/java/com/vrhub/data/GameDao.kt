@@ -52,6 +52,22 @@ interface GameDao {
     @Query("SELECT COUNT(*) FROM games")
     suspend fun getCount(): Int
 
-    @Query("DELETE FROM games WHERE releaseName NOT IN (:releaseNames)")
-    suspend fun deleteAbsent(releaseNames: List<String>)
+    /**
+     * Returns every release name currently in the catalog. Used to compute,
+     * in code, the set of stale games to delete — see deleteByReleaseNames.
+     */
+    @Query("SELECT releaseName FROM games")
+    suspend fun getAllReleaseNames(): List<String>
+
+    /**
+     * Deletes the given games by release name.
+     *
+     * Callers MUST chunk [releaseNames] to stay under SQLITE_MAX_VARIABLE_NUMBER
+     * (999 on Android < 12). This intentionally replaces the previous
+     * `DELETE ... WHERE releaseName NOT IN (:all)` query, which bound one
+     * variable per catalog entry and crashed with "too many SQL variables"
+     * once the catalog exceeded 999 games.
+     */
+    @Query("DELETE FROM games WHERE releaseName IN (:releaseNames)")
+    suspend fun deleteByReleaseNames(releaseNames: List<String>)
 }

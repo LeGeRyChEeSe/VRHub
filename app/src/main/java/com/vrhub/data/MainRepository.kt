@@ -301,8 +301,14 @@ class MainRepository(
                                     // Guard: skip deletion when the new list is empty to avoid
                                     // wiping the entire local DB on a transient server error.
                                     if (newList.isNotEmpty()) {
-                                        val currentReleaseNames = newList.map { it.releaseName }
-                                        gameDao.deleteAbsent(currentReleaseNames)
+                                        // Compute the stale set in code and delete it in IN(...)
+                                        // chunks rather than issuing a single NOT IN(:all) query.
+                                        // The catalog exceeds 999 entries, which would blow past
+                                        // SQLITE_MAX_VARIABLE_NUMBER (999 on Android < 12) and
+                                        // crash the whole sync with "too many SQL variables".
+                                        val keep = newList.mapTo(HashSet()) { it.releaseName }
+                                        val toDelete = gameDao.getAllReleaseNames().filter { it !in keep }
+                                        toDelete.chunked(500).forEach { gameDao.deleteByReleaseNames(it) }
                                     }
                                     // 95% progress: DB insertion done, finalizing metadata.
                                     onProgress(0.95f)
