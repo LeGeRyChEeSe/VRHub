@@ -114,6 +114,17 @@ android {
         }
     }
 
+    testOptions {
+        // ANDROIDX_TEST_ORCHESTRATOR runs every instrumented test in its own
+        // instrumentation process, so a single hung or crashing test no longer
+        // freezes the whole connectedAndroidTest run on the slow headless CI
+        // emulator (issue #57). clearPackageData is intentionally NOT enabled:
+        // a few tests rely on accumulated app state (permission cache, WorkManager)
+        // and wiping between tests would break them.
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+        animationsDisabled = true
+    }
+
     // ================================================================================
     // SIGNING CONFIGURATION - Single source of truth for keystore availability
     // ================================================================================
@@ -340,6 +351,10 @@ dependencies {
     testImplementation("androidx.test.ext:junit:1.1.5")
     testImplementation("androidx.test:core:1.5.0")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    // AndroidX Test Orchestrator: isolates each instrumented test in its own
+    // process so a hung/crashing test can't freeze the whole suite (issue #57).
+    androidTestUtil("androidx.test:orchestrator:1.4.2")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2023.10.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

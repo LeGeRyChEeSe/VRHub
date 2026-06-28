@@ -21,6 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Ignore
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
@@ -53,6 +54,31 @@ class DownloadWorkerTest {
 
         WorkManagerTestInitHelper.initializeTestWorkManager(context, config)
         workManager = WorkManager.getInstance(context)
+    }
+
+    /**
+     * Waits for a worker to leave the transient RUNNING state and settle.
+     *
+     * DownloadWorker is a CoroutineWorker, so its body runs on its own coroutine
+     * dispatcher — the test's SynchronousExecutor only drives WorkManager's task
+     * executor, not the worker body. Reading the state immediately after enqueue
+     * can therefore observe RUNNING. Under AndroidX Test Orchestrator each test
+     * gets a cold process, which makes that window wide enough to flake. Poll
+     * until the work finishes (SUCCEEDED/FAILED/CANCELLED) or, after having run,
+     * settles back to ENQUEUED for retry backoff.
+     */
+    private fun awaitWorkSettled(id: UUID, timeoutMs: Long = 15_000): WorkInfo {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        var sawRunning = false
+        var info = workManager.getWorkInfoById(id).get()
+        while (System.currentTimeMillis() < deadline) {
+            if (info.state == WorkInfo.State.RUNNING) sawRunning = true
+            if (info.state.isFinished) break
+            if (sawRunning && info.state == WorkInfo.State.ENQUEUED) break
+            Thread.sleep(50)
+            info = workManager.getWorkInfoById(id).get()
+        }
+        return info
     }
 
     @Test
@@ -254,7 +280,7 @@ class DownloadWorkerTest {
         testDriver?.setAllConstraintsMet(request.id)
 
         // Then: Work should fail due to missing release name
-        val workInfo = workManager.getWorkInfoById(request.id).get()
+        val workInfo = awaitWorkSettled(request.id)
         assertEquals(
             "Work should FAIL with missing release name",
             WorkInfo.State.FAILED,
@@ -290,7 +316,7 @@ class DownloadWorkerTest {
         testDriver?.setAllConstraintsMet(request.id)
 
         // Then: Work should fail (either immediately or after retries)
-        val workInfo = workManager.getWorkInfoById(request.id).get()
+        val workInfo = awaitWorkSettled(request.id)
         assertTrue(
             "Work should FAIL or RETRY with non-existent game",
             workInfo.state == WorkInfo.State.FAILED ||
