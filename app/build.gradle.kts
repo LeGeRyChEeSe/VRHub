@@ -105,6 +105,10 @@ android {
         buildConfigField("String", "VRHUB_UPDATE_SECRET", "\"$updateSecret\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Per-test timeout (ms): a single hung instrumented test is killed and
+        // reported as a failure instead of stalling the whole suite until the
+        // job-level timeout cancels everything (which hides which test hung).
+        testInstrumentationRunnerArguments["timeout_msec"] = "120000"
         vectorDrawables {
             useSupportLibrary = true
         }

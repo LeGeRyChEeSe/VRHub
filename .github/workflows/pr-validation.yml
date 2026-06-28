@@ -145,7 +145,12 @@ jobs:
     runs-on: ubuntu-latest
     # Instrumented tests on emulated hardware are a performance outlier.
     # While they run in parallel, they are excluded from the 5-minute soft target.
-    timeout-minutes: 10
+    # 10 min was too tight: emulator boot (~4 min) + the full suite on the slow
+    # swiftshader CI emulator could not finish, so the job hit the timeout and was
+    # canceled (hiding any real result). The per-test `timeout_msec` runner arg
+    # (see app/build.gradle.kts) now bounds any single hung test, and this larger
+    # budget lets the whole suite complete.
+    timeout-minutes: 25
     outputs:
       outcome: ${{ steps.run-instr.outcome }}
     steps:
