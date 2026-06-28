@@ -147,6 +147,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val sortMode by viewModel.sortMode.collectAsState()
+    val sortAscending by viewModel.sortAscending.collectAsState()
     val filterCounts by viewModel.filterCounts.collectAsState()
     val missingPermissions by viewModel.missingPermissions.collectAsState()
     val alphabetInfo by viewModel.alphabetInfo.collectAsState()
@@ -652,6 +653,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     selectedFilter = selectedFilter,
                                     onFilterChange = { viewModel.setFilter(it) },
                                     sortMode = sortMode,
+                                    sortAscending = sortAscending,
                                     onSortChange = { viewModel.setSortMode(it) },
                                     filterCounts = filterCounts,
                                     onSettingsClick = { showSettingsDialog = true },
@@ -699,7 +701,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     }
 
                                     Row(modifier = Modifier.weight(1f)) {
-                                        if (games.isNotEmpty() && searchQuery.isEmpty() && selectedFilter == FilterStatus.ALL && sortMode == SortMode.NAME_ASC) {
+                                        if (games.isNotEmpty() && searchQuery.isEmpty() && selectedFilter == FilterStatus.ALL && sortMode == SortMode.NAME && sortAscending) {
                                         AlphabetIndexer(
                                             alphabetInfo = alphabetInfo,
                                             onLetterClick = { index ->
@@ -741,6 +743,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                                     onResumeClick = { viewModel.resumeInstall(game.releaseName) },
                                                     onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
                                                     isGridItem = true,
+                                                    sortMode = sortMode,
                                                     permissionsMissing = missingPermissions?.isNotEmpty() == true,
                                                     modifier = Modifier.animateItemPlacement()
                                                 )
@@ -761,6 +764,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                                     onDeleteDownloadClick = { gameToDelete = game },
                                                     onResumeClick = { viewModel.resumeInstall(game.releaseName) },
                                                     onToggleFavorite = { viewModel.toggleFavorite(game.releaseName, it) },
+                                                    sortMode = sortMode,
                                                     permissionsMissing = missingPermissions?.isNotEmpty() == true,
                                                     modifier = Modifier.animateItemPlacement()
                                                 )
@@ -1217,6 +1221,7 @@ fun CustomTopBar(
     selectedFilter: FilterStatus,
     onFilterChange: (FilterStatus) -> Unit,
     sortMode: SortMode,
+    sortAscending: Boolean,
     onSortChange: (SortMode) -> Unit,
     filterCounts: Map<FilterStatus, Int>,
     onSettingsClick: () -> Unit,
@@ -1297,26 +1302,33 @@ fun CustomTopBar(
                         expanded = showSortMenu,
                         onDismissRequest = { showSortMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Name (A-Z)", color = Color.White) },
-                            onClick = { onSortChange(SortMode.NAME_ASC); showSortMenu = false },
-                            leadingIcon = { if (sortMode == SortMode.NAME_ASC) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Last Updated", color = Color.White) },
-                            onClick = { onSortChange(SortMode.LAST_UPDATED); showSortMenu = false },
-                            leadingIcon = { if (sortMode == SortMode.LAST_UPDATED) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Size", color = Color.White) },
-                            onClick = { onSortChange(SortMode.SIZE); showSortMenu = false },
-                            leadingIcon = { if (sortMode == SortMode.SIZE) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Popularity", color = Color.White) },
-                            onClick = { onSortChange(SortMode.POPULARITY); showSortMenu = false },
-                            leadingIcon = { if (sortMode == SortMode.POPULARITY) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary) }
-                        )
+                        // Tapping the active field flips its direction (and keeps the menu open
+                        // so the arrow change is visible); tapping another field switches to it.
+                        @Composable
+                        fun sortItem(label: String, mode: SortMode) {
+                            val selected = sortMode == mode
+                            DropdownMenuItem(
+                                text = { Text(label, color = Color.White) },
+                                onClick = {
+                                    onSortChange(mode)
+                                    if (!selected) showSortMenu = false
+                                },
+                                leadingIcon = { if (selected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.secondary) },
+                                trailingIcon = {
+                                    if (selected) Icon(
+                                        imageVector = if (sortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                        contentDescription = if (sortAscending) "Ascending" else "Descending",
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            )
+                        }
+                        sortItem("Name", SortMode.NAME)
+                        sortItem("Release Name", SortMode.RELEASE_NAME)
+                        sortItem("Last Updated", SortMode.LAST_UPDATED)
+                        sortItem("Size", SortMode.SIZE)
+                        sortItem("Popularity", SortMode.POPULARITY)
                     }
                 }
 
