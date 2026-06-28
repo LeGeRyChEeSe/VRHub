@@ -30,9 +30,12 @@ A standalone Meta Quest application to browse, download, and install VR games na
 
 ## Overview
 
-VRHub is a personal VR game manager for Meta Quest headsets. Connect to your **private server** to browse your own game catalog and install titles directly — no manual sideloading required. Your library, organized and at your fingertips.
+VRHub is a personal VR game manager for Meta Quest headsets. Connect to your **own server** to browse your own game catalog and install titles directly — no manual sideloading required. Your library, organized and at your fingertips.
 
-**This app does not host or provide any games. You must only install games you have legitimately purchased.** VRHub is designed solely for managing your personal collection on your own server. We do not condone piracy in any form.
+> [!IMPORTANT]
+> **VRHub requires your own server to function.** The app is only a client: it has no built-in catalog and ships with no content. To use it, you must run your own game server and point VRHub at it. We officially recommend [**vrhub-server**](https://github.com/LeGeRyChEeSe/vrhub-server) — the self-hosted backend purpose-built for VRHub — for a fully working, seamless setup. See [Server Configuration](#server-configuration) below.
+
+**This app does not host, provide, or help you obtain any games. You must only add games that you own and have legitimately purchased.** VRHub is designed solely for managing your personal, legally-owned collection on your own server. The source of your games must be legal. We do not provide any means of obtaining games illegally, and we strictly prohibit piracy in any form.
 
 ---
 
@@ -79,7 +82,30 @@ For advanced users comfortable with command-line tools.
 
 ## Server Configuration
 
-After installing VRHub, you need to connect it to your personal game server. You will receive a file or text containing two pieces of information: an address and a password.
+VRHub does nothing on its own — it needs a server to talk to. **For VRHub to be fully functional, you must run your own game server.**
+
+### Step 0: Set Up Your Server (Required)
+
+We strongly recommend [**vrhub-server**](https://github.com/LeGeRyChEeSe/vrhub-server), the official self-hosted backend built specifically for VRHub. It scans your game folders, builds the catalog, and serves everything to the app — so VRHub works perfectly out of the box. It's a single binary with no dependencies and runs on virtually any machine:
+
+| Platform | Supported |
+|----------|-----------|
+| **Windows** | 64-bit (amd64) & ARM64 |
+| **macOS** | Apple Silicon (M1–M4) & Intel |
+| **Linux** | 64-bit (amd64) & ARM64 (Raspberry Pi, etc.) |
+| **Android** | via [Termux](https://termux.dev/) |
+| **Docker** | any platform |
+
+1. Follow the [vrhub-server installation guide](https://github.com/LeGeRyChEeSe/vrhub-server#getting-started) to run it on your own computer.
+2. Add **only games you own and have legitimately purchased** to your server's library.
+3. The server gives you the address and password you'll enter below.
+
+> [!CAUTION]
+> The source of your games must be legal. You are solely responsible for the content you host on your server. VRHub and vrhub-server do not provide, distribute, or help you obtain any games — and piracy is strictly prohibited.
+
+### Connecting VRHub to Your Server
+
+Once your server is running, you need to connect VRHub to it. Your server (e.g. vrhub-server) provides two pieces of information: an address and a password.
 
 It looks something like this:
 ```
