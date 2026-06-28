@@ -58,6 +58,15 @@
 
 ## [Unreleased]
 
+### Tests
+- **Stats Collection integration tests (#42):** Added `StatsCollectionIntegrationTest`
+  wiring the real collaborators together (ConsentPreferences DataStore + Room +
+  PackageManager + StatsCollector + WorkManager) to cover the end-to-end flows: consent
+  granted → stats actually POSTed, consent revoked → collection skipped and periodic
+  worker cancelled, and favorite toggle → debounced collection worker enqueued (with
+  rapid-toggle coalescing). Runs on the JVM via Robolectric (the legacy `androidTest`
+  source set no longer compiles after the `com.vrhub` rebrand).
+
 ## [4.1.0] - 2026-05-01
 
 ### âœ¨ New Features
