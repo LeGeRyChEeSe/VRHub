@@ -1,23 +1,37 @@
 ## [Unreleased]
 
 ### Added
-- **Sortable Release Name + sort direction (issue #14):** The catalog sort menu now offers a
-  **Release Name** option and supports both ascending and descending order for every field.
-  Re-tapping the active field flips its direction (Rookie-style toggle) while a ▲/▼ arrow in the
-  menu shows which way the list is currently sorted. Each field starts in its natural direction
-  (A→Z for names, newest/largest/most-popular first otherwise).
-- **Sorted value visible inline (issue #14):** The active sort key is now shown directly on each
-  game row — Last Updated date, popularity, or release name appear next to the version/size line
-  in the accent colour, so the sorted field is visible without expanding the card.
+- **Sortable Release Name + sort direction:** The catalog sort menu now offers a **Release Name**
+  option and supports both ascending and descending order for every field. Re-tapping the active
+  field flips its direction while a ▲/▼ arrow in the menu shows the current sort direction.
+  Each field starts in its natural direction (A→Z for names, newest/largest/most-popular first
+  otherwise).
+- **Sorted value visible inline:** The active sort key is now shown directly on each game row —
+  Last Updated date, popularity, or release name appear next to the version/size line in the
+  accent colour, so the sorted field is visible without expanding the card.
 
 ### Fixed
-- **Game list reshuffling while scrolling (#15):** Under the **Size** sort, the catalog list
-  kept reordering as you scrolled because game sizes are fetched lazily for the games coming
-  into view, and each newly resolved size re-triggered a full re-sort that moved items around
-  under the user. The sorted order is now frozen against transient updates (lazily fetched
-  sizes, install/queue progress) and is only recomputed when the structural sort inputs change
-  (sort mode, search query, filter, or the set of games shown). Per-item content such as the
-  size label still updates live; only the ordering is held stable.
+- **Game list reshuffling while scrolling (#54):** Under the **Size** sort, the catalog list
+  kept reordering as you scrolled because game sizes are fetched lazily as games come into view,
+  and each newly resolved size re-triggered a full re-sort that moved items around. The sorted
+  order is now frozen against transient updates (lazily fetched sizes, install/queue progress)
+  and is only recomputed when the structural sort inputs change (sort mode, search query, filter,
+  or the set of games shown). Per-item content such as the size label still updates live; only
+  the ordering is held stable.
+- **Catalog sync failure on large catalogs (#49):** On devices running Android 11 or earlier
+  (SQLite < 3.32), pruning games removed from the server used a single `NOT IN` query that hit
+  SQLite's 999-variable limit once the catalog grew large enough. The entire sync would fail
+  silently, leaving the local database out of date. Stale games are now deleted in chunked
+  batches computed in Kotlin, avoiding the limit entirely.
+- **Stuck "update available" banner after catalog sync (#50):** Two silent failure paths in
+  `CatalogUpdateWorker` could leave the update banner visible indefinitely. If the downloaded
+  catalog file failed to move to its final location, the worker reported success without saving
+  the new metadata; if the extraction produced empty content, it also fell through to success.
+  Both cases now return a retryable failure so WorkManager retries with back-off.
+- **Incorrect supporter tier in periodic stats (#48):** The periodic `StatsCollectionWorker`
+  was forwarding unknown tier values verbatim to the stats endpoint instead of normalising them
+  to `standard`/`supporter`/`lucky`, unlike the on-demand and debounce workers. It now uses
+  the shared `resolveTier()` helper so all stats paths agree.
 
 ## [4.1.5] - 2026-06-27
 
@@ -76,17 +90,6 @@
 
 ### Fixed
 - **Monetization API:** Fixed "Response must include generic type" error on Become Supporter and Restore Purchase screens when R8 full mode is enabled 
-
-## [Unreleased]
-
-### Tests
-- **Stats Collection integration tests (#42):** Added `StatsCollectionIntegrationTest`
-  wiring the real collaborators together (ConsentPreferences DataStore + Room +
-  PackageManager + StatsCollector + WorkManager) to cover the end-to-end flows: consent
-  granted → stats actually POSTed, consent revoked → collection skipped and periodic
-  worker cancelled, and favorite toggle → debounced collection worker enqueued (with
-  rapid-toggle coalescing). Runs on the JVM via Robolectric (the legacy `androidTest`
-  source set no longer compiles after the `com.vrhub` rebrand).
 
 ## [4.1.0] - 2026-05-01
 

@@ -67,6 +67,7 @@ _bmad_config/
 .bmad/
 
 # Agent management
+.agent/
 .agents/
 
 # Historical/unused documentation

@@ -15,11 +15,11 @@ BUILD_GRADLE := app/build.gradle.kts
 CHANGELOG := CHANGELOG.md
 DIST_DIR := dist
 
-# Version extraction via PowerShell (targeted and robust)
-VERSION := $(shell powershell -NoProfile -Command "(Get-Content $(BUILD_GRADLE) | Select-String 'versionName = \".*\"' | Select-Object -First 1).Line.Split([char]34)[1]")
+# Version extraction via PowerShell (matches 'versionNameProperty == null -> "X.Y.Z"' format)
+VERSION := $(shell powershell -NoProfile -Command "([regex]::Match((Get-Content '$(BUILD_GRADLE)' -Raw), 'versionNameProperty == null -> \"([^\"]+)\"')).Groups[1].Value")
 DATE := $(shell powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd'")
 APK_NAME := $(APP_NAME)-v$(VERSION).apk
-APK_PATH := app/build/outputs/apk/release/$(APK_NAME)
+APK_PATH := app/build/outputs/apk/prod/release/$(APK_NAME)
 
 # Git Variables (can be overridden: make commit GIT_MSG="My message")
 GIT_MSG ?= Release v$(VERSION)
@@ -49,16 +49,16 @@ clean:
 set-version:
 	@powershell -NoProfile -Command "if ('$(V)' -eq '') { Write-Error 'Provide a version, e.g., make set-version V=2.1.2'; exit 1 }"
 	@echo Updating version to $(V)...
-	@powershell -NoProfile -Command "$$p='$(BUILD_GRADLE)'; $$c=Get-Content $$p -Raw; $$c=$$c -replace 'versionName = \".*\"', 'versionName = \"$(V)\"'; $$m=[regex]::Match($$c, 'versionCode = (\d+)'); if($$m.Success){ $$ov=$$m.Groups[1].Value; $$nv=[int]$$ov+1; $$c=$$c -replace 'versionCode = \d+', \"versionCode = $$nv\"; Write-Host 'versionCode updated to ' -NoNewline; Write-Host $$nv -ForegroundColor Green } $$c | Set-Content $$p -Encoding UTF8"
+	@powershell -NoProfile -Command "$$p='$(BUILD_GRADLE)'; $$c=Get-Content $$p -Raw; $$c=$$c -replace '(versionNameProperty == null -> \")([^\"]+)(\")', \"`${1}$(V)`${3}\"; $$m=[regex]::Match($$c, 'versionCodeProperty == null -> (\d+)'); if($$m.Success){ $$ov=$$m.Groups[1].Value; $$nv=[int]$$ov+1; $$c=$$c -replace '(versionCodeProperty == null -> )(\d+)', \"`${1}$$nv\"; Write-Host 'versionCode updated to ' -NoNewline; Write-Host $$nv -ForegroundColor Green } $$c | Set-Content $$p -Encoding UTF8"
 	@echo Updating $(CHANGELOG)...
 	@powershell -NoProfile -Command "$$p='$(CHANGELOG)'; $$v='$(V)'; $$d='$(DATE)'; $$c=Get-Content $$p -Raw; if ($$c -notmatch '## \[' + [regex]::Escape($$v) + '\]') { $$new='## [' + $$v + '] - ' + $$d + \"`r`n`r`n### Added`r`n- `r`n`r`n\"; $$c = $$c -replace '(?s)(.*?Semantic Versioning.*?\r?\n\r?\n)', \"$$1$$new\"; $$c | Set-Content $$p -Encoding UTF8; Write-Host 'Changelog updated' -ForegroundColor Green } else { Write-Host 'Version already exists in changelog' -ForegroundColor Yellow }"
 
 build:
-	@cmd /c $(GRADLEW) assembleDebug
+	@cmd /c $(GRADLEW) assembleDevDebug
 
 release:
 	@echo Preparing release v$(VERSION)...
-	@cmd /c $(GRADLEW) assembleRelease
+	@cmd /c $(GRADLEW) assembleProdRelease
 	@if not exist $(DIST_DIR) mkdir $(DIST_DIR)
 	@powershell -NoProfile -Command "if (Test-Path '$(APK_PATH)') { Copy-Item '$(APK_PATH)' '$(DIST_DIR)/$(APK_NAME)' -Force } else { Write-Error 'APK not found at $(APK_PATH)'; exit 1 }"
 	@echo Extracting notes...
