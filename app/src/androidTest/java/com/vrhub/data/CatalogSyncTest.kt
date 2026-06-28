@@ -20,6 +20,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Ignore
 import android.util.Log
+import org.apache.commons.compress.archivers.sevenz.SevenZMethod
+import org.apache.commons.compress.archivers.sevenz.SevenZMethodConfiguration
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -50,6 +52,27 @@ class CatalogSyncTest {
         }
     }
 
+    /**
+     * Writes a single-entry meta.7z fixture.
+     *
+     * LZMA2's default match-finder allocates a multi-megabyte dictionary buffer
+     * (BT4/Hash234) that overflows the app's 16 MB ART heap on the API-29 CI
+     * emulator, raising OutOfMemoryError. On the slow CI emulator the OOM stalls
+     * the whole instrumentation run instead of failing cleanly (issue #57). The
+     * payload here is a few dozen bytes, so the smallest dictionary (4 KiB) is
+     * ample and keeps the encoder's footprint tiny. Production only ever *decodes*
+     * meta.7z, so the encoder dictionary size is a test-only concern.
+     */
+    private fun writeMeta7z(metaFile: File, gameListContent: String) {
+        SevenZOutputFile(metaFile).use { out ->
+            out.setContentMethods(listOf(SevenZMethodConfiguration(SevenZMethod.LZMA2, 4096)))
+            val entry = out.createArchiveEntry(File("VRP-GameList.txt"), "VRP-GameList.txt")
+            out.putArchiveEntry(entry)
+            out.write(gameListContent.toByteArray(StandardCharsets.UTF_8))
+            out.closeArchiveEntry()
+        }
+    }
+
     @Test
     @Ignore("TODO(test-rot): 7z catalog extraction returns empty on the CI emulator")
     fun testFavoritePreservationDuringSync() = runBlocking {
@@ -75,12 +98,7 @@ class CatalogSyncTest {
         val metaFile = File(tempDir, "meta.7z")
         val gameListContent = "Test Game;TestGame_v1;com.test.game;2;1000;50\n"
         
-        SevenZOutputFile(metaFile).use { out ->
-            val entry = out.createArchiveEntry(File("VRP-GameList.txt"), "VRP-GameList.txt")
-            out.putArchiveEntry(entry)
-            out.write(gameListContent.toByteArray(StandardCharsets.UTF_8))
-            out.closeArchiveEntry()
-        }
+        writeMeta7z(metaFile, gameListContent)
 
         // 3. Perform actual sync using local file URL
         val baseUri = "file://${tempDir.absolutePath}/"
@@ -133,12 +151,7 @@ class CatalogSyncTest {
         val metaFile = File(tempDir, "meta.7z")
         val gameListContent = "Test Game;TestGame_v1;com.test.game;1;1000;50\n"
         
-        SevenZOutputFile(metaFile).use { out ->
-            val entry = out.createArchiveEntry(File("VRP-GameList.txt"), "VRP-GameList.txt")
-            out.putArchiveEntry(entry)
-            out.write(gameListContent.toByteArray(StandardCharsets.UTF_8))
-            out.closeArchiveEntry()
-        }
+        writeMeta7z(metaFile, gameListContent)
 
         val baseUri = "file://${tempDir.absolutePath}/"
 
@@ -196,12 +209,7 @@ class CatalogSyncTest {
         // Create 2 new/updated games
         val gameListContent = "Game 1;G1;com.g1;2;1000;50\nGame 2;G2;com.g2;1;2000;60\n"
         
-        SevenZOutputFile(metaFile).use { out ->
-            val entry = out.createArchiveEntry(File("VRP-GameList.txt"), "VRP-GameList.txt")
-            out.putArchiveEntry(entry)
-            out.write(gameListContent.toByteArray(StandardCharsets.UTF_8))
-            out.closeArchiveEntry()
-        }
+        writeMeta7z(metaFile, gameListContent)
 
         val baseUri = "file://${tempDir.absolutePath}/"
         
