@@ -924,6 +924,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         counts
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    /**
+     * Caches the last sorted order of release names so transient updates that do not
+     * affect ordering (e.g. sizes fetched lazily while scrolling, install/queue progress)
+     * do not reshuffle the visible list. The order is only recomputed when the structural
+     * sort inputs change: the sort mode, search query, filter, or the set of games shown.
+     * Fixes #15 (list "continually changing/updating" while scrolling under Size sort).
+     */
+    private data class SortOrderCache(
+        val query: String,
+        val filter: FilterStatus,
+        val sort: SortMode,
+        val members: Set<String>,
+        val order: List<String>
+    )
+    private var sortOrderCache: SortOrderCache? = null
+
     @Suppress("UNCHECKED_CAST")
     val games: StateFlow<List<GameItemState>> = combine(
         _allGames,
@@ -975,14 +991,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             matchesQuery && matchesFilter
         }
 
-        val sortedList = when (sort) {
-            SortMode.NAME_ASC -> filteredList.sortedWith(compareBy<GameData> {
-                getAlphabetSortPriority(getAlphabetGroupChar(it.gameName))
-            }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.gameName })
-            SortMode.NAME_DESC -> filteredList.sortedByDescending { it.gameName }
-            SortMode.LAST_UPDATED -> filteredList.sortedByDescending { it.lastUpdated }
-            SortMode.SIZE -> filteredList.sortedByDescending { it.sizeBytes ?: 0L }
-            SortMode.POPULARITY -> filteredList.sortedByDescending { it.popularity }
+        // Freeze the order against transient updates (e.g. sizes fetched lazily while
+        // scrolling) by reusing the cached order whenever the structural sort inputs are
+        // unchanged. Per-item content below still refreshes from the current data. (#15)
+        val members = filteredList.mapTo(HashSet()) { it.releaseName }
+        val cache = sortOrderCache
+        val sortedList = if (
+            cache != null && cache.query == query && cache.filter == filter &&
+            cache.sort == sort && cache.members == members
+        ) {
+            val byReleaseName = filteredList.associateBy { it.releaseName }
+            cache.order.mapNotNull { byReleaseName[it] }
+        } else {
+            val freshSorted = when (sort) {
+                SortMode.NAME_ASC -> filteredList.sortedWith(compareBy<GameData> {
+                    getAlphabetSortPriority(getAlphabetGroupChar(it.gameName))
+                }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.gameName })
+                SortMode.NAME_DESC -> filteredList.sortedByDescending { it.gameName }
+                SortMode.LAST_UPDATED -> filteredList.sortedByDescending { it.lastUpdated }
+                SortMode.SIZE -> filteredList.sortedByDescending { it.sizeBytes ?: 0L }
+                SortMode.POPULARITY -> filteredList.sortedByDescending { it.popularity }
+            }
+            sortOrderCache = SortOrderCache(query, filter, sort, members, freshSorted.map { it.releaseName })
+            freshSorted
         }
 
         sortedList.map { game ->

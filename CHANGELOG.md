@@ -1,3 +1,14 @@
+## [Unreleased]
+
+### Fixed
+- **Game list reshuffling while scrolling (#15):** Under the **Size** sort, the catalog list
+  kept reordering as you scrolled because game sizes are fetched lazily for the games coming
+  into view, and each newly resolved size re-triggered a full re-sort that moved items around
+  under the user. The sorted order is now frozen against transient updates (lazily fetched
+  sizes, install/queue progress) and is only recomputed when the structural sort inputs change
+  (sort mode, search query, filter, or the set of games shown). Per-item content such as the
+  size label still updates live; only the ordering is held stable.
+
 ## [4.1.5] - 2026-06-27
 
 ### Added
