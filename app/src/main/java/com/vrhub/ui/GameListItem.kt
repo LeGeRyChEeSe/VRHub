@@ -53,6 +53,7 @@ fun GameListItem(
     onResumeClick: () -> Unit = {},
     onToggleFavorite: (Boolean) -> Unit = {},
     isGridItem: Boolean = false,
+    sortMode: SortMode = SortMode.NAME,
     permissionsMissing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -208,6 +209,28 @@ fun GameListItem(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.Gray,
                                 modifier = Modifier.padding(start = 4.dp),
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        // Surface the active sort field inline so the value is visible without
+                        // expanding the card (issue #14 / Schintilla's request). Size and name are
+                        // already shown elsewhere, so only the remaining fields need it; highlighted
+                        // in the accent colour to signal it's the current sort key.
+                        val sortedFieldText: String? = when (sortMode) {
+                            SortMode.LAST_UPDATED -> formatDate(game.lastUpdated)
+                            SortMode.POPULARITY -> if (game.popularity > 0) "⭐ ${game.popularity}" else null
+                            SortMode.RELEASE_NAME -> game.releaseName
+                            else -> null
+                        }
+                        if (sortedFieldText != null) {
+                            Text(
+                                text = " • $sortedFieldText",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(start = 4.dp).weight(1f, fill = false),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 fontSize = 11.sp
                             )
                         }

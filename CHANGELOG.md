@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Added
+- **Sortable Release Name + sort direction (issue #14):** The catalog sort menu now offers a
+  **Release Name** option and supports both ascending and descending order for every field.
+  Re-tapping the active field flips its direction (Rookie-style toggle) while a ▲/▼ arrow in the
+  menu shows which way the list is currently sorted. Each field starts in its natural direction
+  (A→Z for names, newest/largest/most-popular first otherwise).
+- **Sorted value visible inline (issue #14):** The active sort key is now shown directly on each
+  game row — Last Updated date, popularity, or release name appear next to the version/size line
+  in the accent colour, so the sorted field is visible without expanding the card.
+
 ### Fixed
 - **Game list reshuffling while scrolling (#15):** Under the **Size** sort, the catalog list
   kept reordering as you scrolled because game sizes are fetched lazily for the games coming

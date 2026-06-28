@@ -100,9 +100,14 @@ enum class FilterStatus {
     LOCAL_INSTALLS
 }
 
+/**
+ * Sort fields for the catalog. Direction (ascending/descending) is tracked separately in
+ * [MainViewModel.sortAscending] so any field can be sorted either way — see issue #14 and
+ * Schintilla's request to surface which way the list is sorted.
+ */
 enum class SortMode {
-    NAME_ASC,
-    NAME_DESC,
+    NAME,
+    RELEASE_NAME,
     LAST_UPDATED,
     SIZE,
     POPULARITY
@@ -418,8 +423,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedFilter = MutableStateFlow(FilterStatus.ALL)
     val selectedFilter: StateFlow<FilterStatus> = _selectedFilter
 
-    private val _sortMode = MutableStateFlow(SortMode.NAME_ASC)
+    private val _sortMode = MutableStateFlow(SortMode.NAME)
     val sortMode: StateFlow<SortMode> = _sortMode
+
+    private val _sortAscending = MutableStateFlow(true)
+    val sortAscending: StateFlow<Boolean> = _sortAscending
 
     private val _events = MutableSharedFlow<MainEvent>()
     val events = _events.asSharedFlow()
@@ -935,6 +943,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val query: String,
         val filter: FilterStatus,
         val sort: SortMode,
+        val ascending: Boolean,
         val members: Set<String>,
         val order: List<String>
     )
@@ -948,7 +957,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _downloadedReleases,
         _selectedFilter,
         _sortMode,
-        installQueue
+        installQueue,
+        _sortAscending
     ) { args ->
         val list = args[0] as List<GameData>
         val query = args[1] as String
@@ -957,6 +967,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val filter = args[4] as FilterStatus
         val sort = args[5] as SortMode
         val queue = args[6] as List<InstallTaskState>
+        val ascending = args[7] as Boolean
 
         val firstInQueue = queue.firstOrNull()?.releaseName
         val lastSync = prefs.getLong("last_catalog_sync_time", 0L)
@@ -994,25 +1005,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Freeze the order against transient updates (e.g. sizes fetched lazily while
         // scrolling) by reusing the cached order whenever the structural sort inputs are
         // unchanged. Per-item content below still refreshes from the current data. (#15)
+        // The sort direction (#14) is part of the structural key so flipping asc/desc
+        // recomputes the order.
         val members = filteredList.mapTo(HashSet()) { it.releaseName }
         val cache = sortOrderCache
         val sortedList = if (
             cache != null && cache.query == query && cache.filter == filter &&
-            cache.sort == sort && cache.members == members
+            cache.sort == sort && cache.ascending == ascending && cache.members == members
         ) {
             val byReleaseName = filteredList.associateBy { it.releaseName }
             cache.order.mapNotNull { byReleaseName[it] }
         } else {
-            val freshSorted = when (sort) {
-                SortMode.NAME_ASC -> filteredList.sortedWith(compareBy<GameData> {
+            val comparator: Comparator<GameData> = when (sort) {
+                SortMode.NAME -> compareBy<GameData> {
                     getAlphabetSortPriority(getAlphabetGroupChar(it.gameName))
-                }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.gameName })
-                SortMode.NAME_DESC -> filteredList.sortedByDescending { it.gameName }
-                SortMode.LAST_UPDATED -> filteredList.sortedByDescending { it.lastUpdated }
-                SortMode.SIZE -> filteredList.sortedByDescending { it.sizeBytes ?: 0L }
-                SortMode.POPULARITY -> filteredList.sortedByDescending { it.popularity }
+                }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.gameName }
+                SortMode.RELEASE_NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.releaseName }
+                SortMode.LAST_UPDATED -> compareBy { it.lastUpdated }
+                SortMode.SIZE -> compareBy { it.sizeBytes ?: 0L }
+                SortMode.POPULARITY -> compareBy { it.popularity }
             }
-            sortOrderCache = SortOrderCache(query, filter, sort, members, freshSorted.map { it.releaseName })
+            val freshSorted = filteredList.sortedWith(if (ascending) comparator else comparator.reversed())
+            sortOrderCache = SortOrderCache(query, filter, sort, ascending, members, freshSorted.map { it.releaseName })
             freshSorted
         }
 
@@ -2570,9 +2584,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         priorityUpdateChannel.trySend(Unit)
     }
 
+    /**
+     * Selects a sort field. Re-selecting the active field flips the direction (Rookie-style
+     * toggle); selecting a new field resets it to that field's natural default direction
+     * (A→Z for names, newest/largest/most-popular first otherwise).
+     */
     fun setSortMode(mode: SortMode) {
-        _sortMode.value = mode
+        if (_sortMode.value == mode) {
+            _sortAscending.value = !_sortAscending.value
+        } else {
+            _sortMode.value = mode
+            _sortAscending.value = defaultSortAscending(mode)
+        }
         priorityUpdateChannel.trySend(Unit)
+    }
+
+    private fun defaultSortAscending(mode: SortMode): Boolean = when (mode) {
+        SortMode.NAME, SortMode.RELEASE_NAME -> true
+        SortMode.LAST_UPDATED, SortMode.SIZE, SortMode.POPULARITY -> false
     }
 
     /**
