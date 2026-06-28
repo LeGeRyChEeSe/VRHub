@@ -83,9 +83,6 @@ DEVELOPMENT.md
 WORKTREE-SYSTEM.md
 project-context.md
 
-# GitHub Issue Templates
-.github/ISSUE_TEMPLATE/
-
 # Local-only scripts (not used by CI)
 scripts/copy-worktree-files.ps1
 scripts/deploy-to-netlify.sh
