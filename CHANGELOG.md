@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [4.1.6] - 2026-06-28
+
 ### Added
 - **Sortable Release Name + sort direction:** The catalog sort menu now offers a **Release Name**
   option and supports both ascending and descending order for every field. Re-tapping the active
