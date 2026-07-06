@@ -11,7 +11,6 @@ import android.util.Base64
 import android.util.Log
 import com.vrhub.logic.CatalogParser
 import com.vrhub.logic.CatalogUtils
-import com.vrhub.network.PublicConfig
 import com.vrhub.network.StatsApiService
 import com.vrhub.data.StatsCollector
 import okhttp3.OkHttpClient
@@ -81,8 +80,6 @@ class MainRepository(
     internal var decodedPassword: String? = null
     internal var baseUri: String? = null
 
-    val config: ServerConfig? = null
-    
     val iconsDir = File(context.filesDir, "icons").apply { if (!exists()) mkdirs() }
     val thumbnailsDir = File(context.filesDir, "thumbnails").apply { if (!exists()) mkdirs() }
     val notesDir = File(context.filesDir, "notes").apply { if (!exists()) mkdirs() }
@@ -122,21 +119,6 @@ class MainRepository(
      */
     suspend fun getGameByPackageName(packageName: String): GameData? {
         return gameDao.getByPackageName(packageName)?.toData()
-    }
-
-    @Deprecated("Use setActiveConfig() with ServerConfig from ServerConfigRepository instead")
-    suspend fun fetchConfig(): PublicConfig? = withContext(Dispatchers.IO) {
-        // No longer uses hardcoded values - this method exists for migration compatibility only
-        // If called without a prior setActiveConfig(), returns null to signal no config
-        val decoded = decodedPassword
-        val uri = baseUri
-        if (decoded != null && uri != null) {
-            // Cannot return password64 since we don't store the original encoded value
-            // The caller should use setActiveConfig() + the config repository directly
-            null
-        } else {
-            null
-        }
     }
 
     /**
@@ -395,9 +377,11 @@ class MainRepository(
                     }
                 } else if (entry.name.endsWith(".png", ignoreCase = true) || entry.name.endsWith(".jpg", ignoreCase = true)) {
                     val fileName = entry.name.substringAfterLast("/")
-                    val iconFile = File(iconsDir, fileName)
-                    if (!iconFile.exists()) {
-                        saveEntryToFile(sevenZFile, iconFile, sharedBuffer)
+                    if (fileName.isNotEmpty()) {
+                        val iconFile = File(iconsDir, fileName)
+                        if (!iconFile.exists()) {
+                            saveEntryToFile(sevenZFile, iconFile, sharedBuffer)
+                        }
                     }
                 }
                 entry = sevenZFile.nextEntry
@@ -512,16 +496,6 @@ class MainRepository(
             statsCollector.collectStats(null, games, tier)
         } catch (e: Exception) {
             Log.e(TAG, "maybeCollectStats: error", e)
-        }
-    }
-
-    private suspend fun resolveUserTier(): String? {
-        return try {
-            val response = NetworkModule.statsApiService.getUserTier("anonymous")
-            if (response.isSuccessful) response.body()?.tier else null
-        } catch (e: Exception) {
-            Log.w(TAG, "resolveUserTier: failed", e)
-            null
         }
     }
 
