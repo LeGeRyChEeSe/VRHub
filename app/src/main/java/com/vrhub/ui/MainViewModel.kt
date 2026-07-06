@@ -1677,6 +1677,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val signature = com.vrhub.data.CryptoUtils.hmacSha256(date, secret)
 
                 val latest = updateService.checkUpdate(signature, date)
+
+                // Gson bypasses the Kotlin constructor when deserializing, so a malformed/
+                // incomplete server response can leave these "non-null" fields holding null
+                // at runtime despite their declared type. Validate with the null-safe
+                // extensions (not .isBlank()) before using them, same pattern as the
+                // checksum check below.
+                if (latest.version.isNullOrBlank() || latest.downloadUrl.isNullOrBlank()) {
+                    Log.w(TAG, "Update check received malformed response from server (missing version/downloadUrl)")
+                    _error.value = "Update check failed: Server returned an invalid response. Please try again later."
+                    return false
+                }
+
                 val currentVersion = BuildConfig.VERSION_NAME
 
                 val latestClean = latest.version.lowercase().removePrefix("v")
