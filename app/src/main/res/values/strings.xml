@@ -70,6 +70,7 @@
     <string name="game_btn_uninstall">UNINSTALL</string>
     <string name="game_btn_delete_download">DELETE DOWNLOAD</string>
     <string name="game_btn_complete_install">COMPLETE INSTALL</string>
+    <string name="game_loading_metadata">Loading info…</string>
     <string name="filter_local_installs">Ready to Install</string>
 
     <!-- Story 11.2: Streaming Trailer Strings -->

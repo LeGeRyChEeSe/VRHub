@@ -211,6 +211,14 @@ fun GameListItem(
                                 modifier = Modifier.padding(start = 4.dp),
                                 fontSize = 11.sp
                             )
+                        } else if (game.isLoadingMetadata) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .padding(start = 6.dp)
+                                    .size(10.dp),
+                                strokeWidth = 1.5.dp,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
                         }
 
                         // Surface the active sort field inline so the value is visible without
@@ -404,6 +412,24 @@ fun GameListItem(
                                 lineHeight = 16.sp,
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    } else if (game.isLoadingMetadata) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = context.getString(R.string.game_loading_metadata),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                fontSize = 11.sp
                             )
                         }
                     }
