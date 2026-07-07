@@ -1547,13 +1547,13 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.4f)),
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.4f)),
         contentAlignment = Alignment.BottomCenter
     ) {
         Card(
             modifier = Modifier.padding(16.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = if (progress == -1f) Color(0xFFB00020) else Color(0xFF1A1A1A))
+            colors = CardDefaults.cardColors(containerColor = if (progress == -1f) Color(0xFFB00020) else MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -1587,7 +1587,7 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
                         Icon(
                             imageVector = Icons.Default.Error,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1609,7 +1609,7 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
                             }
                         }
                     }
-                    Text(text, color = Color.White, fontSize = 14.sp)
+                    Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                 }
             }
         }
@@ -1618,7 +1618,7 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
 
 @Composable
 fun LoadingScreen(message: String) {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(
                 modifier = Modifier.size(48.dp),
@@ -1629,7 +1629,7 @@ fun LoadingScreen(message: String) {
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -1644,13 +1644,13 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
     ) {
         Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFCF6679), modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = message, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+        Text(text = message, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
         ) {
-            Text("Try Again", color = Color.White)
+            Text("Try Again", color = MaterialTheme.colorScheme.onSecondary)
         }
     }
 }
@@ -1666,7 +1666,7 @@ fun InstallationOverlay(
     val isAppUpdate = activeTask.releaseName == "update"
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color.Black.copy(alpha = 0.95f)
+        color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(40.dp),
@@ -1678,7 +1678,7 @@ fun InstallationOverlay(
             Text(
                 text = activeTask.gameName,
                 style = MaterialTheme.typography.headlineMedium,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
@@ -1713,20 +1713,20 @@ fun InstallationOverlay(
                             InstallTaskStatus.SHELVED, InstallTaskStatus.PENDING_INSTALL -> Color(0xFF2ecc71)
                             else -> MaterialTheme.colorScheme.secondary
                         },
-                        trackColor = Color.White.copy(alpha = 0.1f)
+                        trackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "${(progress * 100).toInt()}%",
                             style = MaterialTheme.typography.headlineLarge,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontWeight = FontWeight.Black
                         )
                         if (activeTask.currentSize != null) {
                             Text(
                                 text = "${activeTask.currentSize} / ${activeTask.totalSize}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -1758,7 +1758,7 @@ fun InstallationOverlay(
             Text(
                 text = statusMessage,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center
             )
 
@@ -1795,13 +1795,13 @@ fun InstallationOverlay(
                     } else if (activeTask.status.isProcessing()) {
                         OutlinedButton(
                             onClick = { onPause() },
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.height(56.dp).weight(1f)
                         ) {
-                            Icon(Icons.Default.Pause, contentDescription = "Pause", tint = Color.White)
+                            Icon(Icons.Default.Pause, contentDescription = "Pause", tint = MaterialTheme.colorScheme.onBackground)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("PAUSE", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("PAUSE", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -1823,12 +1823,12 @@ fun InstallationOverlay(
                     onClick = onBackground,
                     modifier = Modifier.fillMaxWidth(0.6f)
                 ) {
-                    Text("Run in background", color = Color.Gray, fontWeight = FontWeight.Medium)
+                    Text("Run in background", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), fontWeight = FontWeight.Medium)
                 }
             } else {
                 Text(
                     text = "Application update is mandatory. Please wait.",
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
@@ -1846,7 +1846,7 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        color = Color(0xFF1A1A1A),
+        color = MaterialTheme.colorScheme.primaryContainer,
         tonalElevation = 8.dp
     ) {
         Column {
@@ -1871,14 +1871,14 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
                         else -> Icons.Default.Download
                     },
                     contentDescription = null,
-                    tint = Color.Gray,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = activeTask.gameName,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -1886,7 +1886,7 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
                 Text(
                     text = "${(activeTask.progress * 100).toInt()}%",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     fontWeight = FontWeight.Bold
                 )
                 if (queue.size > 1) {
