@@ -74,6 +74,9 @@ import com.vrhub.ui.ConfigurationScreen
 import com.vrhub.ui.ConfigurationViewModel
 import com.vrhub.ui.components.CatalogUpdateBanner
 import com.vrhub.ui.theme.VRHubTheme
+import com.vrhub.ui.theme.CatalogLayout
+import com.vrhub.ui.theme.LocalAppearance
+import com.vrhub.ui.theme.spacingFactor
 import com.vrhub.ui.components.DebugMonetizationPanel
 import com.vrhub.ui.components.ConsentDialog
 import com.vrhub.data.ConsentPreferences
@@ -390,7 +393,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isWide = maxWidth > 800.dp
+        val appearance = LocalAppearance.current
+        val isWideByWidth = maxWidth > 800.dp
+        val isWide = when (appearance.catalogLayout) {
+            CatalogLayout.GRID -> true
+            CatalogLayout.LIST -> false
+            CatalogLayout.AUTO -> isWideByWidth
+        }
+        val densityFactor = appearance.density.spacingFactor()
 
         when {
             isUpdateCheckInProgress -> LoadingScreen("Checking for updates...")
@@ -755,9 +765,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                         LazyVerticalStaggeredGrid(
                                             columns = StaggeredGridCells.Fixed(3),
                                             state = staggeredGridState,
-                                            contentPadding = PaddingValues(12.dp),
+                                            contentPadding = PaddingValues(12.dp * densityFactor),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalItemSpacing = 8.dp,
+                                            verticalItemSpacing = 8.dp * densityFactor,
                                             modifier = Modifier.weight(1f).fillMaxHeight()
                                         ) {
                                             items(games, key = { it.releaseName }) { game ->
@@ -779,7 +789,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     } else {
                                         LazyColumn(
                                             state = listState,
-                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp * densityFactor),
                                             modifier = Modifier.weight(1f).fillMaxHeight()
                                         ) {
                                             items(games, key = { it.releaseName }) { game ->

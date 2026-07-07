@@ -33,6 +33,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vrhub.R
 import com.vrhub.ui.components.TrailerPlayer
+import com.vrhub.ui.theme.LocalAppearance
+import com.vrhub.ui.theme.cardCornerShape
+import com.vrhub.ui.theme.spacingFactor
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -93,20 +96,24 @@ fun GameListItem(
         else -> context.getString(R.string.game_btn_install)
     }
     
-    val isEnabled = (game.installStatus != InstallStatus.INSTALLED || canResume || isShelved || isQueued) && 
-                    (!isProcessing || isShelved) && 
+    val isEnabled = (game.installStatus != InstallStatus.INSTALLED || canResume || isShelved || isQueued) &&
+                    (!isProcessing || isShelved) &&
                     (game.queueStatus == null || canResume || isShelved || isQueued)
+
+    val appearance = LocalAppearance.current
+    val cardShape = cardCornerShape(appearance.cardCorner)
+    val verticalSpacing = 4.dp * appearance.density.spacingFactor()
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .padding(horizontal = 4.dp, vertical = verticalSpacing)
             .scale(scale)
             .shadow(
                 elevation = if (isHovered) 8.dp else 2.dp,
-                shape = RoundedCornerShape(12.dp)
+                shape = cardShape
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(cardShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current
