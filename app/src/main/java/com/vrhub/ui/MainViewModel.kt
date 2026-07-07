@@ -20,6 +20,7 @@ import com.vrhub.data.InstallUtils
 import com.vrhub.data.PermissionManager
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 import com.vrhub.data.MainRepository
 import com.vrhub.network.UpdateInfo
@@ -852,6 +853,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var permissionDenialShown = false
     private var refreshJob: Job? = null
     private var sizeFetchJob: Job? = null
+    // Bounds how many games' metadata (size/description/screenshots) are fetched
+    // concurrently from startMetadataFetchLoop(). Previously this loop awaited one
+    // game at a time, so even on-screen items were serialized behind each other.
+    private val metadataFetchSemaphore = kotlinx.coroutines.sync.Semaphore(4)
 
     private val updateService = NetworkModule.updateService
     private val githubReleaseService = NetworkModule.githubReleaseService
@@ -2153,7 +2158,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private fun startMetadataFetchLoop() {
+        // Guard against overlapping loops: this is called both from startup init and from
+        // onUpdateDialogDismissed(), and without cancelling the previous job here, both calls
+        // would spin up their own concurrent controller, doubling the effective fetch concurrency.
+        sizeFetchJob?.cancel()
         sizeFetchJob = viewModelScope.launch(Dispatchers.Default) {
+            // Games currently being fetched by an in-flight child job, so the controller
+            // doesn't hand the same target to a second concurrent fetch.
+            val inFlight = ConcurrentHashMap.newKeySet<String>()
+
             while (true) {
                 if (!_isAppVisible.value) {
                     _isAppVisible.first { it }
@@ -2189,18 +2202,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     needsData
                 }
 
-                val target = candidates.find { prioritizedPackages.contains(it.packageName) }
+                val target = candidates.firstOrNull {
+                    prioritizedPackages.contains(it.packageName) && inFlight.add(it.packageName)
+                }
 
                 if (target != null) {
-                    try {
-                        repository.getGameRemoteInfo(target)
-                    } catch (e: Exception) {
-                        delay(2000)
+                    // Fire the fetch as an independent child job bounded by metadataFetchSemaphore
+                    // (up to 4 concurrent) instead of awaiting it here — this lets the controller
+                    // immediately look for the next visible candidate rather than serializing
+                    // on-screen games one at a time.
+                    launch {
+                        metadataFetchSemaphore.withPermit {
+                            try {
+                                repository.getGameRemoteInfo(target)
+                            } catch (e: Exception) {
+                                delay(2000)
+                            } finally {
+                                inFlight.remove(target.packageName)
+                                priorityUpdateChannel.trySend(Unit)
+                            }
+                        }
                     }
 
                     select<Unit> {
                         priorityUpdateChannel.onReceive { }
-                        onTimeout(100.milliseconds) { }
+                        onTimeout(50.milliseconds) { }
                     }
                 } else {
                     priorityUpdateChannel.receive()
