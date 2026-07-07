@@ -218,13 +218,16 @@ fun GameListItem(
                                 modifier = Modifier.padding(start = 4.dp),
                                 fontSize = 11.sp
                             )
-                        } else if (game.isLoadingMetadata) {
+                        } else {
+                            // Size hasn't arrived yet — show a spinner regardless of whether this
+                            // game is actively being fetched right now or just waiting for a free
+                            // slot in the fetch loop's concurrency limit (dimmed while queued).
                             CircularProgressIndicator(
                                 modifier = Modifier
                                     .padding(start = 6.dp)
                                     .size(10.dp),
                                 strokeWidth = 1.5.dp,
-                                color = MaterialTheme.colorScheme.secondary
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = if (game.isLoadingMetadata) 1f else 0.35f)
                             )
                         }
 
@@ -421,7 +424,9 @@ fun GameListItem(
                                 modifier = Modifier.padding(10.dp)
                             )
                         }
-                    } else if (game.isLoadingMetadata) {
+                    } else {
+                        // Description hasn't arrived yet — same active/queued distinction as the
+                        // header spinner above.
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -429,7 +434,7 @@ fun GameListItem(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(14.dp),
                                 strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.secondary
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = if (game.isLoadingMetadata) 1f else 0.35f)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
