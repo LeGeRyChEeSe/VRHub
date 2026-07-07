@@ -74,6 +74,9 @@ import com.vrhub.ui.ConfigurationScreen
 import com.vrhub.ui.ConfigurationViewModel
 import com.vrhub.ui.components.CatalogUpdateBanner
 import com.vrhub.ui.theme.VRHubTheme
+import com.vrhub.ui.theme.CatalogLayout
+import com.vrhub.ui.theme.LocalAppearance
+import com.vrhub.ui.theme.spacingFactor
 import com.vrhub.ui.components.DebugMonetizationPanel
 import com.vrhub.ui.components.ConsentDialog
 import com.vrhub.data.ConsentPreferences
@@ -91,7 +94,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            VRHubTheme {
+            val appearanceViewModel: AppearanceViewModel = viewModel()
+            val appearanceSettings by appearanceViewModel.settings.collectAsState()
+            VRHubTheme(appearanceSettings) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -192,6 +197,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     var showUpdateDialogState by remember { mutableStateOf<com.vrhub.network.UpdateInfo?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showConfigDialog by remember { mutableStateOf(false) }
+    var showAppearanceDialog by remember { mutableStateOf(false) }
     var showMonetizationDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
     var lastMonetizationDialogToggle by remember { mutableStateOf(0L) }
@@ -387,7 +393,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isWide = maxWidth > 800.dp
+        val appearance = LocalAppearance.current
+        val isWideByWidth = maxWidth > 800.dp
+        val isWide = when (appearance.catalogLayout) {
+            CatalogLayout.GRID -> true
+            CatalogLayout.LIST -> false
+            CatalogLayout.AUTO -> isWideByWidth
+        }
+        val densityFactor = appearance.density.spacingFactor()
 
         when {
             isUpdateCheckInProgress -> LoadingScreen("Checking for updates...")
@@ -433,6 +446,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     }
                 )
             }
+            showAppearanceDialog -> {
+                AppearanceScreen(onDismiss = { showAppearanceDialog = false })
+            }
             showMonetizationDialog -> {
                 MonetizationEmailScreen(
                     onDismiss = { showMonetizationDialog = false },
@@ -458,6 +474,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     onServerConfigClick = {
                         showSettingsDialog = false
                         showConfigDialog = true
+                    },
+                    onAppearanceClick = {
+                        showSettingsDialog = false
+                        showAppearanceDialog = true
                     },
                     onDismiss = { showSettingsDialog = false },
                     consentEnabled = consentEnabled,
@@ -512,8 +532,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     gesturesEnabled = currentScreen == "catalog",
                     drawerContent = {
                         ModalDrawerSheet(
-                            drawerContainerColor = Color(0xFF121212),
-                            drawerContentColor = Color.White,
+                            drawerContainerColor = MaterialTheme.colorScheme.surface,
+                            drawerContentColor = MaterialTheme.colorScheme.onSurface,
                             drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
                         ) {
                             Spacer(Modifier.height(24.dp))
@@ -523,7 +543,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 4.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(24.dp))
                             NavigationDrawerItem(
@@ -539,8 +559,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                                     selectedIconColor = MaterialTheme.colorScheme.secondary,
                                     selectedTextColor = MaterialTheme.colorScheme.secondary,
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -557,8 +577,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                                     selectedIconColor = MaterialTheme.colorScheme.secondary,
                                     selectedTextColor = MaterialTheme.colorScheme.secondary,
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -574,13 +594,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                                     selectedIconColor = MaterialTheme.colorScheme.secondary,
                                     selectedTextColor = MaterialTheme.colorScheme.secondary,
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
                             Spacer(Modifier.weight(1f))
-                            Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.05f))
+                            Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                             NavigationDrawerItem(
                                 label = { Text("Become Supporter", fontWeight = FontWeight.Bold) },
                                 selected = false,
@@ -608,8 +628,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 },
                                 icon = { Icon(Icons.Default.Refresh, null) },
                                 colors = NavigationDrawerItemDefaults.colors(
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -622,8 +642,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 },
                                 icon = { Icon(Icons.Default.Update, null) },
                                 colors = NavigationDrawerItemDefaults.colors(
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -636,8 +656,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 },
                                 icon = { Icon(Icons.Default.Settings, null) },
                                 colors = NavigationDrawerItemDefaults.colors(
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -648,7 +668,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     .padding(horizontal = 28.dp)
                                     .alpha(0.5f),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(12.dp))
                         }
@@ -689,7 +709,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     isMonetizationValid = isMonetizationValid
                                 )
                             },
-                            containerColor = Color.Black,
+                            containerColor = MaterialTheme.colorScheme.background,
                             bottomBar = {
                                 AnimatedVisibility(
                                     visible = !showInstallOverlay && installQueue.isNotEmpty(),
@@ -745,9 +765,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                         LazyVerticalStaggeredGrid(
                                             columns = StaggeredGridCells.Fixed(3),
                                             state = staggeredGridState,
-                                            contentPadding = PaddingValues(12.dp),
+                                            contentPadding = PaddingValues(12.dp * densityFactor),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalItemSpacing = 8.dp,
+                                            verticalItemSpacing = 8.dp * densityFactor,
                                             modifier = Modifier.weight(1f).fillMaxHeight()
                                         ) {
                                             items(games, key = { it.releaseName }) { game ->
@@ -769,7 +789,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     } else {
                                         LazyColumn(
                                             state = listState,
-                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp * densityFactor),
                                             modifier = Modifier.weight(1f).fillMaxHeight()
                                         ) {
                                             items(games, key = { it.releaseName }) { game ->
@@ -1265,7 +1285,7 @@ fun CustomTopBar(
     }
 
     Surface(
-        color = Color(0xFF121212),
+        color = MaterialTheme.colorScheme.surface,
         tonalElevation = 4.dp,
         shadowElevation = 8.dp
     ) {
@@ -1280,7 +1300,7 @@ fun CustomTopBar(
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Menu",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -1311,7 +1331,7 @@ fun CustomTopBar(
                         Icon(
                             imageVector = Icons.Default.Sort,
                             contentDescription = "Sort",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1325,7 +1345,7 @@ fun CustomTopBar(
                         fun sortItem(label: String, mode: SortMode) {
                             val selected = sortMode == mode
                             DropdownMenuItem(
-                                text = { Text(label, color = Color.White) },
+                                text = { Text(label, color = MaterialTheme.colorScheme.onSurface) },
                                 onClick = {
                                     onSortChange(mode)
                                     if (!selected) showSortMenu = false
@@ -1353,7 +1373,7 @@ fun CustomTopBar(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Refresh",
-                        tint = if (isRefreshing) MaterialTheme.colorScheme.secondary else Color.White,
+                        tint = if (isRefreshing) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -1363,7 +1383,7 @@ fun CustomTopBar(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                         if (permissionsMissing) {
@@ -1372,7 +1392,7 @@ fun CustomTopBar(
                                     .size(8.dp)
                                     .align(Alignment.TopEnd)
                                     .background(Color(0xFFe74c3c), CircleShape)
-                                    .border(1.dp, Color.Black, CircleShape)
+                                    .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
                             )
                         }
                     }
@@ -1385,12 +1405,12 @@ fun CustomTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                placeholder = { Text("Search VR games...", color = Color.Gray) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                placeholder = { Text("Search VR games...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray)
+                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         }
                     }
                 },
@@ -1398,11 +1418,11 @@ fun CustomTopBar(
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.secondary,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                    focusedContainerColor = Color.Black.copy(alpha = 0.3f),
-                    unfocusedContainerColor = Color.Black.copy(alpha = 0.3f),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                    focusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
 
@@ -1419,9 +1439,9 @@ fun CustomTopBar(
                         label = { Text("All (${filterCounts[FilterStatus.ALL] ?: 0})") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                            selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
@@ -1434,8 +1454,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFe74c3c),
                             selectedLabelColor = Color.White,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null,
                         leadingIcon = {
@@ -1456,8 +1476,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFf1c40f),
                             selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null,
                         leadingIcon = {
@@ -1478,8 +1498,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFF3498db),
                             selectedLabelColor = Color.White,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
@@ -1492,8 +1512,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFF2ecc71),
                             selectedLabelColor = Color.White,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
@@ -1505,9 +1525,9 @@ fun CustomTopBar(
                         label = { Text("${stringResource(R.string.filter_local_installs)} (${filterCounts[FilterStatus.LOCAL_INSTALLS] ?: 0})") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                            selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null,
                         leadingIcon = {
@@ -1515,7 +1535,7 @@ fun CustomTopBar(
                                 Icons.Default.DownloadDone,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                                tint = if (selectedFilter == FilterStatus.LOCAL_INSTALLS) Color.Black else MaterialTheme.colorScheme.secondary
+                                tint = if (selectedFilter == FilterStatus.LOCAL_INSTALLS) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.secondary
                             )
                         }
                     )
@@ -1528,8 +1548,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFf1c40f),
                             selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
@@ -1544,13 +1564,13 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.4f)),
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.4f)),
         contentAlignment = Alignment.BottomCenter
     ) {
         Card(
             modifier = Modifier.padding(16.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = if (progress == -1f) Color(0xFFB00020) else Color(0xFF1A1A1A))
+            colors = CardDefaults.cardColors(containerColor = if (progress == -1f) Color(0xFFB00020) else MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -1584,7 +1604,7 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
                         Icon(
                             imageVector = Icons.Default.Error,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1606,7 +1626,7 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
                             }
                         }
                     }
-                    Text(text, color = Color.White, fontSize = 14.sp)
+                    Text(text, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                 }
             }
         }
@@ -1615,7 +1635,7 @@ fun SyncingOverlay(progress: Float? = null, updateCount: Int = 0) {
 
 @Composable
 fun LoadingScreen(message: String) {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(
                 modifier = Modifier.size(48.dp),
@@ -1626,7 +1646,7 @@ fun LoadingScreen(message: String) {
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -1641,13 +1661,13 @@ fun ErrorScreen(message: String, onRetry: () -> Unit) {
     ) {
         Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFCF6679), modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = message, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+        Text(text = message, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
         ) {
-            Text("Try Again", color = Color.White)
+            Text("Try Again", color = MaterialTheme.colorScheme.onSecondary)
         }
     }
 }
@@ -1663,7 +1683,7 @@ fun InstallationOverlay(
     val isAppUpdate = activeTask.releaseName == "update"
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color.Black.copy(alpha = 0.95f)
+        color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(40.dp),
@@ -1675,7 +1695,7 @@ fun InstallationOverlay(
             Text(
                 text = activeTask.gameName,
                 style = MaterialTheme.typography.headlineMedium,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
@@ -1710,20 +1730,20 @@ fun InstallationOverlay(
                             InstallTaskStatus.SHELVED, InstallTaskStatus.PENDING_INSTALL -> Color(0xFF2ecc71)
                             else -> MaterialTheme.colorScheme.secondary
                         },
-                        trackColor = Color.White.copy(alpha = 0.1f)
+                        trackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "${(progress * 100).toInt()}%",
                             style = MaterialTheme.typography.headlineLarge,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontWeight = FontWeight.Black
                         )
                         if (activeTask.currentSize != null) {
                             Text(
                                 text = "${activeTask.currentSize} / ${activeTask.totalSize}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -1755,7 +1775,7 @@ fun InstallationOverlay(
             Text(
                 text = statusMessage,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center
             )
 
@@ -1792,13 +1812,13 @@ fun InstallationOverlay(
                     } else if (activeTask.status.isProcessing()) {
                         OutlinedButton(
                             onClick = { onPause() },
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.height(56.dp).weight(1f)
                         ) {
-                            Icon(Icons.Default.Pause, contentDescription = "Pause", tint = Color.White)
+                            Icon(Icons.Default.Pause, contentDescription = "Pause", tint = MaterialTheme.colorScheme.onBackground)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("PAUSE", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("PAUSE", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -1820,12 +1840,12 @@ fun InstallationOverlay(
                     onClick = onBackground,
                     modifier = Modifier.fillMaxWidth(0.6f)
                 ) {
-                    Text("Run in background", color = Color.Gray, fontWeight = FontWeight.Medium)
+                    Text("Run in background", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), fontWeight = FontWeight.Medium)
                 }
             } else {
                 Text(
                     text = "Application update is mandatory. Please wait.",
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
@@ -1843,7 +1863,7 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        color = Color(0xFF1A1A1A),
+        color = MaterialTheme.colorScheme.primaryContainer,
         tonalElevation = 8.dp
     ) {
         Column {
@@ -1868,14 +1888,14 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
                         else -> Icons.Default.Download
                     },
                     contentDescription = null,
-                    tint = Color.Gray,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = activeTask.gameName,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -1883,7 +1903,7 @@ fun BottomQueueBar(queue: List<InstallTaskState>, onClick: () -> Unit) {
                 Text(
                     text = "${(activeTask.progress * 100).toInt()}%",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     fontWeight = FontWeight.Bold
                 )
                 if (queue.size > 1) {
@@ -1909,6 +1929,7 @@ fun SettingsDialog(
     missingPermissions: List<RequiredPermission>,
     onPermissionClick: (RequiredPermission) -> Unit,
     onServerConfigClick: () -> Unit,
+    onAppearanceClick: () -> Unit,
     onDismiss: () -> Unit,
     consentEnabled: Boolean = false,
     onConsentChange: (Boolean) -> Unit = {}
@@ -1933,6 +1954,16 @@ fun SettingsDialog(
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { onServerConfigClick() }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Appearance") },
+                    supportingContent = { Text("Accent color, font, text size") },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.clickable { onAppearanceClick() }
                 )
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))

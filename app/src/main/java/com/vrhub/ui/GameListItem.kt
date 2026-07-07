@@ -33,6 +33,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vrhub.R
 import com.vrhub.ui.components.TrailerPlayer
+import com.vrhub.ui.theme.LocalAppearance
+import com.vrhub.ui.theme.cardCornerShape
+import com.vrhub.ui.theme.spacingFactor
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -93,28 +96,32 @@ fun GameListItem(
         else -> context.getString(R.string.game_btn_install)
     }
     
-    val isEnabled = (game.installStatus != InstallStatus.INSTALLED || canResume || isShelved || isQueued) && 
-                    (!isProcessing || isShelved) && 
+    val isEnabled = (game.installStatus != InstallStatus.INSTALLED || canResume || isShelved || isQueued) &&
+                    (!isProcessing || isShelved) &&
                     (game.queueStatus == null || canResume || isShelved || isQueued)
+
+    val appearance = LocalAppearance.current
+    val cardShape = cardCornerShape(appearance.cardCorner)
+    val verticalSpacing = 4.dp * appearance.density.spacingFactor()
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .padding(horizontal = 4.dp, vertical = verticalSpacing)
             .scale(scale)
             .shadow(
                 elevation = if (isHovered) 8.dp else 2.dp,
-                shape = RoundedCornerShape(12.dp)
+                shape = cardShape
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(cardShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current
             ) { expanded = !expanded },
         colors = CardDefaults.cardColors(
-            containerColor = if (isHovered) Color(0xFF1E1E1E) else Color(0xFF121212)
+            containerColor = if (isHovered) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
         ),
-        border = if (isHovered) BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)) else if (game.isFavorite) BorderStroke(1.dp, Color(0xFFf1c40f).copy(alpha = 0.5f)) else null
+        border = if (isHovered) BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)) else if (game.isFavorite) BorderStroke(1.dp, Color(0xFFf1c40f).copy(alpha = 0.5f)) else null
     ) {
         Column {
             Row(
@@ -127,8 +134,8 @@ fun GameListItem(
                     modifier = Modifier
                         .size(if (isGridItem) 56.dp else 60.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color.Black)
-                        .border(1.dp, if (game.isFavorite) Color(0xFFf1c40f).copy(alpha = 0.6f) else Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp)),
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(1.dp, if (game.isFavorite) Color(0xFFf1c40f).copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
@@ -158,7 +165,7 @@ fun GameListItem(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             ),
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
@@ -188,7 +195,7 @@ fun GameListItem(
                             Icon(
                                 imageVector = if (game.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                                 contentDescription = "Favorite",
-                                tint = if (game.isFavorite) Color(0xFFf1c40f) else Color.Gray.copy(alpha = 0.5f),
+                                tint = if (game.isFavorite) Color(0xFFf1c40f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -207,7 +214,7 @@ fun GameListItem(
                             Text(
                                 text = " • ${game.size}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 modifier = Modifier.padding(start = 4.dp),
                                 fontSize = 11.sp
                             )
@@ -279,7 +286,7 @@ fun GameListItem(
                                 onClick = { onDownloadOnlyClick() },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = context.getString(R.string.game_btn_download), tint = Color.Gray, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Download, contentDescription = context.getString(R.string.game_btn_download), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                             }
                         }
                         
@@ -308,7 +315,7 @@ fun GameListItem(
                         .padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
                         .fillMaxWidth()
                 ) {
-                    Divider(color = Color.White.copy(alpha = 0.1f), thickness = 0.5.dp)
+                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), thickness = 0.5.dp)
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     // Metadata Info
@@ -393,14 +400,14 @@ fun GameListItem(
                     
                     if (!game.description.isNullOrEmpty()) {
                         Surface(
-                            color = Color.White.copy(alpha = 0.05f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
                             shape = RoundedCornerShape(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = game.description,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.LightGray,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 lineHeight = 16.sp,
                                 fontSize = 11.sp,
                                 modifier = Modifier.padding(10.dp)
@@ -421,7 +428,7 @@ fun GameListItem(
                                 }
                             } else {
                                 TextButton(onClick = onDownloadOnlyClick) {
-                                    Text(context.getString(R.string.game_btn_download), color = Color.Gray, fontSize = 12.sp)
+                                    Text(context.getString(R.string.game_btn_download), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp)
                                 }
                             }
 
