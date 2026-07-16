@@ -34,9 +34,10 @@
 
 For comprehensive project context, architecture details, build commands, and development conventions, see the project root files:
 
-- **[`AGENTS.md`](../AGENTS.md)** — Complete project overview, technology stack, build commands, architecture patterns, database schema, testing strategy, and CI/CD workflows
-- **[`CLAUDE.md`](../CLAUDE.md)** — Claude Code assistant instructions, epic tracking, and architecture decisions
-- **[`CONTRIBUTING.md`](../CONTRIBUTING.md)** — Contribution guidelines and conventions
+- **[`AGENTS.md`](../AGENTS.md)** — Build/lint/test commands, architecture overview, code style, and critical gotchas
+- **[`project-context.md`](../project-context.md)** — Full technology stack, package structure, database schema, and quick reference
+- **[`DEVELOPMENT.md`](../DEVELOPMENT.md)** — Environment setup, testing, pre-PR checklist, and CI/CD
+- **[`README.md`](../README.md)** — Contribution guidelines, build instructions, and version management conventions
 
 ---
 
