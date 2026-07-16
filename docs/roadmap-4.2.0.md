@@ -1,5 +1,12 @@
 # VRHub Roadmap — v4.2.0 (Stats Collection & Privacy)
 
+> **✅ DELIVERED.** The Stats Collection & Privacy subsystem described below shipped between
+> v4.1.2 and v4.1.6 (`ConsentPreferences.kt`, `StatsCollector.kt`, `network/StatsApiService.kt`,
+> `worker/StatsCollectionWorker.kt` all exist in `app/src/main/java/com/vrhub/`; see
+> [`CHANGELOG.md`](../CHANGELOG.md) for the shipped fixes/refinements). This document is kept
+> as a historical record of the original plan — the issue statuses and "File Additions"
+> checklist below are **not current** and should not be used to judge what's left to build.
+
 > Milestone: **4.2.0**  
 > Epic: **#35**  
 > Target: Anonymous statistics collection with user-consent management.

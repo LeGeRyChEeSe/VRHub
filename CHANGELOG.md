@@ -1,5 +1,32 @@
 ## [Unreleased]
 
+### Added
+- **Appearance customization:** New Appearance settings screen with accent color, font and
+  text size pickers, plus density, card corner radius and catalog layout (list/grid) controls,
+  backed by a dedicated preferences data layer wired into the app theme.
+- **Per-game metadata loading indicator:** The catalog now shows a loading indicator on a
+  game's row while its metadata is being fetched, including games still queued (not only
+  in-flight fetches).
+
+### Changed
+- **Theme-driven colors:** Top bar, navigation drawer, Scaffold, `GameListItem` and the
+  install overlay now read their colors from the app theme instead of hardcoded values,
+  continuing the appearance-customization groundwork.
+- **Parallelized per-game metadata fetch:** The metadata fetch loop now runs per-game
+  requests in parallel instead of sequentially, speeding up catalog refresh.
+
+### Fixed
+- **Netlify update response validation:** The update checker now validates the Netlify
+  response before using it, avoiding a crash/bad state on a malformed response.
+- **Permission settings scope leak:** Delayed permission-settings navigation now uses
+  `rememberCoroutineScope` instead of leaking a coroutine tied to the wrong scope.
+- **Server config read off the main thread:** `MainScreenWrapper` no longer reads the server
+  configuration on the main thread, avoiding a potential UI jank/ANR.
+
+### Removed
+- **Dead code cleanup:** Removed unused code in `MainRepository` and guarded against an
+  empty icon filename.
+
 ## [4.1.6] - 2026-06-28
 
 ### Added
