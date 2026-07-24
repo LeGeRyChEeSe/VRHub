@@ -310,9 +310,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         if (event.permission == RequiredPermission.MANAGE_EXTERNAL_STORAGE &&
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                             Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                            // Launch coroutine to show message then open settings
-                            // Use CoroutineScope since we're not in a ViewModel context
-                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            // Launch on the composable's own scope so the delayed startActivity
+                            // is cancelled if the user navigates away/the Activity is destroyed
+                            // during the 1.5s pause, instead of surviving in an orphan scope.
+                            coroutineScope.launch {
                                 snackbarHostState.showSnackbar(
                                     message = "In Settings: Tap 'Permissions' → Enable 'Files and media'",
                                     duration = SnackbarDuration.Long
