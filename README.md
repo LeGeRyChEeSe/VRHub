@@ -184,9 +184,12 @@ This project uses GitHub Actions for PR validation. You can run the validation l
 - **Linux/macOS:** `./scripts/test-ci-config.sh`
 - **Windows:** `powershell -File scripts/test-ci-config.ps1`
 
-For end-to-end tests including release candidate builds:
-- **Linux/macOS:** `./scripts/test-rc-e2e.sh`
-- **Windows:** `powershell -File scripts/test-ci-logic.ps1` (lint logic validation)
+For lint report logic validation:
+- **Linux/macOS:** `./scripts/test-ci-logic.sh`
+- **Windows:** `powershell -File scripts/test-ci-logic.ps1`
+
+For end-to-end tests of the release candidate flow (version regex, changelog handling):
+- **Linux/macOS only:** `./scripts/test-rc-e2e.sh` (no Windows equivalent yet)
 
 ### Version Management
 This project follows **[Semantic Versioning (SemVer)](https://semver.org/)**.

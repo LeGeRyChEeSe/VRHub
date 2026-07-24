@@ -81,9 +81,11 @@ import com.vrhub.data.StatsCollector
 import com.vrhub.data.NetworkModule
 import com.vrhub.worker.StatsCollectionWorker
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,26 +115,40 @@ fun MainScreenWrapper() {
     val context = LocalContext.current
     var configKey by remember { mutableStateOf(0) }
     val configRepository = remember(configKey) { ServerConfigRepository(context) }
-    val hasValidConfig = try {
-        configRepository.hasValidConfig()
-    } catch (e: Exception) {
-        false
+    // hasValidConfig() reads SharedPreferences, which loads its backing file asynchronously
+    // and blocks the caller if that load hasn't finished yet. Reading it off the main thread
+    // avoids an I/O stall in composition, which is worst-case on cold app start.
+    val hasValidConfig by produceState<Boolean?>(initialValue = null, configRepository) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                configRepository.hasValidConfig()
+            } catch (e: Exception) {
+                false
+            }
+        }
     }
 
-    if (!hasValidConfig) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            ConfigurationScreen(
-                onConfigSaved = {
-                    // Increment key to force recomposition and re-read of config
-                    configKey++
-                },
-                onCancel = {}
-            )
+    when (hasValidConfig) {
+        null -> {
+            // Loading state: config not read yet, render nothing rather than guessing.
+            Box(modifier = Modifier.fillMaxSize())
         }
-    } else {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MainScreen()
-            DebugMonetizationPanel()
+        false -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ConfigurationScreen(
+                    onConfigSaved = {
+                        // Increment key to force recomposition and re-read of config
+                        configKey++
+                    },
+                    onCancel = {}
+                )
+            }
+        }
+        true -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                MainScreen()
+                DebugMonetizationPanel()
+            }
         }
     }
 }
@@ -297,9 +313,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         if (event.permission == RequiredPermission.MANAGE_EXTERNAL_STORAGE &&
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                             Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                            // Launch coroutine to show message then open settings
-                            // Use CoroutineScope since we're not in a ViewModel context
-                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            // Launch on the composable's own scope so the delayed startActivity
+                            // is cancelled if the user navigates away/the Activity is destroyed
+                            // during the 1.5s pause, instead of surviving in an orphan scope.
+                            coroutineScope.launch {
                                 snackbarHostState.showSnackbar(
                                     message = "In Settings: Tap 'Permissions' → Enable 'Files and media'",
                                     duration = SnackbarDuration.Long
