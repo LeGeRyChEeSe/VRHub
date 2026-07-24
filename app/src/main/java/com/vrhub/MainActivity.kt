@@ -81,9 +81,11 @@ import com.vrhub.data.StatsCollector
 import com.vrhub.data.NetworkModule
 import com.vrhub.worker.StatsCollectionWorker
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,26 +113,40 @@ fun MainScreenWrapper() {
     val context = LocalContext.current
     var configKey by remember { mutableStateOf(0) }
     val configRepository = remember(configKey) { ServerConfigRepository(context) }
-    val hasValidConfig = try {
-        configRepository.hasValidConfig()
-    } catch (e: Exception) {
-        false
+    // hasValidConfig() reads SharedPreferences, which loads its backing file asynchronously
+    // and blocks the caller if that load hasn't finished yet. Reading it off the main thread
+    // avoids an I/O stall in composition, which is worst-case on cold app start.
+    val hasValidConfig by produceState<Boolean?>(initialValue = null, configRepository) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                configRepository.hasValidConfig()
+            } catch (e: Exception) {
+                false
+            }
+        }
     }
 
-    if (!hasValidConfig) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            ConfigurationScreen(
-                onConfigSaved = {
-                    // Increment key to force recomposition and re-read of config
-                    configKey++
-                },
-                onCancel = {}
-            )
+    when (hasValidConfig) {
+        null -> {
+            // Loading state: config not read yet, render nothing rather than guessing.
+            Box(modifier = Modifier.fillMaxSize())
         }
-    } else {
-        Box(modifier = Modifier.fillMaxSize()) {
-            MainScreen()
-            DebugMonetizationPanel()
+        false -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ConfigurationScreen(
+                    onConfigSaved = {
+                        // Increment key to force recomposition and re-read of config
+                        configKey++
+                    },
+                    onCancel = {}
+                )
+            }
+        }
+        true -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                MainScreen()
+                DebugMonetizationPanel()
+            }
         }
     }
 }
