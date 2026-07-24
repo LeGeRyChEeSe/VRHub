@@ -194,6 +194,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     var showUpdateDialogState by remember { mutableStateOf<com.vrhub.network.UpdateInfo?>(null) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showConfigDialog by remember { mutableStateOf(false) }
+    var showAppearanceDialog by remember { mutableStateOf(false) }
     var showMonetizationDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
     var lastMonetizationDialogToggle by remember { mutableStateOf(0L) }
@@ -435,6 +436,9 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     }
                 )
             }
+            showAppearanceDialog -> {
+                AppearanceScreen(onDismiss = { showAppearanceDialog = false })
+            }
             showMonetizationDialog -> {
                 MonetizationEmailScreen(
                     onDismiss = { showMonetizationDialog = false },
@@ -460,6 +464,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     onServerConfigClick = {
                         showSettingsDialog = false
                         showConfigDialog = true
+                    },
+                    onAppearanceClick = {
+                        showSettingsDialog = false
+                        showAppearanceDialog = true
                     },
                     onDismiss = { showSettingsDialog = false },
                     consentEnabled = consentEnabled,
@@ -1911,6 +1919,7 @@ fun SettingsDialog(
     missingPermissions: List<RequiredPermission>,
     onPermissionClick: (RequiredPermission) -> Unit,
     onServerConfigClick: () -> Unit,
+    onAppearanceClick: () -> Unit,
     onDismiss: () -> Unit,
     consentEnabled: Boolean = false,
     onConsentChange: (Boolean) -> Unit = {}
@@ -1935,6 +1944,16 @@ fun SettingsDialog(
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { onServerConfigClick() }
+                )
+
+                ListItem(
+                    headlineContent = { Text("Appearance") },
+                    supportingContent = { Text("Accent color, font, text size") },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.clickable { onAppearanceClick() }
                 )
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
