@@ -532,8 +532,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     gesturesEnabled = currentScreen == "catalog",
                     drawerContent = {
                         ModalDrawerSheet(
-                            drawerContainerColor = Color(0xFF121212),
-                            drawerContentColor = Color.White,
+                            drawerContainerColor = MaterialTheme.colorScheme.surface,
+                            drawerContentColor = MaterialTheme.colorScheme.onSurface,
                             drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
                         ) {
                             Spacer(Modifier.height(24.dp))
@@ -543,7 +543,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 4.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(24.dp))
                             NavigationDrawerItem(
@@ -559,8 +559,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                                     selectedIconColor = MaterialTheme.colorScheme.secondary,
                                     selectedTextColor = MaterialTheme.colorScheme.secondary,
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -577,8 +577,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                                     selectedIconColor = MaterialTheme.colorScheme.secondary,
                                     selectedTextColor = MaterialTheme.colorScheme.secondary,
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -594,13 +594,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                                     selectedIconColor = MaterialTheme.colorScheme.secondary,
                                     selectedTextColor = MaterialTheme.colorScheme.secondary,
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
                             Spacer(Modifier.weight(1f))
-                            Divider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.05f))
+                            Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                             NavigationDrawerItem(
                                 label = { Text("Become Supporter", fontWeight = FontWeight.Bold) },
                                 selected = false,
@@ -628,8 +628,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 },
                                 icon = { Icon(Icons.Default.Refresh, null) },
                                 colors = NavigationDrawerItemDefaults.colors(
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -642,8 +642,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 },
                                 icon = { Icon(Icons.Default.Update, null) },
                                 colors = NavigationDrawerItemDefaults.colors(
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -656,8 +656,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 },
                                 icon = { Icon(Icons.Default.Settings, null) },
                                 colors = NavigationDrawerItemDefaults.colors(
-                                    unselectedIconColor = Color.Gray,
-                                    unselectedTextColor = Color.Gray
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 ),
                                 modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                             )
@@ -668,7 +668,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     .padding(horizontal = 28.dp)
                                     .alpha(0.5f),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(12.dp))
                         }
@@ -709,7 +709,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     isMonetizationValid = isMonetizationValid
                                 )
                             },
-                            containerColor = Color.Black,
+                            containerColor = MaterialTheme.colorScheme.background,
                             bottomBar = {
                                 AnimatedVisibility(
                                     visible = !showInstallOverlay && installQueue.isNotEmpty(),
@@ -1285,7 +1285,7 @@ fun CustomTopBar(
     }
 
     Surface(
-        color = Color(0xFF121212),
+        color = MaterialTheme.colorScheme.surface,
         tonalElevation = 4.dp,
         shadowElevation = 8.dp
     ) {
@@ -1300,7 +1300,7 @@ fun CustomTopBar(
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Menu",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -1331,7 +1331,7 @@ fun CustomTopBar(
                         Icon(
                             imageVector = Icons.Default.Sort,
                             contentDescription = "Sort",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1345,7 +1345,7 @@ fun CustomTopBar(
                         fun sortItem(label: String, mode: SortMode) {
                             val selected = sortMode == mode
                             DropdownMenuItem(
-                                text = { Text(label, color = Color.White) },
+                                text = { Text(label, color = MaterialTheme.colorScheme.onSurface) },
                                 onClick = {
                                     onSortChange(mode)
                                     if (!selected) showSortMenu = false
@@ -1373,7 +1373,7 @@ fun CustomTopBar(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Refresh",
-                        tint = if (isRefreshing) MaterialTheme.colorScheme.secondary else Color.White,
+                        tint = if (isRefreshing) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -1383,7 +1383,7 @@ fun CustomTopBar(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                         if (permissionsMissing) {
@@ -1392,7 +1392,7 @@ fun CustomTopBar(
                                     .size(8.dp)
                                     .align(Alignment.TopEnd)
                                     .background(Color(0xFFe74c3c), CircleShape)
-                                    .border(1.dp, Color.Black, CircleShape)
+                                    .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
                             )
                         }
                     }
@@ -1405,12 +1405,12 @@ fun CustomTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                placeholder = { Text("Search VR games...", color = Color.Gray) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
+                placeholder = { Text("Search VR games...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray)
+                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         }
                     }
                 },
@@ -1418,11 +1418,11 @@ fun CustomTopBar(
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.secondary,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
-                    focusedContainerColor = Color.Black.copy(alpha = 0.3f),
-                    unfocusedContainerColor = Color.Black.copy(alpha = 0.3f),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                    focusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
 
@@ -1439,9 +1439,9 @@ fun CustomTopBar(
                         label = { Text("All (${filterCounts[FilterStatus.ALL] ?: 0})") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                            selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
@@ -1454,8 +1454,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFe74c3c),
                             selectedLabelColor = Color.White,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null,
                         leadingIcon = {
@@ -1476,8 +1476,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFf1c40f),
                             selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null,
                         leadingIcon = {
@@ -1498,8 +1498,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFF3498db),
                             selectedLabelColor = Color.White,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
@@ -1512,8 +1512,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFF2ecc71),
                             selectedLabelColor = Color.White,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
@@ -1525,9 +1525,9 @@ fun CustomTopBar(
                         label = { Text("${stringResource(R.string.filter_local_installs)} (${filterCounts[FilterStatus.LOCAL_INSTALLS] ?: 0})") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                            selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null,
                         leadingIcon = {
@@ -1535,7 +1535,7 @@ fun CustomTopBar(
                                 Icons.Default.DownloadDone,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                                tint = if (selectedFilter == FilterStatus.LOCAL_INSTALLS) Color.Black else MaterialTheme.colorScheme.secondary
+                                tint = if (selectedFilter == FilterStatus.LOCAL_INSTALLS) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.secondary
                             )
                         }
                     )
@@ -1548,8 +1548,8 @@ fun CustomTopBar(
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFFf1c40f),
                             selectedLabelColor = Color.Black,
-                            labelColor = Color.Gray,
-                            containerColor = Color.White.copy(alpha = 0.05f)
+                            labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ),
                         border = null
                     )
