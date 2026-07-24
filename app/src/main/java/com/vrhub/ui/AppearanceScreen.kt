@@ -33,6 +33,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -66,9 +67,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vrhub.ui.theme.ACCENT_PRESETS
 import com.vrhub.ui.theme.AppFont
 import com.vrhub.ui.theme.AppearanceSettings
+import com.vrhub.ui.theme.CardCorner
+import com.vrhub.ui.theme.CatalogLayout
+import com.vrhub.ui.theme.Density
 import com.vrhub.ui.theme.FONT_SCALE_MAX
 import com.vrhub.ui.theme.FONT_SCALE_MIN
 import com.vrhub.ui.theme.appFontFamily
+import com.vrhub.ui.theme.cardCornerShape
 import java.util.Locale
 
 /**
@@ -131,6 +136,27 @@ fun AppearanceScreen(
             FontScaleSlider(
                 fontScale = settings.fontScale,
                 onFontScaleChange = { scale -> viewModel.update { it.copy(fontScale = scale) } }
+            )
+
+            Spacer(Modifier.height(24.dp))
+            SectionTitle("Density")
+            DensityPicker(
+                settings = settings,
+                onDensitySelected = { density -> viewModel.update { it.copy(density = density) } }
+            )
+
+            Spacer(Modifier.height(16.dp))
+            SectionTitle("Card Corners")
+            CardCornerPicker(
+                settings = settings,
+                onCardCornerSelected = { corner -> viewModel.update { it.copy(cardCorner = corner) } }
+            )
+
+            Spacer(Modifier.height(16.dp))
+            SectionTitle("Catalog View")
+            CatalogLayoutPicker(
+                settings = settings,
+                onCatalogLayoutSelected = { layout -> viewModel.update { it.copy(catalogLayout = layout) } }
             )
 
             Spacer(Modifier.height(32.dp))
@@ -311,6 +337,63 @@ private fun FontPicker(settings: AppearanceSettings, onFontSelected: (AppFont) -
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 modifier = Modifier.clickable { onFontSelected(font) }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DensityPicker(settings: AppearanceSettings, onDensitySelected: (Density) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Density.entries.forEach { density ->
+            val label = when (density) {
+                Density.COMFORTABLE -> "Comfortable"
+                Density.COMPACT -> "Compact"
+            }
+            FilterChip(
+                selected = settings.density == density,
+                onClick = { onDensitySelected(density) },
+                label = { Text(label) }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CardCornerPicker(settings: AppearanceSettings, onCardCornerSelected: (CardCorner) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CardCorner.entries.forEach { corner ->
+            val label = when (corner) {
+                CardCorner.SHARP -> "Sharp"
+                CardCorner.ROUNDED -> "Rounded"
+                CardCorner.EXTRA_ROUNDED -> "Extra Rounded"
+            }
+            FilterChip(
+                selected = settings.cardCorner == corner,
+                onClick = { onCardCornerSelected(corner) },
+                label = { Text(label) },
+                shape = cardCornerShape(corner)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CatalogLayoutPicker(settings: AppearanceSettings, onCatalogLayoutSelected: (CatalogLayout) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CatalogLayout.entries.forEach { layout ->
+            val label = when (layout) {
+                CatalogLayout.AUTO -> "Auto"
+                CatalogLayout.LIST -> "List"
+                CatalogLayout.GRID -> "Grid"
+            }
+            FilterChip(
+                selected = settings.catalogLayout == layout,
+                onClick = { onCatalogLayoutSelected(layout) },
+                label = { Text(label) }
             )
         }
     }
