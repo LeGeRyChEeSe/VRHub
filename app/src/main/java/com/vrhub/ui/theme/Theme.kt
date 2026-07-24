@@ -1,29 +1,23 @@
 package com.vrhub.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-private val VrpColorScheme = darkColorScheme(
-    primary = Color(0xFFFFFFFF),
-    onPrimary = Color(0xFF000000),
-    primaryContainer = Color(0xFF1E1E1E),
-    onPrimaryContainer = Color(0xFFFFFFFF),
-    secondary = Color(0xFF00B2FF), // A more vibrant "Meta Quest" blue
-    onSecondary = Color.White,
-    background = Color(0xFF0A0A0A),
-    surface = Color(0xFF121212),
-    onBackground = Color(0xFFE1E1E1),
-    onSurface = Color(0xFFE1E1E1),
-    error = Color(0xFFFF5252),
-    outline = Color(0xFF333333)
-)
+/**
+ * Current appearance settings, provided by [VRHubTheme]. Only useful for the handful
+ * of visual knobs that live outside the ColorScheme/Typography (card corner radius,
+ * density, catalog layout) - everything else should read [MaterialTheme] instead.
+ */
+val LocalAppearance = staticCompositionLocalOf { AppearanceSettings() }
 
 private val VrpTypography = Typography(
     headlineLarge = TextStyle(
@@ -78,11 +72,20 @@ private val VrpTypography = Typography(
 
 @Composable
 fun VRHubTheme(
+    settings: AppearanceSettings = AppearanceSettings(),
     content: @Composable () -> Unit
 ) {
-    MaterialTheme(
-        colorScheme = VrpColorScheme,
-        typography = VrpTypography,
-        content = content
-    )
+    val systemDark = isSystemInDarkTheme()
+    val colorScheme = remember(settings, systemDark) { buildColorScheme(settings, systemDark) }
+    val typography = remember(settings) {
+        buildTypography(VrpTypography, appFontFamily(settings.font), settings.fontScale)
+    }
+
+    CompositionLocalProvider(LocalAppearance provides settings) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = typography,
+            content = content
+        )
+    }
 }

@@ -91,7 +91,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            VRHubTheme {
+            val appearanceViewModel: AppearanceViewModel = viewModel()
+            val appearanceSettings by appearanceViewModel.settings.collectAsState()
+            VRHubTheme(appearanceSettings) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
