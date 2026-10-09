@@ -1,13 +1,14 @@
 # GitHub Actions Workflow for PR Validation
 #
-# This workflow automatically validates pull requests to the main branch.
+# This workflow automatically validates pull requests to the main branch
+# and the wip/autonomous-2026 orchestrator branch.
 # It performs quality checks (lint), unit tests, and verifies compilation.
 #
 name: PR Validation
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, wip/autonomous-2026 ]
     types: [ opened, synchronize, reopened ]
   workflow_dispatch:
 
