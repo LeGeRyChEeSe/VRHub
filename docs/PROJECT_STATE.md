@@ -98,4 +98,8 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
   Not in main (`grep loading` on main GameListItem = empty). **Action: cherry-pick the 3 commits
   onto wip as one PR, with regression check against main's Netlify validation (branch predates
   #62; only the 3 feature commits are taken, not the file as a whole).**
+- **P1 executed**: all headstone branches archived as `archive/<branch>` tags (pushed via GitHub
+  API refs because direct tag push is blocked by email-privacy policy) then deleted locally and
+  on origin. PR #74 (indicator + parallel fetch, cherry-picked) merged into wip. Origin now holds
+  only: main, wip/autonomous-2026.
 
