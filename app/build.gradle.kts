@@ -7,6 +7,10 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas".toString())
+}
+
 android {
     namespace = "com.vrhub"
     compileSdk = 34
@@ -254,6 +258,9 @@ android {
         }
     }
     
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
     buildFeatures {
         compose = true
         buildConfig = true
