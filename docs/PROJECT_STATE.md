@@ -80,4 +80,22 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
   AHEAD-of-main (pre-squash originals, content merged as squash commits #47-#59): ci/gradle-dependency-submission, ci/test-orchestrator-isolation, fix/androidtest-package-migration, fix/catalog-delete-absent-sqlite-limit, fix/catalog-worker-rename-retry, fix/instrumented-tests-hang, fix/issue-57-instrumented-oom, fix/sort-update-scroll, fix/stats-worker-tier-normalization, test/stats-collection-integration.
   REAL unmerged: feat/metadata-loading-indicator, fix/parallelize-metadata-fetch-loop, local/test-all-prs (test-only, never PR'd), vrhub-rebrand (partially superseded).
 
-<!-- decision log continues below -->
+### P1 — branch hygiene findings (2026-10-09)
+
+- **vrhub-rebrand**: `git cherry origin/main vrhub-rebrand` shows 9/10 commits already in main
+  (`-` prefix). The only unique commit `1eac0af` is a docs refresh (4.0.0 badge, README rewrite)
+  that has been superseded by newer main docs (#69 changelog fill, README improvements). Also,
+  the full branch diff vs main contains regressions (kapt vs ksp, flavors removed, orchestrator
+  removed, versionCode 13) proving the branch is an older pre-cleanup state whose real content
+  landed via squash `c33f9d9`. **Verdict: REFUTED — nothing to reconcile. Refuted with evidence;
+  archive tag then delete.**
+- **feature/monetization** (origin): single unique commit `602648c` (README server-config
+  instructions) superseded by current main README. **Verdict: REFUTED, archive+delete.**
+- **local/test-all-prs**: test-only merge branch, never PR'd, no unique content beyond merges.
+  **Verdict: archive+delete.**
+- **feat/metadata-loading-indicator + fix/parallelize-metadata-fetch-loop**: REAL content
+  (spinner for queued games, semaphore-bounded parallel fetch loop, loop-overlap guard).
+  Not in main (`grep loading` on main GameListItem = empty). **Action: cherry-pick the 3 commits
+  onto wip as one PR, with regression check against main's Netlify validation (branch predates
+  #62; only the 3 feature commits are taken, not the file as a whole).**
+
