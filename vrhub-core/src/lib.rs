@@ -1,6 +1,6 @@
 uniffi::setup_scaffolding!("vrhub_core");
 
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{engine::general_purpose::{STANDARD, STANDARD_NO_PAD}, Engine};
 use digest::Digest;
 use md5::Md5;
 use sha2::Sha256;
@@ -88,7 +88,8 @@ pub fn hmac_sha256(input: String, secret: String) -> String {
 
 #[uniffi::export]
 pub fn decode_base64_password(encoded: String) -> Option<String> {
-    let decoded = STANDARD.decode(encoded).ok()?;
+    // Android Base64.NO_WRAP tolerates missing padding; match that parity.
+    let decoded = STANDARD.decode(&encoded).or_else(|_| STANDARD_NO_PAD.decode(&encoded)).ok()?;
     String::from_utf8(decoded).ok()
 }
 

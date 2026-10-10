@@ -104,4 +104,6 @@ fn base64_decode_password_roundtrip() {
     // Base64 NO_WRAP semantics: 'c2VjcmV0' -> "secret"
     assert_eq!(decode_base64_password("c2VjcmV0".to_string()), Some("secret".to_string()));
     assert_eq!(decode_base64_password("invalid!!!".to_string()), None);
+    // NO_WRAP parity: unpadded input accepted (Android accepts it, strict STANDARD would fail)
+    assert_eq!(decode_base64_password("YWJjZGU".to_string()), Some("abcde".to_string()));
 }
