@@ -212,3 +212,44 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
      `popularity`, `isFavorite` per schema 4). Fix: test insert aligns with v4 schema.
 - Local gates green: `testProdDebugUnitTest` (RoomSchemaContractTest +
   Migration4To5ColumnTest) + `lintProdDebug`. CI rerun in progress.
+- **Resolved + merged (2026-10-10)**: CI rerun 38038213411 fully green (Build/Lint/Unit/
+  Instrumented); third failure was `PRAGMA foreign_keys` not enabled by MigrationTestHelper
+  while Room production enables it (CASCADE DELETE assertion) -> test aligned with production
+  by enabling the pragma. **PR #76 merged into wip** (`434e1fe`).
+
+### P4 — Paparazzi snapshot harness (2026-10-10)
+
+- Plugin `app.cash.paparazzi:1.3.3` on `app/build.gradle.kts` (matches Kotlin 1.9.22 /
+  Compose 1.5.8 / AGP 8.13.2). Critical pin: `resolutionStrategy.force("com.google.guava:guava:31.1-jre")`
+  scoped to `*UnitTestRuntimeClasspath` — robolectric 4.12.1 pulls guava 33.0.0, which breaks
+  `com.android.tools:common:31.2.2` (`IllegalAccessError ResourceType/Sets.toImmutableEnumSet`).
+- Goldens (7, Git LFS): `GameListItemSnapshotTest` (3 states: metadata-loading,
+  installed+favorite+size, queued/paused first-in-queue) and `QueueManagerOverlaySnapshotTest`
+  (active/paused/queued rows, empty state, promote-hidden first item). Requires
+  `Dispatchers.setMain(StandardTestDispatcher())` for Coil crossfade coroutines.
+- Red->green demo: golden deleted -> `verifyPaparazzi*` fails -> re-record -> green.
+  Deterministic across `devDebug`/`prodDebug` flavors.
+- CI: new `Snapshot Tests` job (`verifyPaparazziProdDebug`) in `pr-validation.yml` + outcome in
+  PR report. First CI failure root cause: `actions/checkout` without LFS fetched pointer files ->
+  NPE on 7 tests. Fix: `lfs: true` on the job checkout. CI green after fix.
+- QueueUITest (androidTest, `@Ignore`): Robolectric variant impossible — `ui-test-junit4` is
+  android-only and its Espresso/hamcrest-1.3 dependency conflicts with hamcrest 2.2
+  (`NoSuchMethodError AllOf.allOf`). AC coverage moved to Paparazzi goldens (G5 allows
+  "reactivated or replaced").
+- **PR #77 merged into wip** (`2db0854`), CI all green.
+
+### P5 — vrhub-core Rust crate (2026-10-10)
+
+- New crate `vrhub-core/` (workspace root): pure logic port of `CatalogParser`, `resolveTier`,
+  `CryptoUtils` md5/sha256/hmacSha256, Base64 NO_WRAP password decode. `crate-type =
+  ["rlib", "staticlib", "cdylib"]`.
+- TDD: 14 tests (`tests/core_tests.rs`) pinned against Kotlin behavior + known vectors
+  (one test vector corrected against hashlib ground truth: md5("Hello") =
+  `8b1a9953c4611296a827abf8c47804d7`, not the miscopied value). All green with
+  `uniffi 0.32` proc-macro exports (`#[uniffi::export]`, `uniffi::Record`); UDL removed.
+  Signature adaptation: UniFFI requires owned `String` params, so `resolve_tier` takes
+  `Option<String>`.
+- UniFFI Kotlin bindings generated and verified (`uniffi-bindgen` bin, `--library
+  target/debug/vrhub_core.dll --language kotlin`). App APK unaffected (no wiring yet; integration
+  PR to come once Android-side JNA packaging is decided).
+- **PR #78** opened against wip; gates pending CI.
