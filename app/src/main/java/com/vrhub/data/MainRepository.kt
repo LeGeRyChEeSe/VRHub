@@ -2594,13 +2594,16 @@ class MainRepository(
     }
 
     /**
-     * Batch query to get game data for multiple release names in a single DB call.
+     * Batch query to get game data for multiple release names, chunked to stay
+     * under SQLITE_MAX_VARIABLE_NUMBER (999 on Android < 12) — see the contract
+     * documented on GameDao.getByReleaseNames.
      * Returns a map of releaseName -> GameData for O(1) lookup.
      * Used to avoid N+1 queries when converting queue entities to UI state.
      */
     suspend fun getGamesByReleaseNames(releaseNames: List<String>): Map<String, GameData> = withContext(Dispatchers.IO) {
         if (releaseNames.isEmpty()) return@withContext emptyMap()
-        gameDao.getByReleaseNames(releaseNames)
+        releaseNames.chunked(500)
+            .flatMap { gameDao.getByReleaseNames(it) }
             .associate { it.releaseName to it.toData() }
     }
 
