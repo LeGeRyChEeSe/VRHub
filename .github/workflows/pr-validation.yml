@@ -286,6 +286,7 @@ jobs:
 
   report:
     name: Consolidation & Feedback
+
     needs: [setup, lint, unit-tests, build, paparazzi, rust-core, performance-check]
     if: always()
     runs-on: ubuntu-latest
