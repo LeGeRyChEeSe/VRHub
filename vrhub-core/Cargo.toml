@@ -1,0 +1,24 @@
+[package]
+name = "vrhub-core"
+version = "0.1.0"
+edition = "2021"
+description = "Shared pure-logic crate for VRHub: catalog parsing, tier resolution, crypto helpers"
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }
+md-5 = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+digest = "0.10"
+base64 = "0.21"
+
+[dev-dependencies]
+hex-literal = "0.4"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/uniffi-bindgen.rs"
+required-features = ["uniffi/cli"]
