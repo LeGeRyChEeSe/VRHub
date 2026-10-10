@@ -258,7 +258,7 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
 ## 7. Closing report (P6) — ready for user validation
 
 State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/main..HEAD` =
-31 commits, `git diff --stat origin/main...wip` = 39 files, +4047/-22).
+34 commits, `git diff --stat origin/main...wip` = 39 files, +4106/-22).
 
 ### PRs merged into wip (chronological)
 
@@ -270,6 +270,7 @@ State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/ma
 | #77 | P4: Paparazzi bench, 7 goldens (Git LFS), CI `Snapshot Tests` job, LFS checkout fix | G5 |
 | #78 | P5: `vrhub-core` crate + UniFFI exports + CI `Rust Core Tests` job | G7 |
 | #79 | P5 complement: semver parity, update-response validation, APK sha256 integrity | G7 |
+| #80 | P5 last coverage item: 7z password check parity with client | G7 |
 
 ### Findings recap (G3)
 
@@ -283,7 +284,7 @@ State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/ma
 ### Gates final status
 
 - G0-G7 all green. G4 re-run post-merge on wip: `gradlew test` + `lint` + `assembleDebug`
-  all pass; CI pr-validation green for every PR; `cargo test` 17/17 on `vrhub-core`.
+  all pass; CI pr-validation green for every PR; `cargo test` 18/18 on `vrhub-core`.
 - G5 detail: QueueUITest stays `@Ignore` (Espresso/hamcrest conflict documented); replaced by
   Paparazzi goldens.
 - G7 detail: `vrhub-core` compiles as `cdylib`/`staticlib` for future UniFFI wiring; Kotlin
