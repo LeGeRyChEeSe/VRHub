@@ -148,6 +148,11 @@ abstract class AppDatabase : RoomDatabase() {
                 try {
                     Log.i(TAG, "Starting migration 4 -> 5: Adding install_history table")
 
+                    // install_queue: the v5 entity requires downloadStartedAt (story 1.9);
+                    // without this ALTER the migration produced a schema mismatch and
+                    // fallbackToDestructiveMigration wiped the queue instead of migrating.
+                    database.execSQL("ALTER TABLE install_queue ADD COLUMN downloadStartedAt INTEGER")
+
                     // Create install_history table
                     database.execSQL("""
                         CREATE TABLE IF NOT EXISTS install_history (
