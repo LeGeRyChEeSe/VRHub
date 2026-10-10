@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [GameEntity::class, QueuedInstallEntity::class, InstallHistoryEntity::class], version = 7, exportSchema = false)
+@Database(entities = [GameEntity::class, QueuedInstallEntity::class, InstallHistoryEntity::class], version = 7, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun gameDao(): GameDao
@@ -143,10 +143,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private fun columnExists(database: SupportSQLiteDatabase, table: String, column: String): Boolean {
+            database.query("PRAGMA table_info('$table')").use { cursor ->
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(1) == column) return true
+                }
+            }
+            return false
+        }
+
         internal val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 try {
                     Log.i(TAG, "Starting migration 4 -> 5: Adding install_history table")
+
+                    // install_queue: the v5 entity requires downloadStartedAt (story 1.9);
+                    // without this ALTER the migration produced a schema mismatch and
+                    // fallbackToDestructiveMigration wiped the queue instead of migrating.
+                    // Idempotent ALTER: the 2->4 path already creates the column, so the
+                    // 2->3->4->5 path must not re-add it.
+                    if (!columnExists(database, "install_queue", "downloadStartedAt")) {
+                        database.execSQL("ALTER TABLE install_queue ADD COLUMN downloadStartedAt INTEGER")
+                    }
 
                     // Create install_history table
                     database.execSQL("""
