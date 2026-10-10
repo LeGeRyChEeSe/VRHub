@@ -44,6 +44,10 @@ class RoomMigrationTest {
         }
 
         // Test CASCADE DELETE (AC Review fix)
+        // MigrationTestHelper opens the DB without the foreign_keys pragma, while Room
+        // enables it in production. Match production so CASCADE is actually enforced.
+        db.execSQL("PRAGMA foreign_keys = ON")
+
         // 1. Insert a game into games table (required for FK)
         db.execSQL("""
             INSERT INTO games (releaseName, gameName, packageName, versionCode, lastUpdated, popularity, isFavorite)
