@@ -286,7 +286,7 @@ jobs:
 
   report:
     name: Consolidation & Feedback
-    needs: [setup, lint, unit-tests, build, paparazzi, performance-check]
+    needs: [setup, lint, unit-tests, build, paparazzi, rust-core, performance-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -318,11 +318,12 @@ jobs:
           UNIT_TESTS_OUTCOME: ${{ needs.unit-tests.outputs.outcome }}
           BUILD_OUTCOME: ${{ needs.build.outputs.outcome }}
           PAPARAZZI_OUTCOME: ${{ needs.paparazzi.outputs.outcome }}
+          RUST_CORE_OUTCOME: ${{ needs.rust-core.outputs.outcome }}
           BUILD_TARGET_SECONDS: ${{ needs.setup.outputs.target_pr }}
           CORE_DURATION: ${{ needs.performance-check.outputs.duration }}
         with:
           script: |
-            const { LINT_OUTCOME, LINT_ERRORS, LINT_WARNINGS, BUILD_DURATION_SECONDS, BUILD_TARGET_SECONDS, UNIT_TESTS_OUTCOME, BUILD_OUTCOME, CORE_DURATION } = process.env;
+            const { LINT_OUTCOME, LINT_ERRORS, LINT_WARNINGS, BUILD_DURATION_SECONDS, BUILD_TARGET_SECONDS, UNIT_TESTS_OUTCOME, BUILD_OUTCOME, PAPARAZZI_OUTCOME, RUST_CORE_OUTCOME, CORE_DURATION } = process.env;
             const duration = parseInt(CORE_DURATION || BUILD_DURATION_SECONDS || 0);
             const target = parseInt(BUILD_TARGET_SECONDS || 300);
             const minutes = Math.floor(duration / 60);
@@ -337,7 +338,7 @@ jobs:
             };
 
             const lintStatus = getStatusIcon(LINT_OUTCOME);
-            const overallSuccess = [LINT_OUTCOME, UNIT_TESTS_OUTCOME, BUILD_OUTCOME].every(o => o === 'success');
+            const overallSuccess = [LINT_OUTCOME, UNIT_TESTS_OUTCOME, BUILD_OUTCOME, PAPARAZZI_OUTCOME, RUST_CORE_OUTCOME].every(o => o === 'success');
             const icon = overallSuccess ? '✅' : '❌';
             const statusText = overallSuccess ? 'All checks passed!' : 'Validation failed.';
 
@@ -351,6 +352,8 @@ jobs:
             | **Lint** | ${lintStatus} | ${LINT_ERRORS || 'N/A'} Errors, ${LINT_WARNINGS || 'N/A'} Warnings |
             | **Unit Tests** | ${getStatusIcon(UNIT_TESTS_OUTCOME)} | JUnit Reports |
             | **Build** | ${getStatusIcon(BUILD_OUTCOME)} | assembleDevDebug |
+            | **Snapshots** | ${getStatusIcon(PAPARAZZI_OUTCOME)} | verifyPaparazziProdDebug |
+            | **Rust Core** | ${getStatusIcon(RUST_CORE_OUTCOME)} | cargo test vrhub-core |
             
             ---
             *Reports and artifacts (including Lint HTML) are available in the [Artifacts Tab](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}#artifacts) of the [Action Run Summary](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})*`;
