@@ -1,6 +1,6 @@
 use vrhub_core::{
     decode_base64_password, hmac_sha256, is_version_newer, md5, parse_catalog, resolve_tier,
-    sha256_file, sha256_hex, validate_update_response,
+    sha256_file, sha256_hex, seven_zip_password_valid, validate_update_response,
 };
 
 #[test]
@@ -128,6 +128,16 @@ fn update_response_validation_rejects_blank_fields() {
     assert!(!validate_update_response("".to_string(), "https://x".to_string(), "1.0.0".to_string()));
     assert!(!validate_update_response("1.1.0".to_string(), "".to_string(), "1.0.0".to_string()));
     assert!(validate_update_response("1.1.0".to_string(), "https://x".to_string(), "1.0.0".to_string()));
+}
+
+#[test]
+fn seven_zip_password_valid_matches_client_behavior() {
+    // Client behavior: blank base64 -> null password (invalid); garbage base64 -> decode
+    // failure caught -> invalid; valid base64 -> valid.
+    assert!(!seven_zip_password_valid("".to_string()));
+    assert!(!seven_zip_password_valid("   ".to_string()));
+    assert!(!seven_zip_password_valid("invalid!!!".to_string()));
+    assert!(seven_zip_password_valid("c2VjcmV0".to_string()));
 }
 
 #[test]
