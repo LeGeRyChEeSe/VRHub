@@ -245,11 +245,53 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
   ["rlib", "staticlib", "cdylib"]`.
 - TDD: 14 tests (`tests/core_tests.rs`) pinned against Kotlin behavior + known vectors
   (one test vector corrected against hashlib ground truth: md5("Hello") =
-  `8b1a9953c4611296a827abf8c47804d7`, not the miscopied value). All green with
+  `8b1a9953c4611296a827abf8c47804d7`, not the wrongly assumed value). All green with
   `uniffi 0.32` proc-macro exports (`#[uniffi::export]`, `uniffi::Record`); UDL removed.
   Signature adaptation: UniFFI requires owned `String` params, so `resolve_tier` takes
   `Option<String>`.
 - UniFFI Kotlin bindings generated and verified (`uniffi-bindgen` bin, `--library
   target/debug/vrhub_core.dll --language kotlin`). App APK unaffected (no wiring yet; integration
   PR to come once Android-side JNA packaging is decided).
-- **PR #78** opened against wip; gates pending CI.
+- **PR #78 merged into wip** (`2bc78a8`), CI all green (new `Rust Core Tests` job wired into
+  `pr-validation.yml` + PR report table).
+
+## 7. Closing report (P6) — ready for user validation
+
+State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/main..HEAD` =
+31 commits, `git diff --stat origin/main...wip` = 39 files, +4047/-22).
+
+### PRs merged into wip (chronological)
+
+| PR | Content | Gate |
+|---|---|---|
+| #74 | cherry-pick: metadata loading indicator + parallel fetch loop | G2 |
+| #75 | B1-F1: chunked `getGamesByReleaseNames` (red->green `GameDaoChunkingTest`) | G3/G4 |
+| #76 | B1-F2: Room schema export + MIGRATION_4_5 idempotent ALTER + `downloadStartedAt`; MigrationTestHelper foreign_keys alignment | G3/G4 |
+| #77 | P4: Paparazzi bench, 7 goldens (Git LFS), CI `Snapshot Tests` job, LFS checkout fix | G5 |
+| #78 | P5: `vrhub-core` crate + UniFFI exports + CI `Rust Core Tests` job | G7 |
+| #79 | P5 complement: semver parity, update-response validation, APK sha256 integrity | G7 |
+
+### Findings recap (G3)
+
+- Confirmed + fixed: B1-F1 (#75), B1-F2 (#76). Red phase captured before each fix.
+- Refuted with evidence: B3, B2, B4, B5, B6, B7, B8, A3, A5 (see decision log). A4 already
+  fixed pre-session (#60-#63).
+- Contracts (G6): C1 no consumer impact; C2 payload conform, `/user/tier` anonymous-email
+  quirk flagged only; C3 conform. vrhub-server PRs #13-#17 left open, unmerged, uncommitted
+  `fix/m1-csrf-coverage` preserved.
+
+### Gates final status
+
+- G0-G7 all green. G4 re-run post-merge on wip: `gradlew test` + `lint` + `assembleDebug`
+  all pass; CI pr-validation green for every PR; `cargo test` 17/17 on `vrhub-core`.
+- G5 detail: QueueUITest stays `@Ignore` (Espresso/hamcrest conflict documented); replaced by
+  Paparazzi goldens.
+- G7 detail: `vrhub-core` compiles as `cdylib`/`staticlib` for future UniFFI wiring; Kotlin
+  bindings generation verified; app APK untouched (no integration yet — decision kept open for
+  the user).
+
+### Pending for user
+
+1. Approval for the single final merge `wip/autonomous-2026` -> `main`.
+2. vrhub-server PRs #13-#17 merge decisions.
+3. Decision on Android-side UniFFI wiring (JNA packaging) for `vrhub-core`.
