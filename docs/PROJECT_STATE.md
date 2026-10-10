@@ -103,3 +103,34 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
   on origin. PR #74 (indicator + parallel fetch, cherry-picked) merged into wip. Origin now holds
   only: main, wip/autonomous-2026.
 
+
+### P3 — contract audit findings (2026-10-10, read-only)
+
+- **C1 CSRF (#13/#17)**: `protectedRouter`/`csrfUpdate` cover admin routes only; public client
+  endpoints (`/config.json`, `/meta.7z`) unaffected. Client impact: none. #14/#15/#16 (perms,
+  body limits, TLS): no client-side contract change. Uncommitted work on `fix/m1-csrf-coverage`
+  preserved untouched. **Verdict: no consumer PR.**
+- **C2 stats payloads**: client `StatsCollectRequest`/`ConsentRequest`/`GameStat` (StatsModels.kt)
+  match monetization serde structs exactly (`package_name`, nullable email, `tier`,
+  `is_favorite` default false). **Verdict: conform.**
+- **C2 note `/user/tier`**: monetization `tier_handler` rejects non-`is_valid_email_format` emails
+  (400), while client `MainRepository.resolveUserTierOrDefault` calls `getUserTier("anonymous")`
+  (MainRepository.kt L504). The client treats non-2xx as fallback "standard", which matches the
+  server semantic for unverified users only by coincidence of the fallback path. Behaviorally
+  tolerable; contract not broken -> flagged, no consumer PR per guardrail.
+- **C3 update secret**: `VRHUB_UPDATE_SECRET` HMAC is used client<->Netlify gateway only;
+  vrhub-bot reads GitHub releases directly, no coupling. Server `ClientConfigResponse`
+  (`baseUri`, `password` Base64) matches client `PublicConfig` (`baseUri`, `password64`).
+  **Verdict: conform.**
+
+### P2/B1 fix #76 — second finding follow-up (2026-10-10)
+
+- CI Instrumented run on #76 exposed two issues once `@Ignore` was lifted:
+  1. `migrateAll` (2->3->4->5): MIGRATION_2_3 creates install_queue WITH
+     `downloadStartedAt` (schema 3), so the new MIGRATION_4_5 ALTER duplicates it.
+     Fix: idempotent ALTER guarded by `PRAGMA table_info` check (commit on
+     `fix/room-schema-export`).
+  2. `migrate4To5` test INSERT omitted NOT NULL games columns (`lastUpdated`,
+     `popularity`, `isFavorite` per schema 4). Fix: test insert aligns with v4 schema.
+- Local gates green: `testProdDebugUnitTest` (RoomSchemaContractTest +
+  Migration4To5ColumnTest) + `lintProdDebug`. CI rerun in progress.
