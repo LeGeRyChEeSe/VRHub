@@ -46,8 +46,8 @@ class RoomMigrationTest {
         // Test CASCADE DELETE (AC Review fix)
         // 1. Insert a game into games table (required for FK)
         db.execSQL("""
-            INSERT INTO games (releaseName, gameName, packageName, versionCode)
-            VALUES ('test-game-cascade', 'Test Game', 'com.test.game', '1')
+            INSERT INTO games (releaseName, gameName, packageName, versionCode, lastUpdated, popularity, isFavorite)
+            VALUES ('test-game-cascade', 'Test Game', 'com.test.game', '1', 1600000000000, 0, 0)
         """.trimIndent())
         
         // 2. Insert history entry referencing the game
