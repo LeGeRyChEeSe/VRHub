@@ -111,6 +111,13 @@ pub fn decode_base64_password(encoded: String) -> Option<String> {
 }
 
 #[uniffi::export]
+pub fn seven_zip_password_valid(encoded: String) -> bool {
+    // Parity with client behavior (DownloadWorker / ServerConfigRepository):
+    // non-blank Base64 that decodes cleanly to UTF-8.
+    !encoded.trim().is_empty() && decode_base64_password(encoded).is_some()
+}
+
+#[uniffi::export]
 pub fn is_version_newer(latest: String, current: String) -> bool {
     let latest_base = latest.split('-').next().unwrap_or("");
     let current_base = current.split('-').next().unwrap_or("");
