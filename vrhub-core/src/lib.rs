@@ -79,6 +79,23 @@ pub fn sha256_hex(input: String) -> String {
 }
 
 #[uniffi::export]
+pub fn sha256_file(path: String) -> String {
+    // APK integrity check, 8 KB buffered reads like CryptoUtils.sha256
+    use std::io::Read;
+    let mut hasher = Sha256::new();
+    let mut file = std::fs::File::open(&path).expect("cannot open file");
+    let mut buffer = [0u8; 8192];
+    loop {
+        let n = file.read(&mut buffer).expect("read error");
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+    hex_encode(&hasher.finalize())
+}
+
+#[uniffi::export]
 pub fn hmac_sha256(input: String, secret: String) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
         .expect("HMAC can take key of any size");
@@ -91,6 +108,54 @@ pub fn decode_base64_password(encoded: String) -> Option<String> {
     // Android Base64.NO_WRAP tolerates missing padding; match that parity.
     let decoded = STANDARD.decode(&encoded).or_else(|_| STANDARD_NO_PAD.decode(&encoded)).ok()?;
     String::from_utf8(decoded).ok()
+}
+
+#[uniffi::export]
+pub fn is_version_newer(latest: String, current: String) -> bool {
+    let latest_base = latest.split('-').next().unwrap_or("");
+    let current_base = current.split('-').next().unwrap_or("");
+    let parse = |base: &str| -> Vec<i64> {
+        base.split('.')
+            .filter_map(|p| {
+                let digits: String = p.chars().filter(|c| c.is_ascii_digit()).collect();
+                digits.parse::<i64>().ok()
+            })
+            .collect()
+    };
+    let latest_parts = parse(latest_base);
+    let current_parts = parse(current_base);
+    let max_len = latest_parts.len().max(current_parts.len());
+    for i in 0..max_len {
+        let l = latest_parts.get(i).copied().unwrap_or(0);
+        let c = current_parts.get(i).copied().unwrap_or(0);
+        if l > c {
+            return true;
+        }
+        if l < c {
+            return false;
+        }
+    }
+    // equal bases: a version without pre-release is newer than one with
+    let latest_has_pre = latest.contains('-');
+    let current_has_pre = current.contains('-');
+    if !latest_has_pre && current_has_pre {
+        return true;
+    }
+    if latest_has_pre && !current_has_pre {
+        return false;
+    }
+    false
+}
+
+#[uniffi::export]
+pub fn validate_update_response(version: String, download_url: String, current_version: String) -> bool {
+    if version.trim().is_empty() || download_url.trim().is_empty() {
+        return false;
+    }
+    is_version_newer(
+        version.to_lowercase().trim_start_matches('v').to_string(),
+        current_version.to_lowercase().trim_start_matches('v').to_string(),
+    )
 }
 
 fn hex_encode(bytes: &[u8]) -> String {

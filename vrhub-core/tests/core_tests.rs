@@ -1,4 +1,7 @@
-use vrhub_core::{decode_base64_password, hmac_sha256, md5, parse_catalog, resolve_tier, sha256_hex};
+use vrhub_core::{
+    decode_base64_password, hmac_sha256, is_version_newer, md5, parse_catalog, resolve_tier,
+    sha256_file, sha256_hex, validate_update_response,
+};
 
 #[test]
 fn catalog_skips_header_and_parses_standard_fields() {
@@ -95,8 +98,36 @@ fn sha256_matches_kotlin_cryptoutils() {
 }
 
 #[test]
+fn sha256_file_matches_hash_of_same_bytes() {
+    let path = std::env::temp_dir().join("vrhub_core_sha256_test.bin");
+    std::fs::write(&path, b"abc").unwrap();
+    assert_eq!(sha256_file(path.to_string_lossy().to_string()), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
 fn hmac_sha256_matches_kotlin_cryptoutils() {
     assert_eq!(hmac_sha256("1234".to_string(), "secret".to_string()), "55124a287e8ddc58a97eb3eea634a4d3185428d552de1a2b5bd49511355ababa");
+}
+
+#[test]
+fn semver_newer_matches_kotlin_isversionnewer() {
+    assert!(is_version_newer("1.2.0".to_string(), "1.1.9".to_string()));
+    assert!(!is_version_newer("1.1.9".to_string(), "1.2.0".to_string()));
+    assert!(!is_version_newer("1.2.0".to_string(), "1.2.0".to_string()));
+    assert!(is_version_newer("v2.0".to_string(), "v1.9.3".to_string()));
+    // pre-release: no-pre is newer than pre
+    assert!(is_version_newer("1.2.0".to_string(), "1.2.0-beta".to_string()));
+    assert!(!is_version_newer("1.2.0-beta".to_string(), "1.2.0".to_string()));
+    // non-numeric segments map to 0 like Kotlin mapNotNull(filter digit)
+    assert!(is_version_newer("1.2x.0".to_string(), "1.1.0".to_string()));
+}
+
+#[test]
+fn update_response_validation_rejects_blank_fields() {
+    assert!(!validate_update_response("".to_string(), "https://x".to_string(), "1.0.0".to_string()));
+    assert!(!validate_update_response("1.1.0".to_string(), "".to_string(), "1.0.0".to_string()));
+    assert!(validate_update_response("1.1.0".to_string(), "https://x".to_string(), "1.0.0".to_string()));
 }
 
 #[test]
