@@ -103,6 +103,84 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
   on origin. PR #74 (indicator + parallel fetch, cherry-picked) merged into wip. Origin now holds
   only: main, wip/autonomous-2026.
 
+### P2 — client security audit findings (2026-10-09 / 2026-10-10)
+
+Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
+
+- **B3 manifest — REFUTED (clean)**. `app/src/main/AndroidManifest.xml`: `android:exported`
+  explicit on every component (L36 false, L45 true); permissions declared (MANAGE_EXTERNAL_STORAGE,
+  REQUEST_INSTALL_PACKAGES, FOREGROUND_SERVICE, FOREGROUND_SERVICE_DATA_SYNC, POST_NOTIFICATIONS,
+  WAKE_LOCK); FileProvider authority built from `${applicationId}` and `file_paths.xml` covers
+  cache-path, files-path, external-files-path, external-path (the staged APK lives in
+  `externalFilesDir`). No `PendingIntent` anywhere in the app (`grep PendingIntent app/src/main`
+  = empty), so no mutability-flag risk.
+- **B2 DownloadWorker — REFUTED (clean)**. `setForeground(getForegroundInfo())` called from
+  `doWork()` with the manifest `foregroundServiceType="dataSync"`; `createNotificationChannel()`
+  always invoked before `notify()`; `POST_NOTIFICATIONS` runtime check for API 33+ (L718-722);
+  every request/response/stream via `.use` (L352, 391, 393, 447, 489, 515); cooperative
+  cancellation uses the real predicate `isCancelled = { isStopped }` (L401); enqueue is unique
+  (`enqueueUniqueWork("download_$releaseName", KEEP)`, L2856). No finding.
+- **B1 Room — TWO CONFIRMED FINDINGS, both fixed (red->green)**:
+  - **F1** `MainRepository.getGamesByReleaseNames` issued a single unbounded
+    `IN (:releaseNames)` call, violating the chunking contract documented on
+    `GameDao.deleteByReleaseNames` (SQLITE_MAX_VARIABLE_NUMBER = 999 on Android < 12). The
+    sync path chunks at 500 (L293) but the queue cache path (MainViewModel L516) did not.
+    Red: `GameDaoChunkingTest` with 600 names -> `AssertionError ... got calls: [600]`.
+    Fix: `chunked(500).flatMap { gameDao.getByReleaseNames(it) }`. **PR #75 merged into wip**
+    (CI: Build/Lint/Unit/Instrumented all pass).
+  - **F2** `exportSchema = false` + no `room.schemaLocation` meant `MigrationTestHelper` could
+    never load historical schemas — the real root cause of the `@Ignore("TODO(test-rot)")` on
+    `RoomMigrationTest`. Related: `QueuedInstallEntity` gained `downloadStartedAt` at schema v5
+    (commit `a645e0b`, story 1.9) but `MIGRATION_4_5` never ALTERed `install_queue`, so a device
+    at Room v4 produced a schema mismatch and was silently wiped by
+    `fallbackToDestructiveMigration` instead of migrating. Red: `Migration4To5ColumnTest` ->
+    `missing: [downloadStartedAt]`. Fix: one-line `ALTER TABLE` in `MIGRATION_4_5` + schema
+    export enabled + schemas 2-7 reconstructed from git history (`git show` of entity sources at
+    `c8cdfd7`, `e311967`, `a645e0b`, `a646488`, KSP-generated 7.json) + androidTest assets wiring;
+    the two `@Ignore` removed. **PR #76 open** (instrumented job validates the re-enabled tests).
+- **A3 — REFUTED (behaviourally)**. `DownloadUtils.downloadWithProgress` checks
+  `currentCoroutineContext().ensureActive()` **inside** the read loop (Constants.kt L652), so a
+  4 GB segment is cancellable mid-flight as soon as the caller's Job is cancelled
+  (`MainViewModel.cancelInstall()` cancels `currentTaskJob`). The backlog premise ("cancellation
+  only between segments") is wrong; `isCancelled = { false }` is a no-op predicate, not a hang.
+  No fix required.
+- **B4 network — REFUTED (clean)**. `isSuccessful` checked before `body()` at every network site
+  (MainRepository 505/640/671/687/777/1131, ServerConfigRepository 117/321/354, StatsCollector
+  74/96, CatalogUtils 92/143, DebugMonetizationViewModel 62); OkHttp connect/read timeouts set in
+  `NetworkModule`; Gson models use nullable fields consistently (`UserTierResponse.tier` nullable,
+  resolved via `resolveTier` with `standard` fallback); passwords masked in logs
+  (`"****"` at MainRepository L221/1308); no secret logged.
+- **B5 parsing — REFUTED (clean)**. Comparator uses `compareBy` + `thenBy(String.CASE_INSENSITIVE_ORDER)`
+  — total and consistent, no TimSort contract violation. `isVersionNewer` compares numerically per
+  segment (so `4.10.0 > 4.9.0`) with digit filtering and pre-release tie-breaking. `lowercase()`
+  used only on ASCII version strings; no `String.format` with locale-sensitive case. YouTube ID
+  extraction guarded by `VIDEO_ID_REGEX` (11-char base64-url alphabet) returning null on malformed
+  input. `CatalogParser.parse` uses `getOrNull(...) ?.toLongOrNull()/toIntOrNull()` — no unguarded
+  parse, malformed lines skipped (`parts.size >= 4`).
+- **B6 UI state — REFUTED (clean)**. `key = { it.releaseName }` cannot collide: `releaseName` is
+  the Room `@PrimaryKey` on both `games` and `install_queue`, so list keys are unique by
+  construction. `MainViewModel` holds `Application` (never an Activity) — no Activity leak.
+  `AlphabetIndexer` click index comes from a map built on the same sorted list and is only rendered
+  when `games.isNotEmpty()`. `LaunchedEffect`/`snapshotFlow` keys are the list states and layout
+  info (correct).
+- **B7 offline/errors — REFUTED (clean)**. Network calls wrapped in try/catch with user-facing
+  error messages and retry-with-backoff (403/429/5xx handled distinctly, 404 not retried);
+  history stats emits `null` on error instead of crashing the flow; progress division guarded
+  (`if (totalBytes > 0) ... else 0f`, Constants L663); empty-catalog UI handled by
+  LoadingScreen/error branch.
+- **B8 config/monetization screens — REFUTED (clean)**. `DebugMonetizationPanel` is a no-op in
+  release: early return unless `BuildConfig.DEBUG && APPLICATION_ID.endsWith(".debug")`.
+  `ConfigurationViewModel.setJsonUrl` validates scheme, non-blank, no spaces, path present.
+  `MonetizationEmailViewModel` validates with `android.util.Patterns.EMAIL_ADDRESS` before
+  `/init`. Email/query state restored from repository (`getSavedEmail`).
+- **A5 — REFUTED**. `extractMetaToCache` icon branch already has the `fileName.isNotEmpty()`
+  guard (MainRepository L378-380), same as thumbnails/notes/trailers. No change needed.
+- **LIKE escaping (InstallHistoryDao)** — contract honoured: ViewModel escapes `\`, `%`, `_`
+  before the `ESCAPE '\'` query and handles truncation inside an escape sequence. Clean.
+
+**P2 result**: 2 confirmed findings (both B1), fixed with red->green tests via PRs #75 and #76;
+10 items refuted with the evidence above. No item left unverified.
+
 
 ### P3 — contract audit findings (2026-10-10, read-only)
 
