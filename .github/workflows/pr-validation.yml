@@ -214,6 +214,34 @@ jobs:
         id: run-build
         run: ./scripts/gradlew assembleDevDebug --build-cache
 
+  paparazzi:
+    name: Snapshot Tests
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      outcome: ${{ steps.run-snapshots.outcome }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          lfs: true
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4.7.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Gradle Cache
+        uses: ./.github/actions/gradle-cache
+      - name: Verify Golden Snapshots
+        id: run-snapshots
+        run: ./scripts/gradlew verifyPaparazziProdDebug --build-cache
+      - name: Upload Snapshot Diff Report
+        if: failure()
+        uses: actions/upload-artifact@v4.6.0
+        with:
+          name: paparazzi-failures
+          path: app/build/paparazzi/failures/
+
   performance-check:
     name: Performance Check
     needs: [setup, lint, unit-tests, build]
@@ -240,7 +268,7 @@ jobs:
 
   report:
     name: Consolidation & Feedback
-    needs: [setup, lint, unit-tests, build, performance-check]
+    needs: [setup, lint, unit-tests, build, paparazzi, performance-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -271,6 +299,7 @@ jobs:
           LINT_WARNINGS: ${{ needs.lint.outputs.warnings }}
           UNIT_TESTS_OUTCOME: ${{ needs.unit-tests.outputs.outcome }}
           BUILD_OUTCOME: ${{ needs.build.outputs.outcome }}
+          PAPARAZZI_OUTCOME: ${{ needs.paparazzi.outputs.outcome }}
           BUILD_TARGET_SECONDS: ${{ needs.setup.outputs.target_pr }}
           CORE_DURATION: ${{ needs.performance-check.outputs.duration }}
         with:
