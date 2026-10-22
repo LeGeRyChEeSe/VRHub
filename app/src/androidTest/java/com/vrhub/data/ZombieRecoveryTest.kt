@@ -210,6 +210,7 @@ class ZombieRecoveryTest {
         val targetFile = File(testTempDir, "data.bin")
         targetFile.createNewFile()
         targetFile.writeText("test data") // Same content
+        targetFile.setLastModified(sourceFile.lastModified())
 
         // Ensure same size and modified time
         val sizeMatch = sourceFile.length() == targetFile.length()

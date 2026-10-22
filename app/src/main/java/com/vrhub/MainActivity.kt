@@ -2337,13 +2337,22 @@ fun QueueManagerOverlay(
                                                 else -> MaterialTheme.colorScheme.secondary // QUEUED
                                             }
 
+                                            val actionLabel = when {
+                                                task.status == InstallTaskStatus.FAILED -> "Retry"
+                                                task.status == InstallTaskStatus.SHELVED ||
+                                                    task.status == InstallTaskStatus.PENDING_INSTALL -> "Install"
+                                                task.status == InstallTaskStatus.PAUSED ||
+                                                    task.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> "Resume"
+                                                position > 1 -> "Prioritize"
+                                                else -> "Start"
+                                            }
                                             IconButton(onClick = { 
                                                 if (task.status == InstallTaskStatus.QUEUED) onPromote(task.releaseName) 
                                                 else onResume(task.releaseName) 
                                             }) {
                                                 Icon(
                                                     imageVector = actionIcon, 
-                                                    contentDescription = "Start", 
+                                                    contentDescription = actionLabel, 
                                                     tint = actionTint
                                                 )
                                             }

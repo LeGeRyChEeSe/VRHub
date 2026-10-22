@@ -296,3 +296,77 @@ State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/ma
 1. Approval for the single final merge `wip/autonomous-2026` -> `main`.
 2. vrhub-server PRs #13-#17 merge decisions.
 3. Decision on Android-side UniFFI wiring (JNA packaging) for `vrhub-core`.
+
+### P6-E2E — Autonomous E2E harness (2026-10-11)
+
+Harness (all criteria E2E-0..E2E-10 green):
+
+- Runner: `bash scripts/e2e.sh` — fully autonomous, every input read from
+  `e2e/fixtures/e2e.env` (single source of truth, E2E-1). Exit code: 0 on pass,
+  1 on any failure; failure captures `e2e/artifacts/logcat.txt` + `failure.png`.
+- Headless AVD `vrhub_e2e` (API 34, `-no-window -no-audio -no-boot-anim
+  -gpu swiftshader_indirect`); `adb` device-wait loop capped at 120 s (E2E-0).
+  Boot completes in ~10 s. Reuses an already-running device when possible.
+- Server test mode: isolated data dir `e2e/run` (`-data-dir e2e/run -port 39458`),
+  fixtures regenerated per run by `scripts/e2e_fixtures.py` (DB row + flat content
+  layout a.bin/b.bin/c.bin + 7z parts with server-identical flags
+  `a -t7z -p<pw> -mhe=on -mx=1 -v8m`), fixed mtimes, `.archive.json` marker matching
+  `GameArchiveUpToDate` so the server serves the recorded bytes without
+  regenerating. `e2e/fixtures/e2e.env` stays hand-authored static config; per-run
+  generated values (segment name/size/sha) are written to the git-ignored
+  `e2e/run/e2e.gen.env` that the runner sources after fixture regeneration, so
+  recorded hashes stay coherent with served bytes (7z volumes are not
+  byte-identical across regenerations — the invariant is recorded-vs-served
+  coherence, checked by `scripts/e2e_detcheck.sh`). Trap-based clean shutdown.
+  Stale pid/ready markers from a previous run are deleted at harness startup.
+  Generated state is git-ignored (`e2e/run/`, `e2e/artifacts/`,
+  `e2e/fixtures/stage_e2e/`).
+- Prerequisites (fail-fast with an explicit list when missing): ANDROID_HOME (or
+  `%LOCALAPPDATA%/Android/sdk`), AVD `vrhub_e2e`, sibling `vrhub-server` binary
+  (auto-derived from the repo root as `../vrhub-server/bin/vrhub-server-windows-amd64.exe`,
+  overridable via `SERVER_EXE`), APKs built automatically via
+  `gradlew assembleDevDebug assembleDevDebugAndroidTest` when absent. Shared
+  shell/python helpers: `scripts/e2e_lib.sh`, `scripts/e2e_common.py`.
+- Control channel `scripts/e2e_control.py` (port 39460, bound to 127.0.0.1 only -
+  the emulator reaches the host through 10.0.2.2 which arrives on the host
+  loopback, so LAN exposure is unnecessary): owns the server pid, answers
+  `PARTIAL <size>` -> `KILLED` (mid-download kill confirmed by port probe),
+  `RESTART` -> `READY` (recovery). Pre-kill of any stale listener on the port;
+  listener stays alive for the whole run.
+- Instrumentation: `com.vrhub.e2e.EndToEndPipelineTest` (6 tests, name-ascending
+  order), args fed from e2e.env. Covers nominal pipeline (E2E-3), wrong passphrase
+  (E2E-4), WorkManager cancel mid-download + resume (E2E-5), server kill mid-download
+  + observable retry/backoff + Room coherence + recovery (E2E-6), device-computed
+  sha256 vs fixture hashes (E2E-7), monetization stubbed on local MockWebServer (E2E-8).
+- E2E-9: `QueueUITest` re-enabled and passing on the headless AVD (15 tests) after
+  giving `QueueManagerOverlay` distinct per-action content descriptions (Pause /
+  Resume / Retry / Prioritize / Install / Start) so tests target semantics instead
+  of node indices. Paparazzi goldens still verified via `gradlew.bat
+  verifyPaparazziDevDebug` (the 4 QueueManagerOverlay snapshots pass unchanged -
+  labels are content descriptions, not painted pixels). CI gating: the
+  instrumented-tests job in `.github/workflows/pr-validation.yml` keeps
+  `QueueUITest` excluded (`notClass=...`) until the idle-settling root cause on
+  the swiftshader CI emulator is fixed, since the re-enable addresses labels,
+  not the hang cause.
+- E2E-10: final delivered scripts: 3 consecutive clean runs at 381 s / 382 s /
+  384 s (limit 12 min), rc=0 each, no flaky failure (`scripts/e2e_run_once.sh <n>`
+  reports rc + duration), `gradlew.bat test` + `lint` + `assembleDebug` green;
+  failure path verified by forcing a bad fixture hash (rc=1, `[e2e] FAIL`,
+  logcat.txt + failure.png captured). Supersedes the G5 note "QueueUITest stays
+  @Ignore".
+- Shell requirement: `scripts/e2e.sh` needs an MSYS/Git-Bash shell (Windows
+  netstat/taskkill/adb resolved from PATH) and re-execs under Git Bash otherwise;
+  interpreter resolved via `PY=$(command -v python || command -v python3)`.
+  Env loading (`e2e_load_env`) strips CR, and `e2e_fixtures.py` writes the env
+  files with LF, so no trailing carriage return reaches `am instrument -e` args.
+- Determinism/coherence check (E2E-7): `scripts/e2e_detcheck.sh` regenerates the
+  fixtures once, then compares the hashes recorded in `e2e/fixtures/e2e.env` +
+  `e2e/run/e2e.gen.env` against the bytes actually on disk in `e2e/run`; must
+  print `COHERENT` (or `MISMATCH ...` on drift).
+- Fixture APK recipe: `scripts/e2e_build_fixture_apk.sh` reproduces
+  `e2e/fixtures/apkbuild/fixed.apk` from `AndroidManifest.xml` (aapt2 link +
+  zipalign), verified against the fixture hashes via the same detcheck.
+
+Verification commands:
+- `bash scripts/e2e.sh` (full battery)
+- `.\scripts\gradlew.bat test` / `lint` / `assembleDebug` / `verifyPaparazziDevDebug`

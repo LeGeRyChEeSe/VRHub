@@ -8,7 +8,6 @@ import com.vrhub.ui.theme.VRHubTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.junit.Ignore
 
 /**
  * UI Tests for QueueManagerOverlay composable
@@ -21,7 +20,6 @@ import org.junit.Ignore
  * - AC5: Promote button visibility for non-first items
  * - AC6/7: Empty state and UI restoration
  */
-@Ignore("TODO(test-rot): whole Compose UI suite is unreliable on the headless swiftshader CI emulator — runEspressoOnIdle/runUntilIdle never settles (composition stays busy), which fails locally and HANGS on the slow CI emulator until the per-test timeout. Re-enable once UI tests run on a device with a real GPU or via Robolectric/screenshot tests.")
 @RunWith(AndroidJUnit4::class)
 class QueueUITest {
 
@@ -183,7 +181,7 @@ class QueueUITest {
             }
         }
 
-        // Resume button (PlayArrow) should be visible for paused task
+        // Action button (PlayArrow) is labeled per action: "Resume" for a paused task
         composeTestRule.onNodeWithContentDescription("Resume").assertIsDisplayed()
     }
 
@@ -265,7 +263,8 @@ class QueueUITest {
             }
         }
 
-        // There should be only ONE promote button (for the second item)
+        // AC5: only the second item exposes the promote button; the first item
+        // cannot be promoted - its action button is "Start" (onResume).
         composeTestRule.onAllNodesWithContentDescription("Prioritize").assertCountEquals(1)
     }
 
@@ -292,6 +291,7 @@ class QueueUITest {
             }
         }
 
+        // The promote button (second item only) triggers the promote path.
         composeTestRule.onNodeWithContentDescription("Prioritize").performClick()
         assert(promotedReleaseName == "game2") { "Expected game2 to be promoted, got $promotedReleaseName" }
     }
@@ -319,7 +319,7 @@ class QueueUITest {
             }
         }
 
-        // Retry button (Refresh icon) should be visible for failed task
+        // Retry action (Refresh icon, labeled "Retry") should be visible for failed task
         composeTestRule.onNodeWithContentDescription("Retry").assertIsDisplayed()
     }
 
