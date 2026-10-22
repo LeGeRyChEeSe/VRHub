@@ -13,6 +13,7 @@ import com.vrhub.data.MissingKeysException
 import com.vrhub.data.NetworkException
 import com.vrhub.data.ServerConfig
 import com.vrhub.data.ServerConfigRepository
+import com.vrhub.data.UnsupportedPublicSourceException
 import com.vrhub.data.TestResult
 import com.vrhub.data.testConnection
 import com.vrhub.data.testPassword
@@ -361,6 +362,7 @@ class ConfigurationViewModel(application: Application) : AndroidViewModel(applic
                         is NetworkException -> error.message ?: "Network error"
                         is JsonParseException -> "Server returned invalid JSON"
                         is MissingKeysException -> "Configuration missing required keys"
+                        is UnsupportedPublicSourceException -> error.message ?: "Public catalog source not supported"
                         is IllegalArgumentException -> error.message?.replace("\n", " ") ?: "Invalid configuration"
                         else -> "Test failed: ${error.message?.replace("\n", " ") ?: "unknown error"}"
                     }

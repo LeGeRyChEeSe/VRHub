@@ -41,6 +41,22 @@ class MirrorNotFoundException(releaseName: String) :
     NonRetryableDownloadException("Mirror error: 404 - Game not found: $releaseName")
 
 /**
+ * Thrown when a source rejects the app with 401/403.
+ * VRHub only supports self-hosted servers; public catalog hosts
+ * (third-party sideloader JSON feeds) are not supported.
+ */
+class UnsupportedPublicSourceException(code: Int) :
+    NonRetryableDownloadException(unsupportedPublicSourceMessage(code))
+
+/**
+ * Single source of truth for the user-facing 401/403 message.
+ */
+fun unsupportedPublicSourceMessage(code: Int): String {
+    return "Source rejected the request (HTTP $code). Public catalog hosts are not supported by VRHub. " +
+        "Run your own self-hosted VRHub server (for example vrhub-server) and point the app at it."
+}
+
+/**
  * Application-wide constants
  */
 object Constants {

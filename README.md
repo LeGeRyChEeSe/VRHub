@@ -22,6 +22,7 @@ A standalone Meta Quest application to browse, download, and install VR games na
 - [Key Features](#key-features)
 - [Download & Installation](#download--installation)
 - [Server Configuration](#server-configuration)
+- [FAQ](#faq)
 - [Architecture](#architecture)
 - [Build & Development Commands](#build--development-commands)
 - [Contributing](#contributing)
@@ -131,12 +132,38 @@ Select **Manual Entry** mode, then:
 
 If someone gave you a link (like `https://example.com/config.json`), select **JSON URL** mode and paste that link. VRHub will download and use the configuration automatically.
 
+Only configuration files served by your own self-hosted VRHub-compatible server are supported. Public sideloader or third-party catalog feeds are rejected, see [FAQ](#faq).
+
 ### Testing Your Configuration
 
 Use the **TEST** button to validate your configuration before saving. VRHub will check the server connection and verify the configuration structure.
 
 > [!IMPORTANT]
 > VRHub is a personal catalog manager. The app does not provide or host any game content. You are solely responsible for the server you configure and must only use it to manage games you have legitimately purchased.
+
+---
+
+## FAQ
+
+### Which catalog sources does VRHub support?
+
+VRHub is a self-hosted-only client. Supported sources are:
+
+- A **vrhub-server** instance you run yourself (recommended), on your own machine, NAS or VPS.
+- Any **self-hosted VRHub-compatible server** you operate, providing a `baseUri` and `password` (manual entry) or a JSON configuration file served by that same server.
+
+Not supported:
+
+- **Public catalog hosts** and third-party sideloader JSON feeds (shared `config.json` links, community catalog mirrors, sideload aggregator sites).
+- Catalogs you do not host yourself.
+
+### Why do I get an error (HTTP 403 or 401) when I paste a public sideloader JSON link?
+
+Public catalog hosts reject the VRHub client. Even if such a feed answered, connecting to it would point the app at content you do not host, which VRHub deliberately does not support. The app now displays an explicit message instead of an opaque failure:
+
+> Source rejected the request (HTTP 403). Public catalog hosts are not supported by VRHub. Run your own self-hosted VRHub server (for example vrhub-server) and point the app at it.
+
+To fix this, run your own [vrhub-server](https://github.com/LeGeRyChEeSe/vrhub-server) instance with the games you legitimately own, then point VRHub at that server using the address and password it gives you.
 
 ---
 

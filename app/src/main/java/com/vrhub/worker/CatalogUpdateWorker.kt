@@ -170,6 +170,12 @@ class CatalogUpdateWorker(
             
                         Result.success()
             
+                    } catch (e: com.vrhub.data.UnsupportedPublicSourceException) {
+            
+                        Log.e(TAG, "Configured source rejected the request, permanent failure", e)
+            
+                        Result.failure()
+            
                     } catch (e: Exception) {
             
                         Log.e(TAG, "Error during catalog update check", e)

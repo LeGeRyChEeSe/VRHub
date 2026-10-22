@@ -637,6 +637,9 @@ class MainRepository(
                     // Use type-safe exception for consistent error handling
                     throw MirrorNotFoundException(game.releaseName)
                 }
+                if (response.code == 401 || response.code == 403) {
+                    throw UnsupportedPublicSourceException(response.code)
+                }
                 if (!response.isSuccessful) throw Exception("Mirror error: ${response.code}")
 
                 val html = response.body?.string() ?: ""
