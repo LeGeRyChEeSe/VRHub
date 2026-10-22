@@ -1,4 +1,4 @@
-# VRHub Ecosystem — Project State (orchestrator tracking file)
+# VRHub Ecosystem - Project State (orchestrator tracking file)
 
 Maintained by the orchestrator agent. English. Append-only decision log.
 Rule: every claim below must be reproducible with the documented command. Every completed
@@ -28,7 +28,7 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
 
 - **vrhub**: main HEAD `60f3dbf` (PR #73 merged 2026-07-24). 0 open PRs, 0 open issues.
   Working branch: `wip/autonomous-2026` (single orchestrator target; main frozen until user validates the final merge).
-- **vrhub-server**: 5 OPEN PRs, all security (created 2026-09-12): #17 CSRF coverage, #16 TLS, #15 body size limits, #14 dir perms 0700, #13 dynamic CSRF secret. Uncommitted work on `fix/m1-csrf-coverage` — preserved, snapshot committed before any intervention.
+- **vrhub-server**: 5 OPEN PRs, all security (created 2026-09-12): #17 CSRF coverage, #16 TLS, #15 body size limits, #14 dir perms 0700, #13 dynamic CSRF secret. Uncommitted work on `fix/m1-csrf-coverage` - preserved, snapshot committed before any intervention.
 - **vrhub-monetization**: last activity 2026-07-30 (Ko-fi form-urlencoded webhook fix), ~80 commits post-merge; 11 modules with `mod tests`.
 - **vrhub-bot**: last activity 2026-07-16; effectively no tests.
 - **Branches on vrhub**: ~14 branches are squash-merge headstones (content already in main, verified with `git merge-base --is-ancestor <b> origin/main`). Real unmerged content: `feat/metadata-loading-indicator` (3 commits) and `vrhub-rebrand` (10 commits, partially superseded by main commit `c33f9d9`). Full per-branch verification table: see decision log 2026-10-09.
@@ -40,7 +40,7 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
 
 1. P0: this file + `wip/autonomous-2026` branch.
 2. P1: branch hygiene (archive tags then delete verified squash-merged branches); PRs for real unmerged content (`feat/metadata-loading-indicator`, `vrhub-rebrand`).
-3. P2: client security audit — unverified backlog in `docs/sonnet5-specs/01-bug-audit-backlog.md`. A1/A2/A4 already fixed (#60-#63). Remaining: A3 (cancellation not honored inside a large segment, `isCancelled = { false }` in `MainRepository.installGame`), A5, and modules B1-B8 in audit order B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8.
+3. P2: client security audit - unverified backlog in `docs/sonnet5-specs/01-bug-audit-backlog.md`. A1/A2/A4 already fixed (#60-#63). Remaining: A3 (cancellation not honored inside a large segment, `isCancelled = { false }` in `MainRepository.installGame`), A5, and modules B1-B8 in audit order B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8.
 4. P3: cross-project contract verification (see C1-C3), incl. review of vrhub-server PRs #13-#17 (no merge without user approval).
 5. P4: graphical bench (Paparazzi wired into `pr-validation.yml`, QueueUITest re-enabled/replaced).
 6. P5: `vrhub-core` crate + UniFFI.
@@ -73,21 +73,21 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
 
 ## 6. Decision log (append-only)
 
-- **2026-10-09 — plan established** (criteria G0-G8, phases P0-P6, guardrails). Verified claims via `git branch -a`, `git merge-base`, `gh api repos/.../pulls`, `gh pr list`.
-- **2026-10-09 — P0**: created `wip/autonomous-2026` from main `60f3dbf`; snapshot-committed untracked `docs/sonnet5-specs/` (protect against overwrite). Verification: `git branch --show-current`, `git log --oneline -1`.
-- **2026-10-09 — squash-merge verification table** (`git merge-base --is-ancestor <branch> origin/main`):
+- **2026-10-09 - plan established** (criteria G0-G8, phases P0-P6, guardrails). Verified claims via `git branch -a`, `git merge-base`, `gh api repos/.../pulls`, `gh pr list`.
+- **2026-10-09 - P0**: created `wip/autonomous-2026` from main `60f3dbf`; snapshot-committed untracked `docs/sonnet5-specs/` (protect against overwrite). Verification: `git branch --show-current`, `git log --oneline -1`.
+- **2026-10-09 - squash-merge verification table** (`git merge-base --is-ancestor <branch> origin/main`):
   MERGED (headstones): backup/main-premerge-20260625, chore/remove-dead-code-mainrepository, feat/appearance-data-and-theme, feat/appearance-layout-controls, feat/appearance-settings-screen, fix/config-read-off-main-thread, fix/permission-settings-scope-leak, fix/validate-netlify-update-response, refactor/theme-hardcoded-colors-lot1, refactor/theme-hardcoded-colors-lot2.
   AHEAD-of-main (pre-squash originals, content merged as squash commits #47-#59): ci/gradle-dependency-submission, ci/test-orchestrator-isolation, fix/androidtest-package-migration, fix/catalog-delete-absent-sqlite-limit, fix/catalog-worker-rename-retry, fix/instrumented-tests-hang, fix/issue-57-instrumented-oom, fix/sort-update-scroll, fix/stats-worker-tier-normalization, test/stats-collection-integration.
   REAL unmerged: feat/metadata-loading-indicator, fix/parallelize-metadata-fetch-loop, local/test-all-prs (test-only, never PR'd), vrhub-rebrand (partially superseded).
 
-### P1 — branch hygiene findings (2026-10-09)
+### P1 - branch hygiene findings (2026-10-09)
 
 - **vrhub-rebrand**: `git cherry origin/main vrhub-rebrand` shows 9/10 commits already in main
   (`-` prefix). The only unique commit `1eac0af` is a docs refresh (4.0.0 badge, README rewrite)
   that has been superseded by newer main docs (#69 changelog fill, README improvements). Also,
   the full branch diff vs main contains regressions (kapt vs ksp, flavors removed, orchestrator
   removed, versionCode 13) proving the branch is an older pre-cleanup state whose real content
-  landed via squash `c33f9d9`. **Verdict: REFUTED — nothing to reconcile. Refuted with evidence;
+  landed via squash `c33f9d9`. **Verdict: REFUTED - nothing to reconcile. Refuted with evidence;
   archive tag then delete.**
 - **feature/monetization** (origin): single unique commit `602648c` (README server-config
   instructions) superseded by current main README. **Verdict: REFUTED, archive+delete.**
@@ -103,24 +103,24 @@ As of 2026-10-09 (verify: `git branch -a`, `gh pr list -R <repo> --state all`, `
   on origin. PR #74 (indicator + parallel fetch, cherry-picked) merged into wip. Origin now holds
   only: main, wip/autonomous-2026.
 
-### P2 — client security audit findings (2026-10-09 / 2026-10-10)
+### P2 - client security audit findings (2026-10-09 / 2026-10-10)
 
 Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
 
-- **B3 manifest — REFUTED (clean)**. `app/src/main/AndroidManifest.xml`: `android:exported`
+- **B3 manifest - REFUTED (clean)**. `app/src/main/AndroidManifest.xml`: `android:exported`
   explicit on every component (L36 false, L45 true); permissions declared (MANAGE_EXTERNAL_STORAGE,
   REQUEST_INSTALL_PACKAGES, FOREGROUND_SERVICE, FOREGROUND_SERVICE_DATA_SYNC, POST_NOTIFICATIONS,
   WAKE_LOCK); FileProvider authority built from `${applicationId}` and `file_paths.xml` covers
   cache-path, files-path, external-files-path, external-path (the staged APK lives in
   `externalFilesDir`). No `PendingIntent` anywhere in the app (`grep PendingIntent app/src/main`
   = empty), so no mutability-flag risk.
-- **B2 DownloadWorker — REFUTED (clean)**. `setForeground(getForegroundInfo())` called from
+- **B2 DownloadWorker - REFUTED (clean)**. `setForeground(getForegroundInfo())` called from
   `doWork()` with the manifest `foregroundServiceType="dataSync"`; `createNotificationChannel()`
   always invoked before `notify()`; `POST_NOTIFICATIONS` runtime check for API 33+ (L718-722);
   every request/response/stream via `.use` (L352, 391, 393, 447, 489, 515); cooperative
   cancellation uses the real predicate `isCancelled = { isStopped }` (L401); enqueue is unique
   (`enqueueUniqueWork("download_$releaseName", KEEP)`, L2856). No finding.
-- **B1 Room — TWO CONFIRMED FINDINGS, both fixed (red->green)**:
+- **B1 Room - TWO CONFIRMED FINDINGS, both fixed (red->green)**:
   - **F1** `MainRepository.getGamesByReleaseNames` issued a single unbounded
     `IN (:releaseNames)` call, violating the chunking contract documented on
     `GameDao.deleteByReleaseNames` (SQLITE_MAX_VARIABLE_NUMBER = 999 on Android < 12). The
@@ -129,7 +129,7 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
     Fix: `chunked(500).flatMap { gameDao.getByReleaseNames(it) }`. **PR #75 merged into wip**
     (CI: Build/Lint/Unit/Instrumented all pass).
   - **F2** `exportSchema = false` + no `room.schemaLocation` meant `MigrationTestHelper` could
-    never load historical schemas — the real root cause of the `@Ignore("TODO(test-rot)")` on
+    never load historical schemas - the real root cause of the `@Ignore("TODO(test-rot)")` on
     `RoomMigrationTest`. Related: `QueuedInstallEntity` gained `downloadStartedAt` at schema v5
     (commit `a645e0b`, story 1.9) but `MIGRATION_4_5` never ALTERed `install_queue`, so a device
     at Room v4 produced a schema mismatch and was silently wiped by
@@ -138,51 +138,51 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
     export enabled + schemas 2-7 reconstructed from git history (`git show` of entity sources at
     `c8cdfd7`, `e311967`, `a645e0b`, `a646488`, KSP-generated 7.json) + androidTest assets wiring;
     the two `@Ignore` removed. **PR #76 open** (instrumented job validates the re-enabled tests).
-- **A3 — REFUTED (behaviourally)**. `DownloadUtils.downloadWithProgress` checks
+- **A3 - REFUTED (behaviourally)**. `DownloadUtils.downloadWithProgress` checks
   `currentCoroutineContext().ensureActive()` **inside** the read loop (Constants.kt L652), so a
   4 GB segment is cancellable mid-flight as soon as the caller's Job is cancelled
   (`MainViewModel.cancelInstall()` cancels `currentTaskJob`). The backlog premise ("cancellation
   only between segments") is wrong; `isCancelled = { false }` is a no-op predicate, not a hang.
   No fix required.
-- **B4 network — REFUTED (clean)**. `isSuccessful` checked before `body()` at every network site
+- **B4 network - REFUTED (clean)**. `isSuccessful` checked before `body()` at every network site
   (MainRepository 505/640/671/687/777/1131, ServerConfigRepository 117/321/354, StatsCollector
   74/96, CatalogUtils 92/143, DebugMonetizationViewModel 62); OkHttp connect/read timeouts set in
   `NetworkModule`; Gson models use nullable fields consistently (`UserTierResponse.tier` nullable,
   resolved via `resolveTier` with `standard` fallback); passwords masked in logs
   (`"****"` at MainRepository L221/1308); no secret logged.
-- **B5 parsing — REFUTED (clean)**. Comparator uses `compareBy` + `thenBy(String.CASE_INSENSITIVE_ORDER)`
-  — total and consistent, no TimSort contract violation. `isVersionNewer` compares numerically per
+- **B5 parsing - REFUTED (clean)**. Comparator uses `compareBy` + `thenBy(String.CASE_INSENSITIVE_ORDER)`
+  - total and consistent, no TimSort contract violation. `isVersionNewer` compares numerically per
   segment (so `4.10.0 > 4.9.0`) with digit filtering and pre-release tie-breaking. `lowercase()`
   used only on ASCII version strings; no `String.format` with locale-sensitive case. YouTube ID
   extraction guarded by `VIDEO_ID_REGEX` (11-char base64-url alphabet) returning null on malformed
-  input. `CatalogParser.parse` uses `getOrNull(...) ?.toLongOrNull()/toIntOrNull()` — no unguarded
+  input. `CatalogParser.parse` uses `getOrNull(...) ?.toLongOrNull()/toIntOrNull()` - no unguarded
   parse, malformed lines skipped (`parts.size >= 4`).
-- **B6 UI state — REFUTED (clean)**. `key = { it.releaseName }` cannot collide: `releaseName` is
+- **B6 UI state - REFUTED (clean)**. `key = { it.releaseName }` cannot collide: `releaseName` is
   the Room `@PrimaryKey` on both `games` and `install_queue`, so list keys are unique by
-  construction. `MainViewModel` holds `Application` (never an Activity) — no Activity leak.
+  construction. `MainViewModel` holds `Application` (never an Activity) - no Activity leak.
   `AlphabetIndexer` click index comes from a map built on the same sorted list and is only rendered
   when `games.isNotEmpty()`. `LaunchedEffect`/`snapshotFlow` keys are the list states and layout
   info (correct).
-- **B7 offline/errors — REFUTED (clean)**. Network calls wrapped in try/catch with user-facing
+- **B7 offline/errors - REFUTED (clean)**. Network calls wrapped in try/catch with user-facing
   error messages and retry-with-backoff (403/429/5xx handled distinctly, 404 not retried);
   history stats emits `null` on error instead of crashing the flow; progress division guarded
   (`if (totalBytes > 0) ... else 0f`, Constants L663); empty-catalog UI handled by
   LoadingScreen/error branch.
-- **B8 config/monetization screens — REFUTED (clean)**. `DebugMonetizationPanel` is a no-op in
+- **B8 config/monetization screens - REFUTED (clean)**. `DebugMonetizationPanel` is a no-op in
   release: early return unless `BuildConfig.DEBUG && APPLICATION_ID.endsWith(".debug")`.
   `ConfigurationViewModel.setJsonUrl` validates scheme, non-blank, no spaces, path present.
   `MonetizationEmailViewModel` validates with `android.util.Patterns.EMAIL_ADDRESS` before
   `/init`. Email/query state restored from repository (`getSavedEmail`).
-- **A5 — REFUTED**. `extractMetaToCache` icon branch already has the `fileName.isNotEmpty()`
+- **A5 - REFUTED**. `extractMetaToCache` icon branch already has the `fileName.isNotEmpty()`
   guard (MainRepository L378-380), same as thumbnails/notes/trailers. No change needed.
-- **LIKE escaping (InstallHistoryDao)** — contract honoured: ViewModel escapes `\`, `%`, `_`
+- **LIKE escaping (InstallHistoryDao)** - contract honoured: ViewModel escapes `\`, `%`, `_`
   before the `ESCAPE '\'` query and handles truncation inside an escape sequence. Clean.
 
 **P2 result**: 2 confirmed findings (both B1), fixed with red->green tests via PRs #75 and #76;
 10 items refuted with the evidence above. No item left unverified.
 
 
-### P3 — contract audit findings (2026-10-10, read-only)
+### P3 - contract audit findings (2026-10-10, read-only)
 
 - **C1 CSRF (#13/#17)**: `protectedRouter`/`csrfUpdate` cover admin routes only; public client
   endpoints (`/config.json`, `/meta.7z`) unaffected. Client impact: none. #14/#15/#16 (perms,
@@ -201,7 +201,7 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
   (`baseUri`, `password` Base64) matches client `PublicConfig` (`baseUri`, `password64`).
   **Verdict: conform.**
 
-### P2/B1 fix #76 — second finding follow-up (2026-10-10)
+### P2/B1 fix #76 - second finding follow-up (2026-10-10)
 
 - CI Instrumented run on #76 exposed two issues once `@Ignore` was lifted:
   1. `migrateAll` (2->3->4->5): MIGRATION_2_3 creates install_queue WITH
@@ -217,11 +217,11 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
   while Room production enables it (CASCADE DELETE assertion) -> test aligned with production
   by enabling the pragma. **PR #76 merged into wip** (`434e1fe`).
 
-### P4 — Paparazzi snapshot harness (2026-10-10)
+### P4 - Paparazzi snapshot harness (2026-10-10)
 
 - Plugin `app.cash.paparazzi:1.3.3` on `app/build.gradle.kts` (matches Kotlin 1.9.22 /
   Compose 1.5.8 / AGP 8.13.2). Critical pin: `resolutionStrategy.force("com.google.guava:guava:31.1-jre")`
-  scoped to `*UnitTestRuntimeClasspath` — robolectric 4.12.1 pulls guava 33.0.0, which breaks
+  scoped to `*UnitTestRuntimeClasspath` - robolectric 4.12.1 pulls guava 33.0.0, which breaks
   `com.android.tools:common:31.2.2` (`IllegalAccessError ResourceType/Sets.toImmutableEnumSet`).
 - Goldens (7, Git LFS): `GameListItemSnapshotTest` (3 states: metadata-loading,
   installed+favorite+size, queued/paused first-in-queue) and `QueueManagerOverlaySnapshotTest`
@@ -232,13 +232,13 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
 - CI: new `Snapshot Tests` job (`verifyPaparazziProdDebug`) in `pr-validation.yml` + outcome in
   PR report. First CI failure root cause: `actions/checkout` without LFS fetched pointer files ->
   NPE on 7 tests. Fix: `lfs: true` on the job checkout. CI green after fix.
-- QueueUITest (androidTest, `@Ignore`): Robolectric variant impossible — `ui-test-junit4` is
+- QueueUITest (androidTest, `@Ignore`): Robolectric variant impossible - `ui-test-junit4` is
   android-only and its Espresso/hamcrest-1.3 dependency conflicts with hamcrest 2.2
   (`NoSuchMethodError AllOf.allOf`). AC coverage moved to Paparazzi goldens (G5 allows
   "reactivated or replaced").
 - **PR #77 merged into wip** (`2db0854`), CI all green.
 
-### P5 — vrhub-core Rust crate (2026-10-10)
+### P5 - vrhub-core Rust crate (2026-10-10)
 
 - New crate `vrhub-core/` (workspace root): pure logic port of `CatalogParser`, `resolveTier`,
   `CryptoUtils` md5/sha256/hmacSha256, Base64 NO_WRAP password decode. `crate-type =
@@ -255,7 +255,7 @@ Order followed: B3 -> B2 -> B1 -> A3 -> B4 -> B5 -> B6 -> B7 -> B8 -> A5.
 - **PR #78 merged into wip** (`2bc78a8`), CI all green (new `Rust Core Tests` job wired into
   `pr-validation.yml` + PR report table).
 
-## 7. Closing report (P6) — ready for user validation
+## 7. Closing report (P6) - ready for user validation
 
 State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/main..HEAD` =
 34 commits, `git diff --stat origin/main...wip` = 39 files, +4106/-22).
@@ -288,7 +288,7 @@ State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/ma
 - G5 detail: QueueUITest stays `@Ignore` (Espresso/hamcrest conflict documented); replaced by
   Paparazzi goldens.
 - G7 detail: `vrhub-core` compiles as `cdylib`/`staticlib` for future UniFFI wiring; Kotlin
-  bindings generation verified; app APK untouched (no integration yet — decision kept open for
+  bindings generation verified; app APK untouched (no integration yet - decision kept open for
   the user).
 
 ### Pending for user
