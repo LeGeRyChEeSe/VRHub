@@ -20,6 +20,14 @@ import org.junit.runner.RunWith
  * - AC5: Promote button visibility for non-first items
  * - AC6/7: Empty state and UI restoration
  */
+/*
+ * NOTE(runner guard): this Compose suite is reliable only on a device/emulator that can
+ * reach idle quickly. On the swiftshader CI emulator, runEspressoOnIdle/runUntilIdle never
+ * settle and each test hangs until the per-test timeout, so pr-validation.yml excludes it
+ * via notClass=com.vrhub.ui.QueueUITest. Run it through scripts/e2e.sh (-e class
+ * com.vrhub.ui.QueueUITest) or on a real GPU device; do not run the full connectedAndroidTest
+ * suite on a CI-class headless emulator without that exclusion.
+ */
 @RunWith(AndroidJUnit4::class)
 class QueueUITest {
 
@@ -264,7 +272,7 @@ class QueueUITest {
         }
 
         // AC5: only the second item exposes the promote button; the first item
-        // cannot be promoted - its action button is "Start" (onResume).
+        // cannot be promoted - its action button is "Start" and routes to onResume.
         composeTestRule.onAllNodesWithContentDescription("Prioritize").assertCountEquals(1)
     }
 

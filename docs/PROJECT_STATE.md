@@ -297,11 +297,11 @@ State verified 2026-10-10 on `wip/autonomous-2026` (`git log --oneline origin/ma
 2. vrhub-server PRs #13-#17 merge decisions.
 3. Decision on Android-side UniFFI wiring (JNA packaging) for `vrhub-core`.
 
-### P6-E2E — Autonomous E2E harness (2026-10-11)
+### P6-E2E - Autonomous E2E harness (2026-10-11)
 
 Harness (all criteria E2E-0..E2E-10 green):
 
-- Runner: `bash scripts/e2e.sh` — fully autonomous, every input read from
+- Runner: `bash scripts/e2e.sh` - fully autonomous, every input read from
   `e2e/fixtures/e2e.env` (single source of truth, E2E-1). Exit code: 0 on pass,
   1 on any failure; failure captures `e2e/artifacts/logcat.txt` + `failure.png`.
 - Headless AVD `vrhub_e2e` (API 34, `-no-window -no-audio -no-boot-anim
@@ -316,7 +316,7 @@ Harness (all criteria E2E-0..E2E-10 green):
   generated values (segment name/size/sha) are written to the git-ignored
   `e2e/run/e2e.gen.env` that the runner sources after fixture regeneration, so
   recorded hashes stay coherent with served bytes (7z volumes are not
-  byte-identical across regenerations — the invariant is recorded-vs-served
+  byte-identical across regenerations - the invariant is recorded-vs-served
   coherence, checked by `scripts/e2e_detcheck.sh`). Trap-based clean shutdown.
   Stale pid/ready markers from a previous run are deleted at harness startup.
   Generated state is git-ignored (`e2e/run/`, `e2e/artifacts/`,

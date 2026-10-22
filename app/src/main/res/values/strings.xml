@@ -102,6 +102,14 @@
     <string name="catalog_syncing_with_count_simple">Syncing %1$d new/updated games...</string>
     <string name="catalog_syncing">Syncing catalog...</string>
 
+    <string name="queue_action_pause">Pause</string>
+    <string name="queue_action_cancel">Cancel</string>
+    <string name="queue_action_retry">Retry</string>
+    <string name="queue_action_install">Install</string>
+    <string name="queue_action_resume">Resume</string>
+    <string name="queue_action_prioritize">Prioritize</string>
+    <string name="queue_action_start">Start</string>
+
     <!-- Story 2.2: Solstice Branding -->
     <string name="branding_tagline">A Solstice Project</string>
     <string name="about_title">About</string>
