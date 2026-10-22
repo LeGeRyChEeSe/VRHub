@@ -116,6 +116,14 @@ package.json
 .worktreeinclude
 nul
 
+# E2E harness: generated state and artifacts (fixtures + scripts are tracked)
+__pycache__/
+e2e/run/
+e2e/artifacts/
+e2e/fixtures/stage_e2e/
+# aapt2-built binary fixture template (versionCode 1234) must stay tracked
+!e2e/fixtures/apkbuild/fixed.apk
+
 # Web Server Source
 Sunshine-AIO-web/
 

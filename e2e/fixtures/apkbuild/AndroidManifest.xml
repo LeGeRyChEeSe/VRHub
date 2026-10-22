@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.vrhub.e2e.fixture" versionCode="1234" versionName="v1.0.0">
+    <application android:label="E2E Fixture Game"/>
+</manifest>

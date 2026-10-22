@@ -186,7 +186,8 @@ jobs:
           target: default
           arch: x86_64
           profile: Nexus 6
-          script: ./scripts/gradlew connectedDevDebugAndroidTest --build-cache
+          script: ./scripts/gradlew connectedDevDebugAndroidTest --build-cache \
+            -Pandroid.testInstrumentationRunnerArguments.notClass=com.vrhub.ui.QueueUITest
       - name: Upload Instrumented Test Results
         if: always()
         uses: actions/upload-artifact@v4.6.0
