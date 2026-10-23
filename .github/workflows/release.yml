@@ -46,6 +46,11 @@ on:
         description: 'Version code (integer). Leave empty to use versionCode from build.gradle.kts.'
         required: false
         default: ''
+      draft:
+        description: 'Create the release as a draft for pre-release validation. Set false to publish the final release.'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
