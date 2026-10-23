@@ -210,6 +210,8 @@ class ZombieRecoveryTest {
         val targetFile = File(testTempDir, "data.bin")
         targetFile.createNewFile()
         targetFile.writeText("test data") // Same content
+        val stampApplied = targetFile.setLastModified(sourceFile.lastModified())
+        assertTrue("setLastModified failed on this filesystem; test precondition not met", stampApplied)
 
         // Ensure same size and modified time
         val sizeMatch = sourceFile.length() == targetFile.length()

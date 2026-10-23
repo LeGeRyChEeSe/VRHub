@@ -70,6 +70,7 @@
     <string name="game_btn_uninstall">UNINSTALL</string>
     <string name="game_btn_delete_download">DELETE DOWNLOAD</string>
     <string name="game_btn_complete_install">COMPLETE INSTALL</string>
+    <string name="game_loading_metadata">Loading info…</string>
     <string name="filter_local_installs">Ready to Install</string>
 
     <!-- Story 11.2: Streaming Trailer Strings -->
@@ -100,6 +101,14 @@
     <string name="catalog_syncing_with_count">Syncing %1$d new/updated games... %2$d%%</string>
     <string name="catalog_syncing_with_count_simple">Syncing %1$d new/updated games...</string>
     <string name="catalog_syncing">Syncing catalog...</string>
+
+    <string name="queue_action_pause">Pause</string>
+    <string name="queue_action_cancel">Cancel</string>
+    <string name="queue_action_retry">Retry</string>
+    <string name="queue_action_install">Install</string>
+    <string name="queue_action_resume">Resume</string>
+    <string name="queue_action_prioritize">Prioritize</string>
+    <string name="queue_action_start">Start</string>
 
     <!-- Story 2.2: Solstice Branding -->
     <string name="branding_tagline">A Solstice Project</string>

@@ -2319,31 +2319,40 @@ fun QueueManagerOverlay(
                                         // Action button (Prioritize/Resume/Pause)
                                         if (isProcessing) {
                                             IconButton(onClick = { onPause(task.releaseName) }) {
-                                                Icon(Icons.Default.Pause, contentDescription = "Pause", tint = Color.White)
+                                                Icon(Icons.Default.Pause, contentDescription = stringResource(R.string.queue_action_pause), tint = Color.White)
                                             }
                                         } else {
                                             // Task is not processing: could be QUEUED, PAUSED, FAILED, SHELVED, or PENDING_INSTALL
                                             val actionIcon = when {
                                                 task.status == InstallTaskStatus.FAILED -> Icons.Default.Refresh
                                                 task.status == InstallTaskStatus.SHELVED || task.status == InstallTaskStatus.PENDING_INSTALL -> Icons.Default.DownloadDone
-                                                task.status == InstallTaskStatus.PAUSED -> Icons.Default.PlayArrow
+                                                task.status == InstallTaskStatus.PAUSED || task.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> Icons.Default.PlayArrow
                                                 else -> Icons.Default.VerticalAlignTop // QUEUED
                                             }
                                             
                                             val actionTint = when {
                                                 task.status == InstallTaskStatus.FAILED -> Color(0xFFF39C12)
                                                 task.status == InstallTaskStatus.SHELVED || task.status == InstallTaskStatus.PENDING_INSTALL -> Color(0xFF2ecc71)
-                                                task.status == InstallTaskStatus.PAUSED -> Color(0xFF2ecc71)
+                                                task.status == InstallTaskStatus.PAUSED || task.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> Color(0xFF2ecc71)
                                                 else -> MaterialTheme.colorScheme.secondary // QUEUED
                                             }
 
-                                            IconButton(onClick = { 
-                                                if (task.status == InstallTaskStatus.QUEUED) onPromote(task.releaseName) 
-                                                else onResume(task.releaseName) 
+                                            val actionLabel = when {
+                                                task.status == InstallTaskStatus.FAILED -> stringResource(R.string.queue_action_retry)
+                                                task.status == InstallTaskStatus.SHELVED ||
+                                                    task.status == InstallTaskStatus.PENDING_INSTALL -> stringResource(R.string.queue_action_install)
+                                                task.status == InstallTaskStatus.PAUSED ||
+                                                    task.status == InstallTaskStatus.BLOCKED_BY_PERMISSIONS -> stringResource(R.string.queue_action_resume)
+                                                position > 1 -> stringResource(R.string.queue_action_prioritize)
+                                                else -> stringResource(R.string.queue_action_start)
+                                            }
+                                            IconButton(onClick = {
+                                                if (task.status == InstallTaskStatus.QUEUED && position > 1) onPromote(task.releaseName)
+                                                else onResume(task.releaseName)
                                             }) {
                                                 Icon(
                                                     imageVector = actionIcon, 
-                                                    contentDescription = "Start", 
+                                                    contentDescription = actionLabel, 
                                                     tint = actionTint
                                                 )
                                             }
@@ -2351,7 +2360,7 @@ fun QueueManagerOverlay(
 
                                         // Cancel button
                                         IconButton(onClick = { onCancel(task.releaseName) }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Cancel", tint = Color(0xFFCF6679))
+                                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.queue_action_cancel), tint = Color(0xFFCF6679))
                                         }
                                     }
                                 }

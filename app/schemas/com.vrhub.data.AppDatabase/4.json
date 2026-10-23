@@ -1,0 +1,176 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "be62ade9e1c76d552856c6539af527c9",
+    "entities": [
+      {
+        "tableName": "games",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`releaseName` TEXT NOT NULL, `gameName` TEXT NOT NULL, `packageName` TEXT NOT NULL, `versionCode` TEXT NOT NULL, `sizeBytes` INTEGER, `description` TEXT, `screenshotUrlsJson` TEXT, `lastUpdated` INTEGER NOT NULL, `popularity` INTEGER NOT NULL, `isFavorite` INTEGER NOT NULL, PRIMARY KEY(`releaseName`))",
+        "fields": [
+          {
+            "fieldPath": "releaseName",
+            "columnName": "releaseName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameName",
+            "columnName": "gameName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionCode",
+            "columnName": "versionCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "screenshotUrlsJson",
+            "columnName": "screenshotUrlsJson",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "popularity",
+            "columnName": "popularity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFavorite",
+            "columnName": "isFavorite",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "releaseName"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "install_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`releaseName` TEXT NOT NULL, `status` TEXT NOT NULL, `progress` REAL NOT NULL, `downloadedBytes` INTEGER, `totalBytes` INTEGER, `queuePosition` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `lastUpdatedAt` INTEGER NOT NULL, `isDownloadOnly` INTEGER NOT NULL, PRIMARY KEY(`releaseName`))",
+        "fields": [
+          {
+            "fieldPath": "releaseName",
+            "columnName": "releaseName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progress",
+            "columnName": "progress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloadedBytes",
+            "columnName": "downloadedBytes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "totalBytes",
+            "columnName": "totalBytes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "queuePosition",
+            "columnName": "queuePosition",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedAt",
+            "columnName": "lastUpdatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDownloadOnly",
+            "columnName": "isDownloadOnly",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "releaseName"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_install_queue_queuePosition",
+            "unique": false,
+            "columnNames": [
+              "queuePosition"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_install_queue_queuePosition` ON `${TABLE_NAME}` (`queuePosition`)"
+          },
+          {
+            "name": "index_install_queue_status_queuePosition",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "queuePosition"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_install_queue_status_queuePosition` ON `${TABLE_NAME}` (`status`, `queuePosition`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'be62ade9e1c76d552856c6539af527c9')"
+    ]
+  }
+}

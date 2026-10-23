@@ -9,7 +9,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.junit.Ignore
 import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
@@ -25,7 +24,6 @@ class RoomMigrationTest {
 
     @Test
     @Throws(IOException::class)
-    @Ignore("TODO(test-rot): Room migration assertion fails after the package rebrand; needs investigation")
     fun migrate4To5() {
         // Create database with version 4
         var db = helper.createDatabase(TEST_DB, 4)
@@ -46,10 +44,14 @@ class RoomMigrationTest {
         }
 
         // Test CASCADE DELETE (AC Review fix)
+        // MigrationTestHelper opens the DB without the foreign_keys pragma, while Room
+        // enables it in production. Match production so CASCADE is actually enforced.
+        db.execSQL("PRAGMA foreign_keys = ON")
+
         // 1. Insert a game into games table (required for FK)
         db.execSQL("""
-            INSERT INTO games (releaseName, gameName, packageName, versionCode)
-            VALUES ('test-game-cascade', 'Test Game', 'com.test.game', '1')
+            INSERT INTO games (releaseName, gameName, packageName, versionCode, lastUpdated, popularity, isFavorite)
+            VALUES ('test-game-cascade', 'Test Game', 'com.test.game', '1', 1600000000000, 0, 0)
         """.trimIndent())
         
         // 2. Insert history entry referencing the game
@@ -102,7 +104,6 @@ class RoomMigrationTest {
 
     @Test
     @Throws(IOException::class)
-    @Ignore("TODO(test-rot): Room migration assertion fails after the package rebrand; needs investigation")
     fun migrateAll() {
         // Create database with version 2 (legacy)
         var db = helper.createDatabase(TEST_DB, 2)

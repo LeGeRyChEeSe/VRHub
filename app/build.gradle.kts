@@ -5,6 +5,20 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("app.cash.paparazzi") version "1.3.3"
+}
+
+configurations.all {
+    if (name.contains("UnitTestRuntimeClasspath")) {
+        // Paparazzi 1.3.3 bundles com.android.tools:common 31.2.2 compiled against guava 31.1,
+        // while robolectric 4.12.1 upgrades guava to 33.0.0 where Sets.toImmutableEnumSet()
+        // is no longer accessible from com.android.resources (IllegalAccessError).
+        resolutionStrategy.force("com.google.guava:guava:31.1-jre")
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas".toString())
 }
 
 android {
@@ -254,6 +268,9 @@ android {
         }
     }
     
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
     buildFeatures {
         compose = true
         buildConfig = true

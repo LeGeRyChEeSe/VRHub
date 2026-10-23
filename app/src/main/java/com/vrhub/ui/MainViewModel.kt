@@ -20,6 +20,7 @@ import com.vrhub.data.InstallUtils
 import com.vrhub.data.PermissionManager
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 import com.vrhub.data.MainRepository
 import com.vrhub.network.UpdateInfo
@@ -374,7 +375,8 @@ data class GameItemState(
     val screenshotUrls: List<String>? = null,
     val trailerUrl: String? = null,
     val lastUpdated: Long = 0L,
-    val popularity: Int = 0
+    val popularity: Int = 0,
+    val isLoadingMetadata: Boolean = false
 )
 
 /**
@@ -463,6 +465,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _visibleIndices = MutableStateFlow<List<Int>>(emptyList())
     private val priorityUpdateChannel = Channel<Unit>(Channel.CONFLATED)
+    // Package names currently being fetched by startMetadataFetchLoop(), surfaced to the UI
+    // via GameItemState.isLoadingMetadata so each card can show its own loading indicator.
+    private val _loadingMetadataPackages = MutableStateFlow<Set<String>>(emptySet())
 
     private val _isUpdateCheckInProgress = MutableStateFlow(true)
     val isUpdateCheckInProgress: StateFlow<Boolean> = _isUpdateCheckInProgress
@@ -852,6 +857,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var permissionDenialShown = false
     private var refreshJob: Job? = null
     private var sizeFetchJob: Job? = null
+    // Bounds how many games' metadata (size/description/screenshots) are fetched
+    // concurrently from startMetadataFetchLoop(). Previously this loop awaited one
+    // game at a time, so even on-screen items were serialized behind each other.
+    private val metadataFetchSemaphore = kotlinx.coroutines.sync.Semaphore(4)
 
     private val updateService = NetworkModule.updateService
     private val githubReleaseService = NetworkModule.githubReleaseService
@@ -958,7 +967,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedFilter,
         _sortMode,
         installQueue,
-        _sortAscending
+        _sortAscending,
+        _loadingMetadataPackages
     ) { args ->
         val list = args[0] as List<GameData>
         val query = args[1] as String
@@ -968,6 +978,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val sort = args[5] as SortMode
         val queue = args[6] as List<InstallTaskState>
         val ascending = args[7] as Boolean
+        val loadingMetadata = args[8] as Set<String>
 
         val firstInQueue = queue.firstOrNull()?.releaseName
         val lastSync = prefs.getLong("last_catalog_sync_time", 0L)
@@ -1078,7 +1089,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 screenshotUrls = game.screenshotUrls,
                 trailerUrl = game.trailerUrl,
                 lastUpdated = game.lastUpdated,
-                popularity = game.popularity
+                popularity = game.popularity,
+                isLoadingMetadata = loadingMetadata.contains(game.packageName)
             )
         }
     }
@@ -2153,6 +2165,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private fun startMetadataFetchLoop() {
+        // Guard against overlapping loops: this is called both from startup init and from
+        // onUpdateDialogDismissed(), and without cancelling the previous job here, both calls
+        // would spin up their own concurrent controller, doubling the effective fetch concurrency.
+        sizeFetchJob?.cancel()
+        _loadingMetadataPackages.value = emptySet()
         sizeFetchJob = viewModelScope.launch(Dispatchers.Default) {
             while (true) {
                 if (!_isAppVisible.value) {
@@ -2189,18 +2206,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     needsData
                 }
 
-                val target = candidates.find { prioritizedPackages.contains(it.packageName) }
+                val target = candidates.firstOrNull {
+                    prioritizedPackages.contains(it.packageName) && !_loadingMetadataPackages.value.contains(it.packageName)
+                }
 
                 if (target != null) {
-                    try {
-                        repository.getGameRemoteInfo(target)
-                    } catch (e: Exception) {
-                        delay(2000)
+                    // Fire the fetch as an independent child job bounded by metadataFetchSemaphore
+                    // (up to 4 concurrent) instead of awaiting it here — this lets the controller
+                    // immediately look for the next visible candidate rather than serializing
+                    // on-screen games one at a time.
+                    _loadingMetadataPackages.update { it + target.packageName }
+                    launch {
+                        metadataFetchSemaphore.withPermit {
+                            try {
+                                repository.getGameRemoteInfo(target)
+                            } catch (e: Exception) {
+                                delay(2000)
+                            } finally {
+                                _loadingMetadataPackages.update { it - target.packageName }
+                                priorityUpdateChannel.trySend(Unit)
+                            }
+                        }
                     }
 
                     select<Unit> {
                         priorityUpdateChannel.onReceive { }
-                        onTimeout(100.milliseconds) { }
+                        onTimeout(50.milliseconds) { }
                     }
                 } else {
                     priorityUpdateChannel.receive()

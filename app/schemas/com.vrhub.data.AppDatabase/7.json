@@ -1,0 +1,324 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 7,
+    "identityHash": "1f0e45a271d7adfff8ab4f34cf5be451",
+    "entities": [
+      {
+        "tableName": "games",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`releaseName` TEXT NOT NULL, `gameName` TEXT NOT NULL, `packageName` TEXT NOT NULL, `versionCode` TEXT NOT NULL, `sizeBytes` INTEGER, `description` TEXT, `screenshotUrlsJson` TEXT, `trailerUrl` TEXT, `lastUpdated` INTEGER NOT NULL, `popularity` INTEGER NOT NULL, `isFavorite` INTEGER NOT NULL, PRIMARY KEY(`releaseName`))",
+        "fields": [
+          {
+            "fieldPath": "releaseName",
+            "columnName": "releaseName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameName",
+            "columnName": "gameName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionCode",
+            "columnName": "versionCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "screenshotUrlsJson",
+            "columnName": "screenshotUrlsJson",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "trailerUrl",
+            "columnName": "trailerUrl",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "popularity",
+            "columnName": "popularity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFavorite",
+            "columnName": "isFavorite",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "releaseName"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "install_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`releaseName` TEXT NOT NULL, `status` TEXT NOT NULL, `progress` REAL NOT NULL, `downloadedBytes` INTEGER, `totalBytes` INTEGER, `queuePosition` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `lastUpdatedAt` INTEGER NOT NULL, `downloadStartedAt` INTEGER, `isDownloadOnly` INTEGER NOT NULL, `isLocalInstall` INTEGER NOT NULL, PRIMARY KEY(`releaseName`))",
+        "fields": [
+          {
+            "fieldPath": "releaseName",
+            "columnName": "releaseName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progress",
+            "columnName": "progress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloadedBytes",
+            "columnName": "downloadedBytes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "totalBytes",
+            "columnName": "totalBytes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "queuePosition",
+            "columnName": "queuePosition",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdatedAt",
+            "columnName": "lastUpdatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloadStartedAt",
+            "columnName": "downloadStartedAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isDownloadOnly",
+            "columnName": "isDownloadOnly",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocalInstall",
+            "columnName": "isLocalInstall",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "releaseName"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_install_queue_queuePosition",
+            "unique": false,
+            "columnNames": [
+              "queuePosition"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_install_queue_queuePosition` ON `${TABLE_NAME}` (`queuePosition`)"
+          },
+          {
+            "name": "index_install_queue_status_queuePosition",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "queuePosition"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_install_queue_status_queuePosition` ON `${TABLE_NAME}` (`status`, `queuePosition`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "install_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `releaseName` TEXT NOT NULL, `gameName` TEXT NOT NULL, `packageName` TEXT NOT NULL, `installedAt` INTEGER NOT NULL, `downloadDurationMs` INTEGER NOT NULL, `fileSizeBytes` INTEGER NOT NULL, `status` TEXT NOT NULL, `errorMessage` TEXT, `createdAt` INTEGER NOT NULL, `isLocalInstall` INTEGER NOT NULL, FOREIGN KEY(`releaseName`) REFERENCES `games`(`releaseName`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "releaseName",
+            "columnName": "releaseName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameName",
+            "columnName": "gameName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "installedAt",
+            "columnName": "installedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloadDurationMs",
+            "columnName": "downloadDurationMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSizeBytes",
+            "columnName": "fileSizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "errorMessage",
+            "columnName": "errorMessage",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocalInstall",
+            "columnName": "isLocalInstall",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_install_history_releaseName",
+            "unique": false,
+            "columnNames": [
+              "releaseName"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_install_history_releaseName` ON `${TABLE_NAME}` (`releaseName`)"
+          },
+          {
+            "name": "index_install_history_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_install_history_status` ON `${TABLE_NAME}` (`status`)"
+          },
+          {
+            "name": "index_install_history_installedAt",
+            "unique": false,
+            "columnNames": [
+              "installedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_install_history_installedAt` ON `${TABLE_NAME}` (`installedAt`)"
+          },
+          {
+            "name": "index_install_history_releaseName_createdAt",
+            "unique": true,
+            "columnNames": [
+              "releaseName",
+              "createdAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_install_history_releaseName_createdAt` ON `${TABLE_NAME}` (`releaseName`, `createdAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "games",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "releaseName"
+            ],
+            "referencedColumns": [
+              "releaseName"
+            ]
+          }
+        ]
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1f0e45a271d7adfff8ab4f34cf5be451')"
+    ]
+  }
+}
