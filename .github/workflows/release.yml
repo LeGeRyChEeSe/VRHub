@@ -64,6 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ env.BUILD_VERSION }}
+      draft: ${{ env.DRAFT_RELEASE }}
     # NFR-B1: CI/CD workflow must complete release build within 10 minutes (soft target).
     # Hard timeout set to 15 minutes to provide sufficient headroom for infrastructure
     # variations while performance monitoring ensures the 10-minute SLA is respected.
@@ -212,6 +213,23 @@ jobs:
               echo "✅ Detected stable Release build"
             fi
           ' || (RET=$?; if [ $RET -eq 124 ]; then echo "::error::Validation timed out (exceeded AC3 30s limit)"; fi; exit $RET)
+
+      - name: Resolve draft mode
+        shell: bash
+        env:
+          INPUT_DRAFT: ${{ inputs.draft }}
+        run: |
+          if [ "$GITHUB_REF" != "${GITHUB_REF#refs/tags/}" ]; then
+            echo "DRAFT_RELEASE=false" >> $GITHUB_ENV
+            echo "Triggered by tag push: release will be published." >> $GITHUB_STEP_SUMMARY
+          elif [ "${INPUT_DRAFT:-true}" = "true" ]; then
+            echo "DRAFT_RELEASE=true" >> $GITHUB_ENV
+            echo "Draft mode: release is created as DRAFT (assets downloadable by maintainers only), the Netlify update feed is NOT touched. Publish the release from the GitHub Releases page (or re-run with draft=false) to make it the official update." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "DRAFT_RELEASE=false" >> $GITHUB_ENV
+            echo "Publish mode: release will be published and deployed to the Netlify update feed." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "DRAFT_RELEASE=${DRAFT_RELEASE}"
 
       - name: Extract Release Notes
         timeout-minutes: 1
@@ -649,6 +667,7 @@ jobs:
           tag_name: v${{ env.BUILD_VERSION }}
           name: VRHub v${{ env.BUILD_VERSION }}${{ env.RELEASE_TITLE_SUFFIX }}
           body_path: release_notes.md
+          draft: ${{ env.DRAFT_RELEASE == 'true' }}
           prerelease: ${{ env.IS_PRERELEASE == 'true' }}
           files: app/build/outputs/apk/prod/release/VRHub-v${{ env.BUILD_VERSION }}.apk
           generate_release_notes: false
@@ -659,7 +678,7 @@ jobs:
     name: Deploy to Netlify
     runs-on: ubuntu-latest
     needs: build
-    if: success()
+    if: success() && needs.build.outputs.draft != 'true'
     permissions:
       contents: write
     steps:
