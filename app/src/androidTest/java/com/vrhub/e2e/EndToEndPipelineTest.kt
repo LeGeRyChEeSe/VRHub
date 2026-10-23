@@ -89,6 +89,7 @@ class EndToEndPipelineTest {
 
     @After
     fun tearDown() {
+        if (!this::repo.isInitialized) return
         runBlocking {
             repo.db.gameDao().clearAll()
             repo.db.queuedInstallDao().deleteAll()
