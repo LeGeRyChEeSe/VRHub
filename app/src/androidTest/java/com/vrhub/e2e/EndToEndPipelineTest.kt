@@ -18,6 +18,7 @@ import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
+import org.junit.Assume
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -70,6 +71,10 @@ class EndToEndPipelineTest {
 
     @Before
     fun setup() {
+        // Harness-gated battery: when the live args are not provided (plain
+        // connectedAndroidTest without scripts/e2e.sh), skip instead of failing,
+        // so the regular CI instrumented run stays green.
+        Assume.assumeNotNull(InstrumentationRegistry.getArguments().getString("password"))
         context = ApplicationProvider.getApplicationContext()
         // Production runtime: under test-mode init, setForeground() still routes through
         // SystemForegroundDispatcher (verified in work-testing 2.9.1 bytecode), which ANRs
