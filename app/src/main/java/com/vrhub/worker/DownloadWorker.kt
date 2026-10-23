@@ -30,6 +30,7 @@ import com.vrhub.data.MirrorNotFoundException
 import com.vrhub.data.NetworkModule
 import com.vrhub.data.NoDownloadableFilesException
 import com.vrhub.data.NonRetryableDownloadException
+import com.vrhub.data.UnsupportedPublicSourceException
 import com.vrhub.data.toData
 import com.vrhub.network.PublicConfig
 import okhttp3.OkHttpClient
@@ -447,6 +448,9 @@ class DownloadWorker(
         okHttpClient.newCall(request).await().use { response ->
             if (response.code == 404) {
                 throw MirrorNotFoundException(releaseName)
+            }
+            if (response.code == 401 || response.code == 403) {
+                throw UnsupportedPublicSourceException(response.code)
             }
             if (!response.isSuccessful) {
                 throw Exception("Mirror error: ${response.code}")

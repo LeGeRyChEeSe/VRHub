@@ -115,6 +115,9 @@ class ServerConfigRepository(context: Context) {
 
         // Check response code
         if (!response.isSuccessful) {
+            if (response.code == 401 || response.code == 403) {
+                return@withContext Result.failure(UnsupportedPublicSourceException(response.code))
+            }
             return@withContext Result.failure(NetworkException("Server returned error: ${response.code}"))
         }
 
@@ -319,6 +322,9 @@ suspend fun testConnection(config: ServerConfig): TestResult {
         }
 
         if (!response.isSuccessful) {
+            if (response.code == 401 || response.code == 403) {
+                return@withContext TestResult.ConnectionError(unsupportedPublicSourceMessage(response.code))
+            }
             return@withContext TestResult.ConnectionError("Server returned error: ${response.code}")
         }
 
@@ -352,6 +358,9 @@ suspend fun testPassword(config: ServerConfig, context: android.content.Context)
         } ?: return@withContext TestResult.Timeout(30)
 
         if (!response.isSuccessful) {
+            if (response.code == 401 || response.code == 403) {
+                return@withContext TestResult.ConnectionError(unsupportedPublicSourceMessage(response.code))
+            }
             return@withContext TestResult.ConnectionError("Failed to download meta.7z: ${response.code}")
         }
 

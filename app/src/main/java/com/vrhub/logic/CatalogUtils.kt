@@ -5,6 +5,7 @@ import android.util.Log
 import com.vrhub.data.Constants
 import com.vrhub.data.NetworkModule
 import com.vrhub.data.DownloadUtils
+import com.vrhub.data.UnsupportedPublicSourceException
 import com.vrhub.data.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -140,6 +141,9 @@ object CatalogUtils {
             .build()
 
         NetworkModule.okHttpClient.newCall(request).await().use { response ->
+            if (response.code == 401 || response.code == 403) {
+                throw UnsupportedPublicSourceException(response.code)
+            }
             if (!response.isSuccessful) throw IOException("HTTP ${response.code} when downloading $url")
             val body = response.body ?: throw IOException("Empty body when downloading $url")
             
