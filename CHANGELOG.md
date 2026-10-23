@@ -1,4 +1,4 @@
-## [Unreleased]
+## [4.1.7] - 2026-10-23
 
 ### Added
 - **Appearance customization:** New Appearance settings screen with accent color, font and
@@ -22,6 +22,12 @@
   `rememberCoroutineScope` instead of leaking a coroutine tied to the wrong scope.
 - **Server config read off the main thread:** `MainScreenWrapper` no longer reads the server
   configuration on the main thread, avoiding a potential UI jank/ANR.
+- **Explicit 401/403 errors for unsupported public sources (#81):** pointing the app at a
+  third-party public catalog feed (e.g. a sideloader JSON URL) now fails with an explicit,
+  actionable message instead of an opaque "Server returned error: 403". Connection tests,
+  config fetch, catalog sync and downloads all surface the reason and point the user to a
+  self-hosted VRHub-compatible server (for example vrhub-server). The README gained a FAQ
+  entry listing supported sources and unsupported sources.
 
 ### Removed
 - **Dead code cleanup:** Removed unused code in `MainRepository` and guarded against an
