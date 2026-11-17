@@ -215,6 +215,29 @@ data class InstallTaskState(
 )
 
 /**
+ * Whether a queued task is a "zombie": a status that can only come from work that was running when
+ * the app was killed, and that no startup branch would otherwise recover (it would spin forever).
+ * LOCAL_VERIFYING belongs here because the fast-track flow sets it right before launching the
+ * installation phase, so a kill during verification leaves the row stuck in "verifying…".
+ */
+@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+internal fun isZombieTaskStatus(status: InstallTaskStatus): Boolean =
+    status == InstallTaskStatus.EXTRACTING ||
+        status == InstallTaskStatus.INSTALLING ||
+        status == InstallTaskStatus.LOCAL_VERIFYING
+
+/**
+ * Whether a zombie task may be reset to QUEUED.
+ *
+ * If the release still has pending WorkManager work (RUNNING / ENQUEUED / BLOCKED), resetting the
+ * row would let the queue processor enqueue a second worker for the same release: the task must
+ * instead be re-observed. Only genuinely finished work (SUCCEEDED / FAILED / CANCELLED, or no work
+ * at all) may be reset.
+ */
+@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+internal fun shouldResetZombieToQueued(downloadWorkActive: Boolean): Boolean = !downloadWorkActive
+
+/**
  * Maps Room InstallStatus (from data layer) to UI InstallTaskStatus.
  *
  * ARCHITECTURAL NOTE: These mappers intentionally couple the data and UI layers.
@@ -1303,15 +1326,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-        // Handle zombie states first (EXTRACTING/INSTALLING stuck after app kill)
+        // Handle zombie states first (EXTRACTING/INSTALLING/LOCAL_VERIFYING stuck after app kill)
         // CRITICAL: Reset ALL zombies to QUEUED to ensure sequential processing via queue processor
         // This prevents the concurrency bug where multiple zombies could trigger parallel extractions
-        val zombieTasks = activeQueue.filter {
-            it.status == InstallTaskStatus.EXTRACTING || it.status == InstallTaskStatus.INSTALLING
-        }
+        val zombieTasks = activeQueue.filter { isZombieTaskStatus(it.status) }
 
         if (zombieTasks.isNotEmpty()) {
-            Log.w(TAG, "Found ${zombieTasks.size} zombie task(s) stuck in EXTRACTING/INSTALLING state - resetting to QUEUED")
+            Log.w(TAG, "Found ${zombieTasks.size} zombie task(s) stuck in EXTRACTING/INSTALLING/LOCAL_VERIFYING state - recovering them")
             for (task in zombieTasks) {
                 handleZombieTaskRecovery(task)
             }
@@ -1449,6 +1470,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Enhanced: Checks for staged APK in externalFilesDir to skip extraction phase entirely.
      */
     private suspend fun handleZombieTaskRecovery(task: InstallTaskState) = withContext(Dispatchers.IO) {
+        // Race guard: a task can be left in EXTRACTING/INSTALLING/LOCAL_VERIFYING while its
+        // download work is still alive in WorkManager (RUNNING / ENQUEUED / BLOCKED). Resetting
+        // the row to QUEUED in that case would let the queue processor enqueue a second worker
+        // for the same release. Re-observe the existing work instead and leave the status alone.
+        val downloadWorkActive = repository.isDownloadWorkActive(task.releaseName)
+        if (!shouldResetZombieToQueued(downloadWorkActive)) {
+            Log.i(
+                TAG,
+                "Zombie recovery skipped for ${task.releaseName}: download work still active, resuming observation"
+            )
+            observeDownloadWork(task.releaseName, task.gameName)
+            return@withContext
+        }
+
         val context = getApplication<Application>()
         val tempInstallRoot = File(context.filesDir, "install_temp")
 

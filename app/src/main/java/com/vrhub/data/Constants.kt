@@ -41,6 +41,14 @@ class MirrorNotFoundException(releaseName: String) :
     NonRetryableDownloadException("Mirror error: 404 - Game not found: $releaseName")
 
 /**
+ * Thrown when OBB files could not be moved to the external OBB directory.
+ * Installing without its OBB data makes the game launch broken, so this aborts the
+ * installation phase instead of continuing with incomplete data.
+ */
+class ObbMoveException(failedFiles: List<String>) :
+    NonRetryableDownloadException("OBB files failed to move (${failedFiles.size}): ${failedFiles.joinToString(", ")}")
+
+/**
  * Thrown when a source rejects the app with 401/403.
  * VRHub only supports self-hosted servers; public catalog hosts
  * (third-party sideloader JSON feeds) are not supported.
