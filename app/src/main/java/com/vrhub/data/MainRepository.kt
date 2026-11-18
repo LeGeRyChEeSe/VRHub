@@ -9,6 +9,7 @@ import android.os.StatFs
 import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.vrhub.logic.CatalogParser
 import com.vrhub.logic.CatalogUtils
 import com.vrhub.network.StatsApiService
@@ -733,9 +734,19 @@ class MainRepository(
             // Filter out failed HEAD requests (-1L) before summing to prevent invalid totalSize
             // -1L indicates unknown size (will be determined during download)
             val validSegments = segmentMap.filter { it.value > 0L }
-            val totalSize = validSegments.values.sum()
-            
-            gameDao.updateSize(game.releaseName, totalSize)
+
+            // Persist the total only when every segment size is known. A -1L segment means a HEAD
+            // request failed, so the sum would be silently too small; the metadata loop only
+            // re-fetches games whose sizeBytes is null, so a wrong-too-small size would never be
+            // corrected. Leaving the size null keeps the game eligible for a later retry.
+            val persistedTotal = persistTotalSizeIfKnown(game.releaseName, segmentMap)
+            if (persistedTotal == null) {
+                Log.w(
+                    TAG,
+                    "Unknown segment size(s) for ${game.releaseName}, not persisting a total size (will be retried)"
+                )
+            }
+            val totalSize = persistedTotal ?: validSegments.values.sum()
             gameDao.updateMetadata(game.releaseName, description, screenshotUrls.joinToString("|"))
             // Story 11.2: persist the resolved trailer URL only when we actually found one,
             // so a transient empty fetch never wipes a previously stored value.
@@ -2416,7 +2427,8 @@ class MainRepository(
         }
     }
 
-    private fun moveObbFiles(packageFolder: File?, looseObbs: List<File>, packageName: String) {
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun moveObbFiles(packageFolder: File?, looseObbs: List<File>, packageName: String) {
         // Check MANAGE_EXTERNAL_STORAGE permission before OBB operations
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
             !PermissionManager.hasManageExternalStoragePermission(context)) {
@@ -2439,6 +2451,10 @@ class MainRepository(
 
         // Calculate total bytes needed for OBB copy
         var totalObbBytes = 0L
+        // Files that did not land in the OBB directory, and how many did: used to abort the
+        // install phase when the game would otherwise be installed without part of its OBB data.
+        val failedObbMoves = mutableListOf<String>()
+        var movedObbCount = 0
         packageFolder?.walkTopDown()?.filter { it.isFile && !it.name.endsWith(".apk", true) }
             ?.forEach { totalObbBytes += it.length() }
         looseObbs.forEach { totalObbBytes += it.length() }
@@ -2468,6 +2484,8 @@ class MainRepository(
                 val relPath = source.relativeTo(packageFolder).path
                 val destFile = File(obbBaseDir, relPath)
                 val isFromDownloads = source.absolutePath.contains(downloadsDir.absolutePath)
+                // Captured before any move/delete so the destination can be verified afterwards
+                val expectedSize = source.length()
                 try {
                     destFile.parentFile?.mkdirs()
 
@@ -2475,12 +2493,13 @@ class MainRepository(
                     // lastModified() comparison removed due to filesystem precision issues
                     // (some filesystems have second precision, others millisecond)
                     // Size-only check is sufficient for OBB files which are immutable game assets
-                    if (destFile.exists() && destFile.length() == source.length()) {
+                    if (destFile.exists() && destFile.length() == expectedSize) {
                         Log.d(TAG, "Skipping OBB file (already present with matching size): ${source.name}")
                         // Delete source since we've confirmed destination exists with same size
                         if (!isFromDownloads) {
                             source.delete()
                         }
+                        movedObbCount++
                         return@forEach
                     }
 
@@ -2496,9 +2515,20 @@ class MainRepository(
                             }
                         }
                     }
+
+                    // Verify the file landed at its destination with the expected size.
+                    // A game installed without its OBB data launches broken, so a failed move
+                    // must not be swallowed: it is collected and aborts the install phase below.
+                    if (!destFile.exists() || destFile.length() != expectedSize) {
+                        Log.e(TAG, "OBB move verification failed for ${source.name}: expected $expectedSize bytes at ${destFile.absolutePath}")
+                        failedObbMoves.add(source.name)
+                    } else {
+                        movedObbCount++
+                    }
                     // DO NOT scan OBB files with MediaScanner (non-media archives)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to move OBB from folder: ${source.name}", e)
+                    failedObbMoves.add(source.name)
                 }
             }
         }
@@ -2506,13 +2536,15 @@ class MainRepository(
         looseObbs.forEach { loose ->
             val destFile = File(obbBaseDir, loose.name)
             val isFromDownloads = loose.absolutePath.contains(downloadsDir.absolutePath)
+            val expectedSize = loose.length()
             try {
                 // Idempotency check using size only (see above for reasoning)
-                if (destFile.exists() && destFile.length() == loose.length()) {
+                if (destFile.exists() && destFile.length() == expectedSize) {
                     Log.d(TAG, "Skipping loose OBB file (already present with matching size): ${loose.name}")
                     if (!isFromDownloads) {
                         loose.delete()
                     }
+                    movedObbCount++
                     return@forEach
                 }
 
@@ -2524,27 +2556,31 @@ class MainRepository(
                     }
                     if (!isFromDownloads) loose.delete()
                 }
+
+                // Verify the move, same as for the package folder above
+                if (!destFile.exists() || destFile.length() != expectedSize) {
+                    Log.e(TAG, "Loose OBB move verification failed for ${loose.name}: expected $expectedSize bytes at ${destFile.absolutePath}")
+                    failedObbMoves.add(loose.name)
+                } else {
+                    movedObbCount++
+                }
                 // DO NOT scan OBB files with MediaScanner (non-media archives)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to move loose OBB: ${loose.name}", e)
+                failedObbMoves.add(loose.name)
             }
         }
 
-        // OBB integrity verification
-        // Verify that all expected OBB files were successfully copied
-        if (totalObbBytes > 0) {
-            val expectedObbCount = (packageFolder?.walkTopDown()?.count { it.isFile && !it.name.endsWith(".apk", true) } ?: 0) +
-                                   looseObbs.size
-            val actualObbFiles = obbBaseDir.listFiles()?.filter { it.isFile } ?: emptyList()
-            val actualObbCount = actualObbFiles.size
+        // OBB integrity: abort the installation phase when any expected OBB file did not land in
+        // place. ObbMoveException is a NonRetryableDownloadException, so DownloadWorker fails the
+        // task immediately and reports the message instead of launching a broken game.
+        if (failedObbMoves.isNotEmpty()) {
+            Log.e(TAG, "OBB move aborted: ${failedObbMoves.size} of ${movedObbCount + failedObbMoves.size} file(s) missing in ${obbBaseDir.absolutePath}")
+            throw ObbMoveException(failedObbMoves)
+        }
 
-            if (actualObbCount < expectedObbCount) {
-                Log.w(TAG, "OBB integrity warning: Expected $expectedObbCount OBB files, found $actualObbCount in ${obbBaseDir.absolutePath}")
-                Log.w(TAG, "Game may not work correctly - some OBB files failed to copy")
-            } else {
-                val totalCopied = actualObbFiles.sumOf { it.length() }
-                Log.i(TAG, "OBB integrity verified: $actualObbCount files, ${totalCopied / (1024 * 1024)}MB in ${obbBaseDir.absolutePath}")
-            }
+        if (totalObbBytes > 0) {
+            Log.i(TAG, "OBB integrity verified: $movedObbCount files, ${totalObbBytes / (1024 * 1024)}MB in ${obbBaseDir.absolutePath}")
         }
     }
 
@@ -2895,13 +2931,52 @@ class MainRepository(
     }
 
     /**
-     * Checks if a download work is currently running or enqueued
+     * Checks if a download work is currently running, enqueued or blocked.
+     *
+     * BLOCKED counts as active: a constraint-blocked download (e.g. waiting for network or
+     * charging) is still pending WorkManager work that will run later. Treating it as finished
+     * caused the app to re-enqueue a second worker for the same release.
      */
     suspend fun isDownloadWorkActive(releaseName: String): Boolean = withContext(Dispatchers.IO) {
         val workInfos = WorkManager.getInstance(context)
             .getWorkInfosForUniqueWork("download_$releaseName")
             .get()
-        workInfos.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED }
+        workInfos.any { isActiveDownloadWorkState(it.state) }
+    }
+
+    /** Current WorkManager states of the unique download work of a release (empty if none). */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal suspend fun getDownloadWorkStates(releaseName: String): List<WorkInfo.State> =
+        withContext(Dispatchers.IO) {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWork("download_$releaseName")
+                .get()
+                .map { it.state }
+        }
+
+    /** Whether a WorkManager state still means pending download work for a release. */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun isActiveDownloadWorkState(state: WorkInfo.State): Boolean =
+        state == WorkInfo.State.RUNNING ||
+            state == WorkInfo.State.ENQUEUED ||
+            state == WorkInfo.State.BLOCKED
+
+    /**
+     * Persists the total size of a release only when every segment size is known.
+     *
+     * A -1L segment means its HEAD request failed (unknown size). Summing the remaining segments
+     * would store a size that is permanently too small: `needsData` in MainViewModel only re-fetches
+     * games whose sizeBytes is null, so an underestimated size is never corrected. Returning null
+     * leaves the stored size untouched (null in the catalog), so the metadata loop retries later.
+     *
+     * @return the persisted total, or null when nothing was written
+     */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal suspend fun persistTotalSizeIfKnown(releaseName: String, segmentMap: Map<String, Long>): Long? {
+        if (segmentMap.values.any { it < 0L }) return null
+        val total = segmentMap.values.filter { it > 0L }.sum()
+        gameDao.updateSize(releaseName, total)
+        return total
     }
 
     /**
