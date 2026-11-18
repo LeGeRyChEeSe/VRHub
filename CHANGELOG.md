@@ -29,6 +29,25 @@
   self-hosted VRHub-compatible server (for example vrhub-server). The README gained a FAQ
   entry listing supported sources and unsupported sources.
 
+- **Zombie recovery could race with live download work:** zombie detection reset a task to
+  QUEUED without checking whether WorkManager was still running it, so a killed-and-revived
+  task could be re-enqueued while its original worker was still active — two workers for the
+  same release writing the same install_temp directory. Recovery now consults
+  `isDownloadWorkActive` first and re-observes the live work instead of re-enqueuing. A
+  BLOCKED download (waiting on network or charging constraints) now counts as active work;
+  it used to be treated as finished and re-enqueued.
+- **`LOCAL_VERIFYING` was a dead end:** a kill during post-install verification left the task
+  spinning in `LOCAL_VERIFYING` forever with no retry path. The state is now classified as a
+  recoverable zombie.
+- **A game could install with incomplete OBB data:** `moveObbFiles` only logged when an OBB
+  did not land at its expected size. It now verifies every moved file against the expected
+  size and fails with a non-retryable `ObbMoveException`, so a game is never marked installed
+  while part of its OBB is missing. "No OBB files for this game" stays a success. Verified on
+  a real 2 202 411 236-byte OBB delivered as 31 split volumes.
+- **Failed size probes persisted an underestimated total:** a `-1L` segment from a failed HEAD
+  request is no longer written as the game's total size; the size stays unset so the metadata
+  loop retries it later instead of showing and reserving too little.
+
 ### Removed
 - **Dead code cleanup:** Removed unused code in `MainRepository` and guarded against an
   empty icon filename.
