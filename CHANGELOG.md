@@ -1,4 +1,4 @@
-## [4.1.7] - 2026-11-18
+## [4.1.7] - 2026-11-20
 
 ### Added
 - **Appearance customization:** New Appearance settings screen with accent color, font and
