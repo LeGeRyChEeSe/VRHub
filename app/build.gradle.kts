@@ -1,4 +1,4 @@
-﻿import java.util.Properties
+import java.util.Properties
 import java.io.FileInputStream
 
 plugins {
@@ -13,7 +13,7 @@ configurations.all {
         // Paparazzi 1.3.3 bundles com.android.tools:common 31.2.2 compiled against guava 31.1,
         // while robolectric 4.12.1 upgrades guava to 33.0.0 where Sets.toImmutableEnumSet()
         // is no longer accessible from com.android.resources (IllegalAccessError).
-        resolutionStrategy.force("com.google.guava:guava:31.1-jre")
+        resolutionStrategy.force("com.google.guava:guava:32.0.0-jre")
     }
 }
 
@@ -340,7 +340,7 @@ dependencies {
     // fix needs a Kotlin-2.1 toolchain this app is not on. See ui/components/TrailerPlayer.kt.)
 
     // 7z Support
-    implementation("org.apache.commons:commons-compress:1.26.0")
+    implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("org.tukaani:xz:1.9")
 
     // Room Database
